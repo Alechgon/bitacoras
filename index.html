@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOSER San Pablo · Mantención</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛠️</text></svg>">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="datos.js"></script>
+<style>
+:root{
+  --bg:#f4f6f5; --panel:#ffffff; --ink:#15211b; --muted:#6b7772; --line:#dfe5e2;
+  --green:#14532d; --green2:#1e6b3a; --greenSoft:#e4f0e8;
+  --red:#b3261e; --redSoft:#fbe4e1; --amber:#8a6100; --amberSoft:#fff2cc;
+  --blue:#1f5fb4; --blueSoft:#e2ecfa; --violet:#5b4a9c; --violetSoft:#ece8f7;
+  --r:12px; --sh:0 1px 3px rgba(20,40,30,.09),0 6px 18px rgba(20,40,30,.05);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#10150f; --panel:#18201b; --ink:#e8efe9; --muted:#95a39b; --line:#2b352e;
+  --greenSoft:#1d3325; --redSoft:#3a201d; --amberSoft:#3a3018; --blueSoft:#1b2a41; --violetSoft:#272040;
+  --sh:0 1px 3px rgba(0,0,0,.4);
+}}
+:root[data-theme="dark"]{
+  --bg:#10150f; --panel:#18201b; --ink:#e8efe9; --muted:#95a39b; --line:#2b352e;
+  --greenSoft:#1d3325; --redSoft:#3a201d; --amberSoft:#3a3018; --blueSoft:#1b2a41; --violetSoft:#272040;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+ font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+header{position:sticky;top:0;z-index:40;background:var(--green);color:#fff;
+ padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header h1{font-size:15px;margin:0;font-weight:700;letter-spacing:.2px}
+header .sub{font-size:11px;opacity:.75;margin-left:auto}
+nav{position:sticky;top:44px;z-index:39;background:var(--panel);border-bottom:1px solid var(--line);
+ display:flex;gap:2px;overflow-x:auto;padding:0 8px;scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+nav button{background:none;border:0;border-bottom:3px solid transparent;color:var(--muted);
+ padding:11px 13px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+nav button.on{color:var(--green2);border-bottom-color:var(--green2)}
+main{padding:14px;max-width:1500px;margin:0 auto}
+.view{display:none} .view.on{display:block}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+ box-shadow:var(--sh);padding:14px;margin-bottom:14px}
+h2{font-size:17px;margin:0 0 4px} h3{font-size:14px;margin:0 0 8px}
+.dim{color:var(--muted);font-size:12px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+button.btn,.btn{background:var(--green2);color:#fff;border:0;border-radius:9px;
+ padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--green2);border:1.5px solid var(--green2)}
+.btn.red{background:var(--red)} .btn.gray{background:var(--muted)}
+.btn:active{transform:translateY(1px)}
+input,select,textarea{background:var(--panel);color:var(--ink);border:1.5px solid var(--line);
+ border-radius:9px;padding:9px 11px;font:inherit;font-size:14px;width:100%}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--green2);border-color:var(--green2)}
+label.f{display:block;font-size:11px;font-weight:700;color:var(--muted);
+ text-transform:uppercase;letter-spacing:.4px;margin:0 0 4px}
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700}
+.p-red{background:var(--redSoft);color:var(--red)} .p-amb{background:var(--amberSoft);color:var(--amber)}
+.p-grn{background:var(--greenSoft);color:var(--green2)} .p-blu{background:var(--blueSoft);color:var(--blue)}
+.p-vio{background:var(--violetSoft);color:var(--violet)}
+.score{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:26px;
+ border-radius:8px;font-weight:800;font-size:13px}
+.s-hi{background:var(--redSoft);color:var(--red)} .s-md{background:var(--amberSoft);color:var(--amber)}
+.s-lo{background:var(--greenSoft);color:var(--green2)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);
+ border-bottom:2px solid var(--line);padding:7px 8px;position:sticky;top:0;background:var(--panel)}
+td{border-bottom:1px solid var(--line);padding:7px 8px;vertical-align:top}
+tr:hover td{background:var(--greenSoft)}
+.scroll{overflow:auto;max-height:70vh;border-radius:10px;border:1px solid var(--line)}
+/* tablero */
+.board{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:860px){.board{grid-template-columns:1fr}}
+.col{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px}
+.colhead{display:flex;align-items:center;gap:8px;padding-bottom:9px;margin-bottom:9px;
+ border-bottom:2px solid var(--green2)}
+.colhead b{font-size:14px}
+.slot{border:1.5px dashed var(--line);border-radius:10px;padding:8px;margin-bottom:9px;min-height:62px}
+.slot.over{border-color:var(--green2);background:var(--greenSoft)}
+.slot .sh{font-size:10.5px;font-weight:800;letter-spacing:.5px;color:var(--muted);
+ text-transform:uppercase;margin-bottom:6px;display:flex;justify-content:space-between}
+.task{background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--blue);
+ border-radius:9px;padding:9px 10px;margin-bottom:7px;cursor:grab;box-shadow:var(--sh)}
+.task.k-cor{border-left-color:var(--red)} .task.k-mix{border-left-color:var(--amber)}
+.task.k-extra{border-left-color:var(--violet);border-style:dashed}
+.task.done{opacity:.55} .task.done .tt{text-decoration:line-through}
+.task .tt{font-weight:700;font-size:13.5px}
+.task .td{font-size:11.5px;color:var(--muted);margin-top:3px}
+.task .tm{display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap}
+.chk{width:18px;height:18px;accent-color:var(--green2);flex:0 0 auto}
+.modal{position:fixed;inset:0;background:rgba(8,14,10,.6);display:none;z-index:99;
+ align-items:center;justify-content:center;padding:14px}
+.modal.on{display:flex}
+.modal .box{background:var(--panel);border-radius:14px;max-width:760px;width:100%;
+ max-height:88vh;overflow:auto;padding:18px}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi .k{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:11px}
+.kpi .k b{display:block;font-size:24px;line-height:1.1} .kpi .k span{font-size:11px;color:var(--muted)}
+.bar{height:9px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:7px}
+.bar i{display:block;height:100%;background:var(--green2)}
+.bar i.late{background:var(--red)}
+.gantt{overflow:auto;border:1px solid var(--line);border-radius:10px}
+.gantt table{font-size:11px} .gantt td,.gantt th{padding:3px 5px;white-space:nowrap}
+.gantt .cell{width:22px;text-align:center;font-weight:800;color:#fff;border-radius:4px}
+.searchbig{max-width:720px;margin:26px auto}
+.searchbig input{font-size:19px;padding:15px 18px;border-radius:14px;text-align:center}
+.chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+.chip{border:1.5px solid var(--line);background:var(--panel);border-radius:99px;padding:5px 12px;
+ font-size:12px;font-weight:600;cursor:pointer;color:var(--muted)}
+.chip.on{background:var(--green2);color:#fff;border-color:var(--green2)}
+.res{border-left:4px solid var(--green2);padding-left:11px;margin:12px 0}
+details{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;overflow:hidden}
+details summary{padding:10px 12px;font-weight:700;cursor:pointer;background:var(--greenSoft);font-size:13.5px}
+details .in{padding:10px 12px}
+.aviso{position:fixed;right:14px;bottom:14px;z-index:120;background:var(--green);color:#fff;
+ padding:14px 16px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.3);max-width:330px;display:none}
+.aviso.on{display:block}
+.drop{border:2.5px dashed var(--line);border-radius:14px;padding:30px;text-align:center;color:var(--muted)}
+.drop.over{border-color:var(--green2);background:var(--greenSoft);color:var(--green2)}
+.mini{font-size:11.5px;color:var(--muted)}
+mark{background:var(--amberSoft);color:var(--ink);padding:0 2px;border-radius:3px}
+</style>
+</head>
+<body>
+<header>
+  <h1>SOSER · Sucursal San Pablo</h1>
+  <span class="dim" style="color:#cfe3d6;font-size:11px">Mantención PAE · 85-34-LR25</span>
+  <span class="sub" id="hdrmeta"></span>
+  <button class="btn ghost" style="color:#fff;border-color:rgba(255,255,255,.5);padding:5px 10px" onclick="toggleTema()">◐</button>
+</header>
+<nav id="nav"></nav>
+<main>
+  <section class="view" id="v-hoy"></section>
+  <section class="view" id="v-semana"></section>
+  <section class="view" id="v-crono"></section>
+  <section class="view" id="v-estab"></section>
+  <section class="view" id="v-bits"></section>
+  <section class="view" id="v-buscar"></section>
+  <section class="view" id="v-pend"></section>
+  <section class="view" id="v-config"></section>
+</main>
+<div class="modal" id="modal"><div class="box" id="modalbox"></div></div>
+<div class="aviso" id="aviso"></div>
+
+<script>
+/* ============================ ESTADO ============================ */
+const D = window.SOSER;
+const E = {}; D.ESTAB.forEach(e => E[e.rbd] = e);
+const LS = 'soser-sanpablo-v1';
+let ST = {plan:[], extras:[], bits:[], hechos:{}, log:[], cfg:{}};
+
+function cargar(){
+  const raw = localStorage.getItem(LS);
+  ST = {plan:JSON.parse(JSON.stringify(D.PLAN)), extras:[], bits:[], hechos:{}, log:[], cfg:{}};
+  if(raw){ try{ const s = JSON.parse(raw);
+    if(s.plan) ST.plan = s.plan;
+    ST.extras = s.extras||[]; ST.bits = s.bits||[]; ST.hechos = s.hechos||{};
+    ST.log = s.log||[]; ST.cfg = s.cfg||{};
+  }catch(e){ console.warn('estado corrupto', e); } }
+}
+function guardar(){ try{ localStorage.setItem(LS, JSON.stringify(ST)); }catch(e){ alert('No se pudo guardar: '+e.message); } }
+cargar();
+
+/* ============================ UTIL ============================ */
+const MES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const DIA=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+function d2(n){return String(n).padStart(2,'0')}
+function hoyISO(){ return D.META.hoy }
+function fISO(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
+function fmt(s){ if(!s) return '—'; const d=fISO(s); return d2(d.getDate())+'-'+MES[d.getMonth()]+'-'+d.getFullYear(); }
+function fcorto(s){ const d=fISO(s); return d2(d.getDate())+'-'+MES[d.getMonth()]; }
+function diaSem(s){ return DIA[fISO(s).getDay()] }
+function esViernes(s){ return fISO(s).getDay()===5 }
+function esHabil(s){ const d=fISO(s).getDay(); return d>=1&&d<=5 && !D.META.feriados.includes(s); }
+function addDias(s,n){ const d=fISO(s); d.setDate(d.getDate()+n);
+  return d.getFullYear()+'-'+d2(d.getMonth()+1)+'-'+d2(d.getDate()); }
+function sigHabil(s){ let x=addDias(s,1); let g=0; while(!esHabil(x)&&g++<40) x=addDias(x,1); return x; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function sc(p){ return p>=13?'s-hi':p>=9?'s-md':'s-lo'; }
+function norm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function horaBloque(fecha,b){ return esViernes(fecha) ? (D.META.bloquesV[b]||'—') : (D.META.bloquesLJ[b]||'—'); }
+function claseCard(c){ return c==='CORRECTIVO URGENTE'?'k-cor':c==='PREV + CORRECTIVO'?'k-mix':c==='EXTRA'?'k-extra':''; }
+
+function tareasDe(fecha){
+  return ST.plan.filter(p=>p.fecha===fecha && p.estado!=='anulada')
+    .concat(ST.extras.filter(x=>x.fecha===fecha));
+}
+function todas(){ return ST.plan.concat(ST.extras); }
+
+/* ============================ NAV ============================ */
+const VISTAS=[['hoy','Hoy'],['semana','Semana'],['crono','Cronograma'],['estab','Establecimientos'],
+              ['bits','Bitácoras'],['buscar','Buscador'],['pend','Pendientes'],['config','Ajustes']];
+let actual='hoy';
+document.getElementById('nav').innerHTML = VISTAS.map(([k,t])=>
+  `<button id="nb-${k}" onclick="ir('${k}')">${t}</button>`).join('');
+function ir(k){ actual=k;
+  VISTAS.forEach(([v])=>{ document.getElementById('v-'+v).classList.toggle('on',v===k);
+    document.getElementById('nb-'+v).classList.toggle('on',v===k); });
+  ({hoy:vHoy,semana:vSemana,crono:vCrono,estab:vEstab,bits:vBits,buscar:vBuscar,pend:vPend,config:vConfig})[k]();
+  window.scrollTo(0,0);
+}
+function toggleTema(){ const r=document.documentElement;
+  const t=r.getAttribute('data-theme')==='dark'?'light':'dark'; r.setAttribute('data-theme',t);
+  try{localStorage.setItem('soser-tema',t)}catch(e){} }
+try{ const t=localStorage.getItem('soser-tema'); if(t) document.documentElement.setAttribute('data-theme',t);}catch(e){}
+
+function modal(html){ document.getElementById('modalbox').innerHTML=html;
+  document.getElementById('modal').classList.add('on'); }
+function cerrarModal(){ document.getElementById('modal').classList.remove('on'); }
+document.getElementById('modal').addEventListener('click',e=>{ if(e.target.id==='modal') cerrarModal(); });
+
+/* ====================== AVANCE DE LAS METAS ====================== */
+function avance(){
+  const junaeb = D.ESTAB.filter(e=>e.inst==='Junaeb');
+  const jard = D.ESTAB.filter(e=>e.inst!=='Junaeb');
+  const hechoJ = junaeb.filter(e=> todas().some(p=>p.rbd===e.rbd && p.estado==='realizada')).length;
+  const hechoG = jard.filter(e=> todas().some(p=>p.rbd===e.rbd && p.estado==='realizada')).length;
+  return {junaeb:junaeb.length, hechoJ, jard:jard.length, hechoG};
+}
+function barrasMeta(){
+  const a=avance();
+  const pj=Math.round(100*a.hechoJ/a.junaeb), pg=Math.round(100*a.hechoG/a.jard);
+  const tardeJ = hoyISO() > D.META.metaJunaeb && pj<100;
+  return `<div class="grid2">
+   <div class="card" style="margin:0">
+     <h3>Meta 1 · JUNAEB en Datácora</h3>
+     <div class="dim">Plazo ${fmt(D.META.metaJunaeb)} · regla número uno</div>
+     <div class="row" style="margin-top:8px"><b style="font-size:26px">${a.hechoJ}</b>
+       <span class="dim">de ${a.junaeb} establecimientos</span>
+       <span class="pill ${tardeJ?'p-red':'p-grn'}" style="margin-left:auto">${pj}%</span></div>
+     <div class="bar"><i class="${tardeJ?'late':''}" style="width:${pj}%"></i></div>
+   </div>
+   <div class="card" style="margin:0">
+     <h3>Meta 2 · Preventivo jardines</h3>
+     <div class="dim">Plazo ${fmt(D.META.metaJardines)} · JUNJI e INTEGRA</div>
+     <div class="row" style="margin-top:8px"><b style="font-size:26px">${a.hechoG}</b>
+       <span class="dim">de ${a.jard} jardines</span>
+       <span class="pill p-grn" style="margin-left:auto">${pg}%</span></div>
+     <div class="bar"><i style="width:${pg}%"></i></div>
+   </div></div>`;
+}
+
+/* ============================ HOY ============================ */
+let fechaHoy = hoyISO();
+function vHoy(){
+  const f=fechaHoy, vie=esViernes(f);
+  const blos = vie?[1,2]:[1,2,3];
+  let h = barrasMeta();
+  h += `<div class="card"><div class="row">
+    <div><label class="f">Día de trabajo</label>
+      <input type="date" id="fhoy" value="${f}" onchange="fechaHoy=this.value;vHoy()" style="width:170px"></div>
+    <div><label class="f">&nbsp;</label>
+      <div class="row"><button class="btn ghost" onclick="fechaHoy=sigHabilAtras(fechaHoy);vHoy()">◀</button>
+      <button class="btn ghost" onclick="fechaHoy=sigHabil(fechaHoy);vHoy()">▶</button>
+      <button class="btn ghost" onclick="fechaHoy=hoyISO();vHoy()">Hoy</button></div></div>
+    <div style="margin-left:auto;text-align:right">
+      <div><b>${diaSem(f)} ${fmt(f)}</b></div>
+      <div class="dim">${vie?'Viernes · jornada '+D.META.jornadaV+' · 2 bloques':'Jornada '+D.META.jornadaLJ+' · 3 bloques'}</div>
+    </div></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" onclick="modalAgregar()">+ Agregar emergencia</button>
+      <button class="btn ghost" onclick="modalCierre()">Cerrar día y postergar</button>
+      <button class="btn ghost" onclick="imprimirDia()">Imprimir orden</button>
+      ${!esHabil(f)?'<span class="pill p-amb">Día no hábil</span>':''}
+    </div></div>`;
+
+  h += '<div class="board">';
+  for(const tk of ['RODRIGO','CAMILO']){
+    const t=D.META.tecnicos[tk];
+    h += `<div class="col"><div class="colhead">
+      <b>${t.nombre}</b><span class="dim">${t.cred}</span></div>`;
+    for(const b of blos){
+      const tareas = tareasDe(f).filter(p=>p.tec===tk && p.bloque===b);
+      h += `<div class="slot" data-tec="${tk}" data-b="${b}" ondragover="dOver(event)"
+        ondragleave="this.classList.remove('over')" ondrop="dDrop(event,'${tk}',${b},'${f}')">
+        <div class="sh"><span>Bloque ${b} · ${horaBloque(f,b)}</span>
+        <span>${b===3?'reservado a emergencias':'2 horas'}</span></div>
+        ${tareas.map(cardTarea).join('')}</div>`;
+    }
+    // bloque extra ilimitado
+    const ext = tareasDe(f).filter(p=>p.tec===tk && p.bloque>=4);
+    h += `<div class="slot" data-tec="${tk}" data-b="4" ondragover="dOver(event)"
+      ondragleave="this.classList.remove('over')" ondrop="dDrop(event,'${tk}',4,'${f}')">
+      <div class="sh"><span>Extra · fuera de bloque</span><span>${ext.length} carga${ext.length==1?'':'s'}</span></div>
+      ${ext.map(cardTarea).join('')}
+      <button class="btn ghost" style="width:100%;margin-top:4px" onclick="modalAgregar('${tk}')">+ sumar aquí</button></div>`;
+    h += '</div>';
+  }
+  h += '</div>';
+  document.getElementById('v-hoy').innerHTML=h;
+}
+function sigHabilAtras(s){ let x=addDias(s,-1),g=0; while(!esHabil(x)&&g++<40) x=addDias(x,-1); return x; }
+
+function cardTarea(p){
+  const e=E[p.rbd]||{nombre:p.nombre||'(sin ficha)',dir:'',comuna:'',sup:'',gas:''};
+  const hecho = p.estado==='realizada';
+  return `<div class="task ${claseCard(p.clase)} ${hecho?'done':''}" draggable="true"
+    ondragstart="dStart(event,'${p.id}')" >
+    <div class="row" style="gap:8px;align-items:flex-start">
+      <input type="checkbox" class="chk" ${hecho?'checked':''} onchange="marcar('${p.id}',this.checked)">
+      <div style="flex:1;min-width:0">
+        <div class="tt">${p.rbd} · ${esc(e.nombre)}</div>
+        <div class="td">${esc(e.dir)} · ${esc(e.comuna)} · ${esc(e.gas)}</div>
+        <div class="td">${esc(p.detalle||'')}</div>
+        <div class="tm">
+          <span class="score ${sc(p.pts||0)}">${p.pts||'–'}</span>
+          <span class="pill ${p.clase==='PREVENTIVA'?'p-blu':p.clase==='EXTRA'?'p-vio':'p-red'}">${p.clase}</span>
+          ${p.aplaz?`<span class="pill p-amb">aplazada ${p.aplaz}×</span>`:''}
+          ${e.sup?`<span class="mini">Sup: ${esc(e.sup)}</span>`:''}
+          <button class="btn ghost" style="padding:3px 9px;font-size:11px;margin-left:auto"
+            onclick="fichaEstab(${p.rbd})">ficha</button>
+        </div>
+      </div></div></div>`;
+}
+function marcar(id,v){
+  const p = todas().find(x=>x.id===id); if(!p) return;
+  p.estado = v?'realizada':'programada'; guardar(); vHoy();
+}
+let dragId=null;
+function dStart(ev,id){ dragId=id; ev.dataTransfer.effectAllowed='move'; }
+function dOver(ev){ ev.preventDefault(); ev.currentTarget.classList.add('over'); }
+function dDrop(ev,tec,b,fecha){
+  ev.preventDefault(); ev.currentTarget.classList.remove('over');
+  const p = todas().find(x=>x.id===dragId); if(!p) return;
+  p.tec=tec; p.bloque=b; p.fecha=fecha; guardar(); vHoy();
+}
+
+/* ---- agregar emergencia (ilimitadas) ---- */
+function modalAgregar(tec){
+  modal(`<h2>Agregar trabajo al día</h2>
+  <div class="dim">${diaSem(fechaHoy)} ${fmt(fechaHoy)} — se suma fuera del plan, sin límite.</div>
+  <div style="margin-top:12px"><label class="f">Establecimiento</label>
+    <input id="agBuscar" placeholder="Escribe RBD o nombre…" oninput="agSug(this.value)" autocomplete="off">
+    <div id="agRes" style="max-height:220px;overflow:auto;margin-top:6px"></div></div>
+  <input type="hidden" id="agRbd">
+  <div class="grid2" style="margin-top:10px">
+    <div><label class="f">Técnico</label><select id="agTec">
+      <option value="RODRIGO" ${tec==='RODRIGO'?'selected':''}>Rodrigo Martínez</option>
+      <option value="CAMILO" ${tec==='CAMILO'?'selected':''}>Camilo Santis</option></select></div>
+    <div><label class="f">Bloque</label><select id="agBloq">
+      <option value="1">Bloque 1</option><option value="2">Bloque 2</option>
+      <option value="3" selected>Bloque 3</option><option value="4">Extra</option></select></div>
+  </div>
+  <div style="margin-top:10px"><label class="f">Qué hay que hacer</label>
+    <textarea id="agDet" rows="2" placeholder="Fuga de gas en cocina, calefont no enciende…"></textarea></div>
+  <div class="grid2" style="margin-top:10px">
+    <div><label class="f">Tipo</label><select id="agCrit">
+      <option value="GAS">Gas (fuga u olor)</option><option value="FRIO">Frío</option>
+      <option value="AGUA">Agua / calefont</option><option value="ELEC">Eléctrico</option>
+      <option value="EQUIPO" selected>Equipo</option><option value="OTRO">Otro</option></select></div>
+    <div><label class="f">Quién lo pidió</label><input id="agQuien" placeholder="Stephania, Annahi, Carla, Juan Carlos…"></div>
+  </div>
+  <div class="row" style="margin-top:14px"><button class="btn" onclick="agGuardar()">Agregar</button>
+    <button class="btn gray" onclick="cerrarModal()">Cancelar</button></div>`);
+  setTimeout(()=>document.getElementById('agBuscar').focus(),80);
+}
+function agSug(q){
+  const n=norm(q); const box=document.getElementById('agRes');
+  if(n.length<2){ box.innerHTML=''; return; }
+  const r = D.ESTAB.filter(e=> String(e.rbd).includes(n) || norm(e.nombre).includes(n)).slice(0,12);
+  box.innerHTML = r.map(e=>`<div class="res" style="cursor:pointer;margin:6px 0"
+    onclick="agPick(${e.rbd})"><b>${e.rbd}</b> · ${esc(e.nombre)}
+    <div class="mini">${esc(e.dir)} · ${esc(e.comuna)} · ${esc(e.inst)}</div></div>`).join('')
+    || '<div class="dim">Sin coincidencias</div>';
+}
+function agPick(rbd){ document.getElementById('agRbd').value=rbd;
+  document.getElementById('agBuscar').value=rbd+' · '+E[rbd].nombre;
+  document.getElementById('agRes').innerHTML=''; }
+function agGuardar(){
+  const rbd=+document.getElementById('agRbd').value;
+  if(!rbd){ alert('Elige un establecimiento de la lista.'); return; }
+  const id='X'+Date.now();
+  ST.extras.push({id, fecha:fechaHoy, tec:document.getElementById('agTec').value,
+    bloque:+document.getElementById('agBloq').value, rbd, clase:'EXTRA',
+    detalle:document.getElementById('agDet').value||'Emergencia',
+    crit:document.getElementById('agCrit').value, quien:document.getElementById('agQuien').value,
+    pts:(E[rbd]?E[rbd].pts:5), estado:'programada', aplaz:0, origen:'extra'});
+  guardar(); cerrarModal(); vHoy();
+}
+
+/* ---- cierre del día: postergar lo no hecho ---- */
+function modalCierre(){
+  const t = tareasDe(fechaHoy).filter(p=>p.estado!=='realizada');
+  if(!t.length){ modal('<h2>Nada pendiente</h2><div class="dim">Todo lo del día quedó marcado como realizado.</div><div class="row" style="margin-top:14px"><button class="btn" onclick="cerrarModal()">Cerrar</button></div>'); return; }
+  modal(`<h2>Cerrar el día</h2>
+  <div class="dim">${diaSem(fechaHoy)} ${fmt(fechaHoy)} — marca lo que NO se ejecutó. Eso se posterga al siguiente día hábil y suma un punto de criticidad.</div>
+  <div style="margin-top:12px">${t.map(p=>{const e=E[p.rbd]||{};
+    return `<label class="res" style="display:flex;gap:9px;align-items:flex-start;cursor:pointer">
+     <input type="checkbox" class="chk cierre" value="${p.id}" checked>
+     <div><b>${p.rbd} · ${esc(e.nombre||'')}</b>
+     <div class="mini">${esc(p.detalle||'')}</div>
+     ${p.aplaz?`<span class="pill p-amb">ya se aplazó ${p.aplaz}×${p.aplaz>=1?' — el siguiente lo autorizas tú':''}</span>`:''}
+     </div></label>`}).join('')}</div>
+  <div style="margin-top:10px"><label class="f">Motivo (queda registrado)</label>
+    <input id="cierreMotivo" placeholder="Entraron emergencias, sin acceso, falta repuesto…"></div>
+  <div class="row" style="margin-top:14px"><button class="btn red" onclick="aplicarCierre()">Postergar seleccionadas</button>
+    <button class="btn gray" onclick="cerrarModal()">Cancelar</button></div>`);
+}
+function aplicarCierre(){
+  const ids=[...document.querySelectorAll('.cierre:checked')].map(i=>i.value);
+  const motivo=document.getElementById('cierreMotivo').value||'sin motivo indicado';
+  let dobles=[];
+  ids.forEach(id=>{
+    const p=todas().find(x=>x.id===id); if(!p) return;
+    if(p.aplaz>=1) dobles.push(p);
+    p.aplaz=(p.aplaz||0)+1; p.pts=Math.min(20,(p.pts||0)+1);
+    p.fecha=sigHabil(p.fecha); p.estado='programada';
+    ST.log.push({ts:new Date().toISOString(), id, rbd:p.rbd, motivo, aplaz:p.aplaz, nueva:p.fecha});
+  });
+  guardar(); cerrarModal(); vHoy();
+  if(dobles.length) setTimeout(()=>alert('Ojo: '+dobles.length+' trabajo(s) van en su segundo aplazamiento o más. Según la regla, eso lo autorizas tú y queda en el registro de Ajustes.'),150);
+}
+
+function imprimirDia(){
+  const f=fechaHoy;
+  let h=`<h2 style="margin-bottom:2px">Orden de trabajo · ${diaSem(f)} ${fmt(f)}</h2>
+  <div class="dim">SOSER San Pablo · ${esViernes(f)?D.META.jornadaV:D.META.jornadaLJ}</div>`;
+  for(const tk of ['RODRIGO','CAMILO']){
+    h+=`<h3 style="margin-top:14px">${D.META.tecnicos[tk].nombre}</h3><table><tr><th>Horario</th><th>RBD</th><th>Establecimiento</th><th>Dirección</th><th>Trabajo</th><th>✔</th></tr>`;
+    const bs=esViernes(f)?[1,2]:[1,2,3,4];
+    bs.forEach(b=>{ const ts=tareasDe(f).filter(p=>p.tec===tk&&p.bloque===b);
+      if(!ts.length && b<=3){ h+=`<tr><td>${horaBloque(f,b)}</td><td colspan="4" class="dim">Emergencia / reserva</td><td>☐</td></tr>`; }
+      ts.forEach(p=>{const e=E[p.rbd]||{};
+        h+=`<tr><td>${b>=4?'extra':horaBloque(f,b)}</td><td><b>${p.rbd}</b></td><td>${esc(e.nombre||'')}</td><td>${esc(e.dir||'')}</td><td>${esc(p.detalle||'')}</td><td>☐</td></tr>`;});
+    });
+    h+='</table>';
+  }
+  const w=window.open('','_blank');
+  w.document.write(`<html><head><title>Orden ${f}</title><style>
+   body{font:13px Arial;padding:18px;color:#111}table{width:100%;border-collapse:collapse;margin-top:6px}
+   th,td{border:1px solid #bbb;padding:6px;text-align:left;font-size:12px}
+   th{background:#14532d;color:#fff}.dim{color:#666;font-size:11px}h3{margin:14px 0 4px}
+   </style></head><body>${h}</body></html>`);
+  w.document.close(); w.focus(); setTimeout(()=>w.print(),400);
+}
+
+/* ============================ SEMANA ============================ */
+let lunes = (function(){ const d=fISO(hoyISO()); const off=(d.getDay()+6)%7; return addDias(hoyISO(),-off); })();
+function vSemana(){
+  const dias=[0,1,2,3,4].map(i=>addDias(lunes,i));
+  let h=`<div class="card"><div class="row">
+    <button class="btn ghost" onclick="lunes=addDias(lunes,-7);vSemana()">◀ semana</button>
+    <b>${fmt(dias[0])} al ${fmt(dias[4])}</b>
+    <button class="btn ghost" onclick="lunes=addDias(lunes,7);vSemana()">semana ▶</button>
+    <span class="dim" style="margin-left:auto">Arrastra tarjetas entre días y técnicos</span></div></div>`;
+  h+='<div style="overflow:auto"><div style="display:grid;grid-template-columns:repeat(5,minmax(220px,1fr));gap:10px;min-width:1100px">';
+  dias.forEach(f=>{
+    const hab=esHabil(f);
+    h+=`<div class="col" style="padding:10px">
+      <div class="colhead" style="border-bottom-color:${hab?'var(--green2)':'var(--line)'}">
+        <b>${diaSem(f)}</b><span class="dim">${fcorto(f)}</span>
+        ${!hab?'<span class="pill p-amb" style="margin-left:auto">no hábil</span>':
+          `<span class="pill p-grn" style="margin-left:auto">${tareasDe(f).length}</span>`}</div>`;
+    ['RODRIGO','CAMILO'].forEach(tk=>{
+      const ts=tareasDe(f).filter(p=>p.tec===tk);
+      h+=`<div class="slot" ondragover="dOver(event)" ondragleave="this.classList.remove('over')"
+        ondrop="dDropSem(event,'${tk}','${f}')">
+        <div class="sh"><span>${tk==='RODRIGO'?'Rodrigo':'Camilo'}</span><span>${ts.length}</span></div>
+        ${ts.map(p=>{const e=E[p.rbd]||{};
+          return `<div class="task ${claseCard(p.clase)} ${p.estado==='realizada'?'done':''}"
+            draggable="true" ondragstart="dStart(event,'${p.id}')">
+            <div class="tt" style="font-size:12.5px">${p.rbd} · ${esc((e.nombre||'').slice(0,26))}</div>
+            <div class="td">B${p.bloque} · ${esc(e.comuna||'')}</div>
+            <div class="tm"><span class="score ${sc(p.pts||0)}" style="min-width:24px;height:21px;font-size:11px">${p.pts||'–'}</span>
+            ${p.aplaz?`<span class="pill p-amb">${p.aplaz}×</span>`:''}</div></div>`;}).join('')}
+        </div>`;
+    });
+    h+='</div>';
+  });
+  h+='</div></div>';
+  document.getElementById('v-semana').innerHTML=h;
+}
+function dDropSem(ev,tec,fecha){ ev.preventDefault(); ev.currentTarget.classList.remove('over');
+  const p=todas().find(x=>x.id===dragId); if(!p) return;
+  p.tec=tec; p.fecha=fecha; guardar(); vSemana(); }
+
+/* ============================ CRONOGRAMA ============================ */
+function vCrono(){
+  const sem=D.META.semanas;
+  let h=barrasMeta();
+  const porSem={}; todas().forEach(p=>{ const i=sem.findIndex((s,k)=> p.fecha>=s && (k===sem.length-1||p.fecha<sem[k+1]));
+    if(i>=0){ (porSem[p.rbd]=porSem[p.rbd]||{})[i]=p; } });
+  const orden=[...D.ESTAB].sort((a,b)=> b.pts-a.pts || a.rbd-b.rbd);
+  h+=`<div class="card"><h2>Carta Gantt</h2>
+   <div class="dim">P preventiva · M preventiva + correctivo · C correctivo urgente · X extra. Verde = realizada.</div>
+   <div class="gantt" style="margin-top:10px"><table><tr><th>Pts</th><th>RBD</th><th>Establecimiento</th><th>Inst.</th>
+   ${sem.map((s,i)=>`<th>S${i+1}<br>${fcorto(s)}</th>`).join('')}</tr>`;
+  orden.forEach(e=>{
+    h+=`<tr><td><span class="score ${sc(e.pts)}">${e.pts}</span></td><td><b>${e.rbd}</b></td>
+      <td style="max-width:230px;overflow:hidden;text-overflow:ellipsis">${esc(e.nombre)}</td>
+      <td>${esc(e.inst)}</td>`;
+    sem.forEach((s,i)=>{ const p=(porSem[e.rbd]||{})[i];
+      if(!p){ h+='<td></td>'; return; }
+      const L=p.clase==='PREVENTIVA'?'P':p.clase==='PREV + CORRECTIVO'?'M':p.clase==='EXTRA'?'X':'C';
+      const bg=p.estado==='realizada'?'var(--green2)':p.clase==='PREVENTIVA'?'var(--blue)':
+        p.clase==='PREV + CORRECTIVO'?'var(--amber)':p.clase==='EXTRA'?'var(--violet)':'var(--red)';
+      h+=`<td><div class="cell" style="background:${bg}" title="${fmt(p.fecha)} · ${esc(p.detalle||'')}">${L}</div></td>`; });
+    h+='</tr>';
+  });
+  h+='</table></div></div>';
+  document.getElementById('v-crono').innerHTML=h;
+}
+
+/* ============================ ESTABLECIMIENTOS ============================ */
+let fEstab={q:'',inst:'',cob:''};
+function vEstab(){
+  let l=D.ESTAB.filter(e=>{
+    if(fEstab.inst && e.inst!==fEstab.inst) return false;
+    if(fEstab.cob && e.cobertura!==fEstab.cob) return false;
+    if(fEstab.q){ const n=norm(fEstab.q);
+      if(!(String(e.rbd).includes(n)||norm(e.nombre).includes(n)||norm(e.dir).includes(n)||norm(e.comuna).includes(n))) return false; }
+    return true;
+  }).sort((a,b)=>b.pts-a.pts);
+  let h=`<div class="card"><div class="row">
+    <input placeholder="Buscar RBD, nombre, dirección o comuna…" value="${esc(fEstab.q)}"
+      oninput="fEstab.q=this.value;vEstab()" style="flex:1;min-width:200px">
+    <select onchange="fEstab.inst=this.value;vEstab()" style="width:auto">
+      <option value="">Toda institución</option>
+      ${['Junaeb','Junji','Integra'].map(i=>`<option ${fEstab.inst===i?'selected':''}>${i}</option>`).join('')}</select>
+    <select onchange="fEstab.cob=this.value;vEstab()" style="width:auto">
+      <option value="">Toda cobertura</option>
+      ${['SIN VISITA','SIN PREVENTIVA','CON PREVENTIVA'].map(i=>`<option ${fEstab.cob===i?'selected':''}>${i}</option>`).join('')}</select>
+    <span class="dim">${l.length} de ${D.ESTAB.length}</span></div></div>
+    <div class="card"><div class="scroll"><table><tr><th>Pts</th><th>RBD</th><th>Establecimiento</th>
+    <th>Comuna</th><th>Inst.</th><th>Gas</th><th>Rac.</th><th>Cobertura</th><th>Próxima</th></tr>`;
+  l.forEach(e=>{
+    const pr=todas().filter(p=>p.rbd===e.rbd&&p.estado!=='realizada').sort((a,b)=>a.fecha<b.fecha?-1:1)[0];
+    h+=`<tr style="cursor:pointer" onclick="fichaEstab(${e.rbd})">
+      <td><span class="score ${sc(e.pts)}">${e.pts}</span></td><td><b>${e.rbd}</b></td>
+      <td>${esc(e.nombre)}<div class="mini">${esc(e.dir)}</div></td>
+      <td>${esc(e.comuna)}</td><td>${esc(e.inst)}</td><td class="mini">${esc(e.gas)}</td>
+      <td>${e.rac}</td>
+      <td><span class="pill ${e.cobertura==='SIN VISITA'?'p-red':e.cobertura==='SIN PREVENTIVA'?'p-amb':'p-grn'}">${e.cobertura}</span></td>
+      <td>${pr?fcorto(pr.fecha):'—'}</td></tr>`;
+  });
+  h+='</table></div></div>';
+  document.getElementById('v-estab').innerHTML=h;
+}
+function fichaEstab(rbd){
+  const e=E[rbd]; if(!e) return;
+  const hist=D.HIST.filter(x=>x.rbd===rbd).sort((a,b)=>b.fecha<a.fecha?-1:1);
+  const bits=ST.bits.concat(D.BITS).filter(b=>b.rbd===rbd);
+  const plan=todas().filter(p=>p.rbd===rbd).sort((a,b)=>a.fecha<b.fecha?-1:1);
+  const men=D.MENC.filter(m=>m.rbd===rbd);
+  const cor=D.CORR.find(c=>c.rbd===rbd);
+  modal(`<div class="row"><h2 style="margin:0">${rbd} · ${esc(e.nombre)}</h2>
+   <span class="score ${sc(e.pts)}" style="margin-left:auto;min-width:40px;height:34px;font-size:17px">${e.pts}</span></div>
+   <div class="dim">${esc(e.dir)} · ${esc(e.comuna)} · ${esc(e.inst)} · ${e.rac} raciones · ${esc(e.gas)}</div>
+   <div class="dim">Supervisora: ${esc(e.sup)} · Unidades: ${e.unidades.map(esc).join(' + ')}</div>
+   <div class="card" style="margin-top:12px;background:var(--greenSoft)"><b>Puntaje ${e.pts}/20</b>
+     <div class="mini" style="margin-top:4px">${esc(e.why)}</div></div>
+   ${cor?`<div class="card" style="background:var(--redSoft)"><b>Correctivo abierto (${cor.crit})</b>
+     <div class="mini">${esc(cor.detalle)}</div>
+     <div class="mini">Reportado el ${fmt(cor.freporte)} · ${cor.dias} días · agendado para ${fmt(cor.agendado)}</div></div>`:''}
+   <h3 style="margin-top:14px">Programación</h3>
+   ${plan.length?plan.map(p=>`<div class="res"><b>${fmt(p.fecha)}</b> · ${p.clase} · B${p.bloque} ·
+     ${D.META.tecnicos[p.tec].nombre.split(' ')[0]} ${p.estado==='realizada'?'<span class="pill p-grn">realizada</span>':''}
+     ${p.aplaz?`<span class="pill p-amb">${p.aplaz}× aplazada</span>`:''}
+     <div class="mini">${esc(p.detalle||'')}</div></div>`).join(''):'<div class="dim">Sin visitas programadas.</div>'}
+   <h3 style="margin-top:14px">Bitácoras con detalle (${bits.length})</h3>
+   ${bits.length?bits.map(b=>`<details><summary>Folio ${b.folio} · ${fmt(b.fecha)} · ${b.items.length} ítems</summary>
+     <div class="in">${b.items.map(i=>`<div class="mini">• <b>${esc(i.item)}</b> (${esc(i.categoria)}) ×${i.cantidad} — ${esc(i.accion)} · ${esc(i.observacion)}</div>`).join('')}</div></details>`).join(''):'<div class="dim">Todavía no se ha cargado ningún PDF de este establecimiento.</div>'}
+   <h3 style="margin-top:14px">Visitas registradas 2° semestre (${hist.length})</h3>
+   <div class="mini">${hist.length?hist.map(x=>`${fmt(x.fecha)} · ${x.tipo}${x.folio?' · folio '+x.folio:''} · ${x.fuente}`).join('<br>'):'Sin registros desde el 01-07.'}</div>
+   <h3 style="margin-top:14px">Lo que dijeron las supervisoras (${men.length})</h3>
+   <div class="mini">${men.length?men.map(m=>`<b>${fcorto(m.fecha)}</b> ${esc(m.autor)}: ${esc(m.texto)}`).join('<br><br>'):'Sin menciones en el chat.'}</div>
+   <div class="row" style="margin-top:16px"><button class="btn" onclick="cerrarModal()">Cerrar</button></div>`);
+}
+
+/* ============================ BITÁCORAS ============================ */
+function vBits(){
+  const todasB = ST.bits.concat(D.BITS).sort((a,b)=>b.fecha<a.fecha?-1:1);
+  let h=`<div class="card"><h2>Cargar bitácora en PDF</h2>
+   <div class="dim">Arrastra el PDF o elige el archivo. La página lee el folio, la fecha, el RBD y cada ítem revisado,
+   te muestra el resultado para que lo corrijas, y al guardar lo suma al cronograma en su fecha — antes o después de hoy, da lo mismo.</div>
+   <div class="drop" id="drop" style="margin-top:12px"
+     ondragover="event.preventDefault();this.classList.add('over')"
+     ondragleave="this.classList.remove('over')" ondrop="dropPDF(event)">
+     <b>Suelta aquí el PDF</b><div class="mini" style="margin-top:6px">o</div>
+     <input type="file" id="fpdf" accept="application/pdf" multiple style="margin-top:8px;max-width:300px"
+       onchange="leerPDFs(this.files)"></div>
+   <div id="pdfstat" class="dim" style="margin-top:8px"></div></div>
+   <div class="card"><h2>Bitácoras guardadas (${todasB.length})</h2>
+   <div class="scroll" style="max-height:60vh"><table><tr><th>Folio</th><th>Fecha</th><th>RBD</th>
+   <th>Establecimiento</th><th>Ítems</th><th>Categorías</th><th>Técnico</th><th></th></tr>`;
+  todasB.forEach(b=>{
+    const cats=[...new Set(b.items.map(i=>i.categoria))];
+    h+=`<tr><td><b>${b.folio||'s/n'}</b></td><td>${fmt(b.fecha)}</td><td>${b.rbd}</td>
+     <td>${esc(b.estab||(E[b.rbd]||{}).nombre||'')}</td><td>${b.items.length}</td>
+     <td class="mini">${cats.map(esc).join(', ')}</td><td class="mini">${esc(b.tecnico||'')}</td>
+     <td><button class="btn ghost" style="padding:3px 9px;font-size:11px" onclick='verBit(${JSON.stringify(b.folio)},"${b.fecha}")'>ver</button></td></tr>`;
+  });
+  h+='</table></div></div>';
+  document.getElementById('v-bits').innerHTML=h;
+}
+function verBit(folio,fecha){
+  const b=ST.bits.concat(D.BITS).find(x=>x.folio===folio&&x.fecha===fecha); if(!b) return;
+  const porCat={}; b.items.forEach(i=>(porCat[i.categoria]=porCat[i.categoria]||[]).push(i));
+  modal(`<h2>Bitácora folio ${b.folio}</h2>
+   <div class="dim">${fmt(b.fecha)} ${b.hora||''} · RBD ${b.rbd} · ${esc(b.estab||'')}</div>
+   <div class="dim">${esc(b.direccion||'')} ${b.comuna?'· '+esc(b.comuna):''}</div>
+   <div class="dim">Técnico: ${esc(b.tecnico||'—')} · Encargado PAE: ${esc(b.encargado||'—')}</div>
+   ${Object.keys(porCat).map(c=>`<details open><summary>${esc(c)} · ${porCat[c].length} ítems</summary><div class="in">
+     ${porCat[c].map(i=>`<div class="res"><b>${esc(i.item)}</b> ×${i.cantidad} · ${esc(i.accion)}
+       ${i.ubicacion?'· '+esc(i.ubicacion):''}<div class="mini">${esc(i.observacion)}</div></div>`).join('')}
+     </div></details>`).join('')}
+   <div class="row" style="margin-top:14px"><button class="btn" onclick="cerrarModal()">Cerrar</button></div>`);
+}
+function dropPDF(ev){ ev.preventDefault(); document.getElementById('drop').classList.remove('over');
+  leerPDFs(ev.dataTransfer.files); }
+
+/* --- parser de bitácora con coordenadas --- */
+const CAT_ITEMS = D.CATS;
+const ITEM2CAT = {}; Object.keys(CAT_ITEMS).forEach(c=>CAT_ITEMS[c].forEach(i=>ITEM2CAT[norm(i)]=c));
+const ACCIONES=['mantencion','reparacion','cambio','instalacion','retiro','revision','limpieza'];
+
+async function leerPDFs(files){
+  const st=document.getElementById('pdfstat');
+  for(const f of files){
+    st.textContent='Leyendo '+f.name+'…';
+    try{
+      const b=await parsePDF(await f.arrayBuffer(), f.name);
+      revisarBit(b);
+    }catch(e){ st.textContent='No pude leer '+f.name+': '+e.message; console.error(e); }
+  }
+  st.textContent='';
+}
+async function parsePDF(buf,nombre){
+  const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+  let filas=[];
+  for(let p=1;p<=pdf.numPages;p++){
+    const pg=await pdf.getPage(p); const tc=await pg.getTextContent();
+    const off=(p-1)*10000;
+    tc.items.forEach(it=>{ const s=(it.str||'').trim(); if(!s) return;
+      filas.push({x:it.transform[4], y:off + (10000-it.transform[5]), t:s}); });
+  }
+  // agrupar en líneas por y
+  filas.sort((a,b)=>a.y-b.y || a.x-b.x);
+  const lineas=[]; let cur=null;
+  filas.forEach(c=>{ if(!cur || Math.abs(c.y-cur.y)>3.2){ cur={y:c.y, cels:[]}; lineas.push(cur);} cur.cels.push(c); });
+  lineas.forEach(l=>l.cels.sort((a,b)=>a.x-b.x));
+  const texto = lineas.map(l=>l.cels.map(c=>c.t).join('  ')).join('\n');
+
+  const out={archivo:nombre, items:[], fuente:'PDF cargado'};
+  let m=texto.match(/FOLIO\s*\n?\s*(\d+)/i); if(m) out.folio=+m[1];
+  m=texto.match(/FECHA:\s*(\d{2})\/(\d{2})\/(\d{4})/i); if(m) out.fecha=m[3]+'-'+m[2]+'-'+m[1];
+  m=texto.match(/HORA:\s*(\d{1,2}:\d{2})/i); if(m) out.hora=m[1];
+  m=texto.match(/RBD:\s*(\d+)/i); if(m) out.rbd=+m[1];
+  m=texto.match(/ESTABLECIMIENTO:\s*(.+)/i); if(m) out.estab=m[1].trim();
+  m=texto.match(/DIRECCION:\s*(.+?)\s{2,}COMUNA:\s*(.+)/i);
+  if(m){ out.direccion=m[1].trim(); out.comuna=m[2].trim(); }
+  const nm=[...texto.matchAll(/Nombre:\s*(.+?)\s{2,}Nombre:\s*(.+)/gi)];
+  if(nm.length){ out.tecnico=nm[0][1].trim(); out.encargado=nm[0][2].trim(); }
+  if(!out.rbd && E[out.rbd]) {}
+  // columnas: buscar una cabecera de tabla para fijar x de Cantidad / Accion / Observacion
+  let colC=null,colA=null,colO=null,colUb=[];
+  for(const l of lineas){
+    const txt=l.cels.map(c=>norm(c.t)).join(' ');
+    if(txt.includes('cocina')&&txt.includes('cantidad')&&txt.includes('accion')&&txt.includes('observacion')){
+      l.cels.forEach(c=>{ const n=norm(c.t);
+        if(n==='cantidad') colC=c.x; else if(n==='accion') colA=c.x; else if(n==='observacion') colO=c.x;
+        else if(['cocina','bodega','bano','baño','patio','otro'].includes(n)) colUb.push({n:c.t,x:c.x}); });
+      if(colC&&colA&&colO) break;
+    }
+  }
+  // recorrer líneas buscando filas con datos
+  let etiqueta='';
+  for(const l of lineas){
+    const izq=l.cels.filter(c=>!colC||c.x<colC-30).map(c=>c.t).join(' ').trim();
+    const der=l.cels.filter(c=>colC&&c.x>=colC-30);
+    const cab=norm(izq);
+    if(['calor','electricidad','frio','vectores','agua','infraestructura'].includes(cab)) { etiqueta=''; continue; }
+    if(!der.length){ if(izq) etiqueta=(etiqueta?etiqueta+' ':'')+izq; continue; }
+    const acumulado=(etiqueta?etiqueta+' ':'')+izq;
+    let item=null;
+    Object.keys(ITEM2CAT).forEach(k=>{ if(norm(acumulado).includes(k) && (!item||k.length>norm(item).length)) item=k; });
+    if(!item){ etiqueta=acumulado; continue; }
+    const nombreItem = CAT_ITEMS[ITEM2CAT[item]].find(i=>norm(i)===item);
+    let cant=null, accion='', obs=[], ubic=[];
+    der.forEach(c=>{
+      const n=norm(c.t);
+      if(colA && Math.abs(c.x-colA)<45 && ACCIONES.some(a=>n.startsWith(a))){ accion=c.t; return; }
+      if(colO && c.x>=colO-45){ obs.push(c.t); return; }
+      if(/^\d+$/.test(n)){
+        if(colC && Math.abs(c.x-colC)<40) cant=+n;
+        else { const u=colUb.reduce((p,q)=>Math.abs(q.x-c.x)<Math.abs(p.x-c.x)?q:p, colUb[0]||{n:'',x:0});
+               ubic.push(u.n+':'+n); }
+        return; }
+      if(ACCIONES.some(a=>n.startsWith(a))){ accion=c.t; return; }
+      obs.push(c.t);
+    });
+    if(cant==null && !accion && !obs.length){ etiqueta=acumulado; continue; }
+    out.items.push({categoria:ITEM2CAT[item], item:nombreItem||item,
+      ubicacion:ubic.join(' '), cantidad:cant||1, accion:accion||'Revision',
+      observacion:obs.join(' ').trim()});
+    etiqueta='';
+  }
+  return out;
+}
+
+let bitBorrador=null;
+function revisarBit(b){
+  bitBorrador=b;
+  modal(`<h2>Revisa lo que leí del PDF</h2>
+   <div class="dim">${esc(b.archivo)} — corrige lo que haga falta antes de guardar.</div>
+   <div class="grid2" style="margin-top:12px">
+    <div><label class="f">Folio</label><input id="bFolio" value="${b.folio||''}"></div>
+    <div><label class="f">Fecha</label><input type="date" id="bFecha" value="${b.fecha||hoyISO()}"></div>
+    <div><label class="f">RBD</label><input id="bRbd" value="${b.rbd||''}" oninput="bNombre()"></div>
+    <div><label class="f">Establecimiento</label><input id="bEstab" value="${esc(b.estab||'')}"></div>
+    <div><label class="f">Técnico</label><input id="bTec" value="${esc(b.tecnico||'')}"></div>
+    <div><label class="f">Encargado PAE</label><input id="bEnc" value="${esc(b.encargado||'')}"></div>
+   </div>
+   <h3 style="margin-top:14px">Ítems detectados (${b.items.length})</h3>
+   <div id="bItems">${b.items.map((i,k)=>filaItem(i,k)).join('')}</div>
+   <button class="btn ghost" style="margin-top:8px" onclick="agregarItem()">+ agregar ítem a mano</button>
+   <div class="row" style="margin-top:16px">
+     <button class="btn" onclick="guardarBit()">Guardar y sumar al cronograma</button>
+     <button class="btn gray" onclick="cerrarModal()">Descartar</button></div>`);
+}
+function filaItem(i,k){
+  const cats=Object.keys(CAT_ITEMS);
+  return `<div class="res" data-k="${k}" style="display:grid;grid-template-columns:110px 1fr 58px 110px;gap:6px;margin:7px 0">
+    <select class="bi-cat">${cats.map(c=>`<option ${c===i.categoria?'selected':''}>${c}</option>`).join('')}</select>
+    <input class="bi-item" value="${esc(i.item)}">
+    <input class="bi-cant" type="number" value="${i.cantidad}">
+    <input class="bi-acc" value="${esc(i.accion)}">
+    <input class="bi-obs" value="${esc(i.observacion)}" style="grid-column:1/-1" placeholder="Observación">
+  </div>`;
+}
+function agregarItem(){ const k=document.querySelectorAll('#bItems .res').length;
+  document.getElementById('bItems').insertAdjacentHTML('beforeend',
+    filaItem({categoria:'Calor',item:'',cantidad:1,accion:'Mantencion',observacion:''},k)); }
+function bNombre(){ const r=+document.getElementById('bRbd').value;
+  if(E[r]) document.getElementById('bEstab').value=E[r].nombre; }
+function guardarBit(){
+  const items=[...document.querySelectorAll('#bItems .res')].map(d=>({
+    categoria:d.querySelector('.bi-cat').value, item:d.querySelector('.bi-item').value,
+    cantidad:+d.querySelector('.bi-cant').value||1, accion:d.querySelector('.bi-acc').value,
+    observacion:d.querySelector('.bi-obs').value, ubicacion:''})).filter(i=>i.item);
+  const b={folio:+document.getElementById('bFolio').value||null,
+    fecha:document.getElementById('bFecha').value, rbd:+document.getElementById('bRbd').value,
+    estab:document.getElementById('bEstab').value, tecnico:document.getElementById('bTec').value,
+    encargado:document.getElementById('bEnc').value, direccion:bitBorrador.direccion||'',
+    comuna:bitBorrador.comuna||'', hora:bitBorrador.hora||'', archivo:bitBorrador.archivo,
+    items, fuente:'PDF cargado'};
+  ST.bits.push(b);
+  // sumarla al cronograma en su fecha
+  const yaPlan = ST.plan.find(p=>p.rbd===b.rbd && p.fecha===b.fecha);
+  if(yaPlan){ yaPlan.estado='realizada'; yaPlan.folio=b.folio; }
+  else {
+    ST.extras.push({id:'B'+Date.now(), fecha:b.fecha,
+      tec: /camilo/i.test(b.tecnico)?'CAMILO':'RODRIGO', bloque:1, rbd:b.rbd,
+      clase:'EXTRA', detalle:'Bitácora folio '+(b.folio||'s/n')+' — '+items.length+' ítems revisados',
+      crit:'OTRO', pts:(E[b.rbd]?E[b.rbd].pts:5), estado:'realizada', aplaz:0, origen:'bitacora'});
+    // y si había una visita futura pendiente del mismo sitio, se marca cubierta
+    const fut=ST.plan.filter(p=>p.rbd===b.rbd&&p.estado==='programada'&&p.fecha>=b.fecha)
+      .sort((a,b2)=>a.fecha<b2.fecha?-1:1)[0];
+    if(fut){ fut.estado='realizada'; fut.folio=b.folio; }
+  }
+  guardar(); cerrarModal(); vBits();
+}
+
+/* ============================ BUSCADOR ============================ */
+let bq='', bcat='';
+function vBuscar(){
+  const cats=Object.keys(CAT_ITEMS);
+  let h=`<div class="searchbig">
+    <input id="bigq" value="${esc(bq)}" placeholder="Busca un establecimiento, un RBD o un trabajo…"
+      oninput="bq=this.value;pintarBusqueda()" autocomplete="off">
+    <div class="chips">
+      <span class="chip ${bcat===''?'on':''}" onclick="bcat='';vBuscar()">Todas las categorías</span>
+      ${cats.map(c=>`<span class="chip ${bcat===c?'on':''}" onclick="bcat='${c}';vBuscar()">${c}</span>`).join('')}
+    </div></div><div id="bres"></div>`;
+  document.getElementById('v-buscar').innerHTML=h;
+  pintarBusqueda();
+  setTimeout(()=>{const i=document.getElementById('bigq'); if(i&&actual==='buscar') i.focus();},60);
+}
+function pintarBusqueda(){
+  const n=norm(bq), out=document.getElementById('bres'); if(!out) return;
+  const bits=ST.bits.concat(D.BITS);
+  if(!n && !bcat){
+    out.innerHTML=`<div class="card"><h3>Qué puedes buscar aquí</h3>
+     <div class="dim">El nombre de un colegio o jardín, un RBD, o una palabra del trabajo hecho —
+     "calefont", "extractor", "salad bar", "fuga". Con los chips de arriba filtras por categoría
+     de la bitácora: gas y calor, electricidad, frío, vectores, agua o infraestructura.</div>
+     <div class="kpi" style="margin-top:12px">
+      <div class="k"><b>${bits.length}</b><span>bitácoras con detalle</span></div>
+      <div class="k"><b>${bits.reduce((s,b)=>s+b.items.length,0)}</b><span>ítems revisados</span></div>
+      <div class="k"><b>${D.HIST.length}</b><span>visitas del 2° semestre</span></div>
+      <div class="k"><b>${D.MENC.length}</b><span>menciones de supervisoras</span></div></div></div>`;
+    return;
+  }
+  // 1. establecimientos
+  const ests=D.ESTAB.filter(e=> n && (String(e.rbd).includes(n)||norm(e.nombre).includes(n)
+    ||norm(e.dir).includes(n)||norm(e.comuna).includes(n)||norm(e.sup).includes(n))).slice(0,8);
+  // 2. ítems de bitácora
+  let items=[];
+  bits.forEach(b=> b.items.forEach(i=>{
+    if(bcat && i.categoria!==bcat) return;
+    const blob=norm(i.item+' '+i.accion+' '+i.observacion+' '+(b.estab||'')+' '+b.rbd);
+    if(!n || blob.includes(n)) items.push({b,i});
+  }));
+  // 3. menciones del chat
+  const mens=D.MENC.filter(m=> n && (norm(m.texto).includes(n)||String(m.rbd).includes(n)
+    ||norm((E[m.rbd]||{}).nombre||'').includes(n))).slice(0,14);
+  let h='';
+  if(ests.length){ h+=`<div class="card"><h3>Establecimientos (${ests.length})</h3>`;
+    ests.forEach(e=>{ h+=`<div class="res" style="cursor:pointer" onclick="fichaEstab(${e.rbd})">
+      <b>${e.rbd} · ${res(esc(e.nombre),bq)}</b> <span class="score ${sc(e.pts)}">${e.pts}</span>
+      <div class="mini">${esc(e.dir)} · ${esc(e.comuna)} · ${esc(e.inst)} · ${esc(e.gas)} ·
+      ${e.s2} visita(s) el 2° semestre · ${esc(e.cobertura)}</div></div>`; });
+    h+='</div>'; }
+  h+=`<div class="card"><h3>Trabajos realizados ${bcat?'· '+esc(bcat):''} (${items.length})</h3>`;
+  if(!items.length) h+='<div class="dim">Sin coincidencias en las bitácoras cargadas.</div>';
+  const porEst={}; items.forEach(x=>{ (porEst[x.b.rbd]=porEst[x.b.rbd]||[]).push(x); });
+  Object.keys(porEst).slice(0,25).forEach(rbd=>{
+    const g=porEst[rbd], e=E[rbd]||{};
+    h+=`<details><summary>${rbd} · ${esc(e.nombre||g[0].b.estab||'')} — ${g.length} trabajo(s)</summary><div class="in">`;
+    g.forEach(({b,i})=>{ h+=`<div class="res"><b>${res(esc(i.item),bq)}</b>
+      <span class="pill p-blu">${esc(i.categoria)}</span> ×${i.cantidad} · ${esc(i.accion)}
+      <div class="mini">${res(esc(i.observacion),bq)}</div>
+      <div class="mini">Folio ${b.folio||'s/n'} · ${fmt(b.fecha)} · ${esc(b.tecnico||'')}</div></div>`; });
+    h+='</div></details>';
+  });
+  h+='</div>';
+  if(mens.length){ h+=`<div class="card"><h3>Reportado por las supervisoras (${mens.length})</h3>`;
+    mens.forEach(m=>{ h+=`<div class="res"><b>${fmt(m.fecha)} · ${esc(m.autor)}</b>
+      <span class="mini">→ ${m.rbd} ${esc((E[m.rbd]||{}).nombre||'')}</span>
+      <div class="mini">${res(esc(m.texto),bq)}</div></div>`; });
+    h+='</div>'; }
+  out.innerHTML=h;
+}
+function res(txt,q){ if(!q||q.length<2) return txt;
+  try{ return txt.replace(new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig'),'<mark>$1</mark>'); }
+  catch(e){ return txt; } }
+
+/* ============================ PENDIENTES ============================ */
+function vPend(){
+  const cs=[...D.CORR].sort((a,b)=>b.pts-a.pts);
+  let h=`<div class="card"><h2>Correctivos abiertos (${cs.length})</h2>
+   <div class="dim">Salen del grupo de WhatsApp y de tu validación del 30-09. Ordenados por criticidad.</div></div>
+   <div class="card"><div class="scroll"><table><tr><th>Pts</th><th>RBD</th><th>Establecimiento</th>
+   <th>Tipo</th><th>Estado</th><th>Reportado</th><th>Días</th><th>Trabajo</th><th>Agendado</th></tr>`;
+  cs.forEach(c=>{const e=E[c.rbd]||{};
+    h+=`<tr style="cursor:pointer" onclick="fichaEstab(${c.rbd})">
+     <td><span class="score ${sc(c.pts)}">${c.pts}</span></td><td><b>${c.rbd}</b></td>
+     <td>${esc(e.nombre||'')}<div class="mini">${esc(e.comuna||'')}</div></td>
+     <td><span class="pill ${c.crit==='GAS'?'p-red':c.crit==='OTRO'?'p-grn':'p-amb'}">${c.crit}</span></td>
+     <td class="mini">${c.estado}${c.prio?' · prioridad':''}</td><td>${fcorto(c.freporte)}</td>
+     <td><b>${c.dias}</b></td><td style="max-width:340px">${esc(c.detalle)}</td>
+     <td>${c.agendado?fcorto(c.agendado):'—'}</td></tr>`;});
+  h+='</table></div></div>';
+  document.getElementById('v-pend').innerHTML=h;
+}
+
+/* ============================ AJUSTES ============================ */
+function vConfig(){
+  const a=avance();
+  let h=`<div class="card"><h2>Guardar y respaldar</h2>
+   <div class="dim">Todo lo que editas queda en este navegador. Para que quede en GitHub, exporta y sube el archivo al repo.</div>
+   <div class="row" style="margin-top:12px">
+     <button class="btn" onclick="exportar()">Exportar respaldo (.json)</button>
+     <label class="btn ghost" style="cursor:pointer">Importar respaldo
+       <input type="file" accept="application/json" style="display:none" onchange="importar(this.files[0])"></label>
+     <button class="btn red" onclick="if(confirm('Esto borra todos tus cambios locales y vuelve al plan original. ¿Seguro?')){localStorage.removeItem(LS);cargar();ir('hoy')}">Volver al plan original</button>
+   </div></div>
+   <div class="card"><h2>Avisos del día</h2>
+   <div class="dim">Los avisos del navegador solo suenan con la pestaña abierta. Para que te lleguen al celular
+   estando cerrada la página, hay que conectarlo al bot de Telegram.</div>
+   <div class="row" style="margin-top:10px">
+     <button class="btn ghost" onclick="pedirPermiso()">Activar avisos</button>
+     <span class="dim">Horarios: ${D.META.avisos.join(' · ')}</span></div>
+   <div id="permstat" class="mini" style="margin-top:6px"></div></div>
+   <div class="card"><h2>Registro de aplazamientos (${ST.log.length})</h2>
+   ${ST.log.length? '<div class="scroll" style="max-height:40vh"><table><tr><th>Cuándo</th><th>RBD</th><th>Veces</th><th>Nueva fecha</th><th>Motivo</th></tr>'
+     + ST.log.slice().reverse().map(l=>`<tr><td class="mini">${l.ts.slice(0,16).replace('T',' ')}</td>
+       <td><b>${l.rbd}</b></td><td>${l.aplaz>=2?`<span class="pill p-red">${l.aplaz}×</span>`:l.aplaz+'×'}</td>
+       <td>${fcorto(l.nueva)}</td><td class="mini">${esc(l.motivo)}</td></tr>`).join('')+'</table></div>'
+     : '<div class="dim">Todavía no se ha aplazado nada.</div>'}</div>
+   <div class="card"><h2>Estado</h2>
+   <div class="kpi">
+     <div class="k"><b>${a.hechoJ}/${a.junaeb}</b><span>JUNAEB al 30-oct</span></div>
+     <div class="k"><b>${a.hechoG}/${a.jard}</b><span>Jardines al 15-dic</span></div>
+     <div class="k"><b>${ST.extras.length}</b><span>trabajos agregados</span></div>
+     <div class="k"><b>${ST.bits.length}</b><span>bitácoras cargadas por ti</span></div>
+   </div></div>
+   <div class="card"><h2>Pesos del puntaje</h2>
+   <div class="mini">${Object.entries(D.META.pesos).map(([k,v])=>`${k}: +${v}`).join(' · ')}</div>
+   <div class="dim" style="margin-top:6px">Para cambiarlos hay que regenerar datos.js.</div></div>`;
+  document.getElementById('v-config').innerHTML=h;
+}
+function exportar(){
+  const blob=new Blob([JSON.stringify({guardado:new Date().toISOString(),...ST},null,1)],
+    {type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='soser-respaldo-'+hoyISO()+'.json'; a.click();
+}
+function importar(f){ if(!f) return; const r=new FileReader();
+  r.onload=()=>{ try{ const s=JSON.parse(r.result);
+    ST.plan=s.plan||ST.plan; ST.extras=s.extras||[]; ST.bits=s.bits||[];
+    ST.log=s.log||[]; ST.cfg=s.cfg||{}; guardar(); ir('hoy'); alert('Respaldo importado.');
+  }catch(e){ alert('El archivo no se pudo leer: '+e.message); } };
+  r.readAsText(f); }
+function pedirPermiso(){
+  if(!('Notification' in window)){ document.getElementById('permstat').textContent='Este navegador no soporta avisos.'; return; }
+  Notification.requestPermission().then(p=>{
+    document.getElementById('permstat').textContent = p==='granted'
+      ? 'Avisos activados. Funcionan mientras esta pestaña esté abierta.'
+      : 'Permiso denegado: los avisos saldrán solo dentro de la página.'; });
+}
+
+/* ============================ AVISOS ============================ */
+let avisado={};
+function chequearAvisos(){
+  const n=new Date(); const hh=d2(n.getHours())+':'+d2(n.getMinutes());
+  if(!D.META.avisos.includes(hh) || avisado[hh]) return;
+  avisado[hh]=true;
+  const f=hoyISO();
+  const pend=tareasDe(f).filter(p=>p.estado!=='realizada');
+  const txt = pend.length
+    ? pend.slice(0,4).map(p=>`${p.rbd} ${(E[p.rbd]||{}).nombre||''}`).join(' · ')
+    : 'No queda nada pendiente para hoy.';
+  const cuerpo = `${hh} · ${pend.length} pendiente(s): ${txt}`;
+  const a=document.getElementById('aviso');
+  a.innerHTML=`<b>Recordatorio ${hh}</b><div style="margin-top:5px;font-size:13px">${esc(cuerpo)}</div>
+    <button class="btn ghost" style="color:#fff;border-color:#fff;margin-top:9px;padding:4px 10px"
+      onclick="document.getElementById('aviso').classList.remove('on')">ok</button>`;
+  a.classList.add('on');
+  if(window.Notification && Notification.permission==='granted')
+    new Notification('SOSER San Pablo · '+hh, {body:cuerpo});
+}
+setInterval(chequearAvisos, 20000);
+
+/* ============================ ARRANQUE ============================ */
+document.getElementById('hdrmeta').textContent =
+  'Hoy ' + fmt(hoyISO()) + ' · meta JUNAEB ' + fmt(D.META.metaJunaeb);
+ir('hoy');
+</script>
+</body>
+</html>
