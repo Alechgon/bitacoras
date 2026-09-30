@@ -6,6 +6,7 @@
 <title>SOSER San Pablo · Mantención</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛠️</text></svg>">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="datos.js"></script>
 <style>
 :root{
@@ -121,6 +122,24 @@ details .in{padding:10px 12px}
 .drop.over{border-color:var(--green2);background:var(--greenSoft);color:var(--green2)}
 .mini{font-size:11.5px;color:var(--muted)}
 mark{background:var(--amberSoft);color:var(--ink);padding:0 2px;border-radius:3px}
+:focus-visible{outline:3px solid var(--green2);outline-offset:2px;border-radius:6px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.tbtn{border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:7px;
+ padding:3px 8px;font-size:11px;font-weight:700;cursor:pointer;min-height:28px}
+.tbtn:hover{border-color:var(--green2);color:var(--green2)}
+.wa{background:#e7f6ea;color:#0b2e16;border:1px solid #bfe3c9;border-radius:12px;padding:14px;
+ white-space:pre-wrap;font:13px/1.55 -apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .wa{background:#16281c;color:#dbeee1;border-color:#2c4735}}
+:root[data-theme="dark"] .wa{background:#16281c;color:#dbeee1;border-color:#2c4735}
+@media(max-width:620px){
+  main{padding:9px} .card{padding:11px}
+  header h1{font-size:13.5px} .kpi{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
+  .task .tt{font-size:13px} nav button{padding:10px 10px;font-size:12.5px}
+  .grid2{gap:10px} table{font-size:12px} th,td{padding:6px 5px}
+}
+@media print{ nav,header,.noprint{display:none!important} .card{box-shadow:none;border:0} }
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
@@ -139,6 +158,7 @@ mark{background:var(--amberSoft);color:var(--ink);padding:0 2px;border-radius:3p
   <section class="view" id="v-bits"></section>
   <section class="view" id="v-buscar"></section>
   <section class="view" id="v-pend"></section>
+  <section class="view" id="v-supers"></section>
   <section class="view" id="v-config"></section>
 </main>
 <div class="modal" id="modal"><div class="box" id="modalbox"></div></div>
@@ -151,6 +171,26 @@ const E = {}; D.ESTAB.forEach(e => E[e.rbd] = e);
 const LS = 'soser-sanpablo-v1';
 let ST = {plan:[], extras:[], bits:[], hechos:{}, log:[], cfg:{}};
 
+/* --- caché persistente: IndexedDB con respaldo en localStorage --- */
+let IDB=null;
+function abrirIDB(){ return new Promise(res=>{
+  if(!window.indexedDB) return res(null);
+  const r=indexedDB.open('soser-sanpablo',1);
+  r.onupgradeneeded=()=>{ const db=r.result;
+    if(!db.objectStoreNames.contains('estado')) db.createObjectStore('estado'); };
+  r.onsuccess=()=>res(r.result); r.onerror=()=>res(null); }); }
+function idbGet(k){ return new Promise(res=>{ if(!IDB) return res(null);
+  try{ const t=IDB.transaction('estado','readonly').objectStore('estado').get(k);
+    t.onsuccess=()=>res(t.result); t.onerror=()=>res(null); }catch(e){ res(null); } }); }
+function idbSet(k,v){ return new Promise(res=>{ if(!IDB) return res(false);
+  try{ const t=IDB.transaction('estado','readwrite').objectStore('estado').put(v,k);
+    t.onsuccess=()=>res(true); t.onerror=()=>res(false); }catch(e){ res(false); } }); }
+async function persistirDuro(){
+  if(navigator.storage && navigator.storage.persist){
+    try{ const ok=await navigator.storage.persisted() || await navigator.storage.persist();
+      return ok; }catch(e){} }
+  return false;
+}
 function cargar(){
   const raw = localStorage.getItem(LS);
   ST = {plan:JSON.parse(JSON.stringify(D.PLAN)), extras:[], bits:[], hechos:{}, log:[], cfg:{}};
@@ -160,8 +200,25 @@ function cargar(){
     ST.log = s.log||[]; ST.cfg = s.cfg||{};
   }catch(e){ console.warn('estado corrupto', e); } }
 }
-function guardar(){ try{ localStorage.setItem(LS, JSON.stringify(ST)); }catch(e){ alert('No se pudo guardar: '+e.message); } }
+let guardarTO=null;
+function guardar(){
+  ST.ts = new Date().toISOString();
+  try{ localStorage.setItem(LS, JSON.stringify(ST)); }
+  catch(e){ console.warn('localStorage lleno', e); }
+  clearTimeout(guardarTO);
+  guardarTO = setTimeout(()=>{ idbSet('v1', JSON.parse(JSON.stringify(ST))); }, 400);
+}
 cargar();
+(async()=>{
+  IDB = await abrirIDB();
+  const g = await idbGet('v1');
+  if(g && (!ST.ts || (g.ts||'') > ST.ts)){
+    ST = Object.assign(ST, g);
+    try{ localStorage.setItem(LS, JSON.stringify(ST)); }catch(e){}
+    if(typeof ir==='function') ir(actual);
+  }
+  await persistirDuro();
+})();
 
 /* ============================ UTIL ============================ */
 const MES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
@@ -191,14 +248,14 @@ function todas(){ return ST.plan.concat(ST.extras); }
 
 /* ============================ NAV ============================ */
 const VISTAS=[['hoy','Hoy'],['semana','Semana'],['crono','Cronograma'],['estab','Establecimientos'],
-              ['bits','Bitácoras'],['buscar','Buscador'],['pend','Pendientes'],['config','Ajustes']];
+              ['bits','Bitácoras'],['buscar','Buscador'],['pend','Pendientes'],['supers','Supervisoras'],['config','Ajustes']];
 let actual='hoy';
 document.getElementById('nav').innerHTML = VISTAS.map(([k,t])=>
-  `<button id="nb-${k}" onclick="ir('${k}')">${t}</button>`).join('');
+  `<button id="nb-${k}" onclick="ir('${k}')" aria-label="Ir a ${t}">${t}</button>`).join('');
 function ir(k){ actual=k;
   VISTAS.forEach(([v])=>{ document.getElementById('v-'+v).classList.toggle('on',v===k);
     document.getElementById('nb-'+v).classList.toggle('on',v===k); });
-  ({hoy:vHoy,semana:vSemana,crono:vCrono,estab:vEstab,bits:vBits,buscar:vBuscar,pend:vPend,config:vConfig})[k]();
+  ({hoy:vHoy,semana:vSemana,crono:vCrono,estab:vEstab,bits:vBits,buscar:vBuscar,pend:vPend,supers:vSupers,config:vConfig})[k]();
   window.scrollTo(0,0);
 }
 function toggleTema(){ const r=document.documentElement;
@@ -309,8 +366,12 @@ function cardTarea(p){
           <span class="pill ${p.clase==='PREVENTIVA'?'p-blu':p.clase==='EXTRA'?'p-vio':'p-red'}">${p.clase}</span>
           ${p.aplaz?`<span class="pill p-amb">aplazada ${p.aplaz}×</span>`:''}
           ${e.sup?`<span class="mini">Sup: ${esc(e.sup)}</span>`:''}
-          <button class="btn ghost" style="padding:3px 9px;font-size:11px;margin-left:auto"
-            onclick="fichaEstab(${p.rbd})">ficha</button>
+          <span style="margin-left:auto;display:flex;gap:4px">
+            <button class="tbtn" onclick="traspasar('${p.id}')" title="Pasar al otro técnico"
+              aria-label="Pasar al otro técnico">⇄ ${p.tec==='RODRIGO'?'Camilo':'Rodrigo'}</button>
+            <button class="tbtn" onclick="modalMover('${p.id}')" aria-label="Cambiar fecha">📅</button>
+            <button class="tbtn" onclick="fichaEstab(${p.rbd})" aria-label="Ver ficha">ficha</button>
+          </span>
         </div>
       </div></div></div>`;
 }
@@ -325,6 +386,66 @@ function dDrop(ev,tec,b,fecha){
   ev.preventDefault(); ev.currentTarget.classList.remove('over');
   const p = todas().find(x=>x.id===dragId); if(!p) return;
   p.tec=tec; p.bloque=b; p.fecha=fecha; guardar(); vHoy();
+}
+
+/* ---- traspasar entre técnicos ---- */
+function traspasar(id){
+  const p = todas().find(x=>x.id===id); if(!p) return;
+  p.tec = p.tec==='RODRIGO' ? 'CAMILO' : 'RODRIGO';
+  reordenarDia(p.fecha); guardar(); ir(actual);
+}
+function reordenarDia(fecha){
+  ['RODRIGO','CAMILO'].forEach(tk=>{
+    const ts = tareasDe(fecha).filter(p=>p.tec===tk)
+      .sort((a,b)=> (a.bloque-b.bloque) || (b.pts||0)-(a.pts||0));
+    const max = esViernes(fecha)?2:3;
+    let b=1;
+    ts.forEach(p=>{ p.bloque = b<=max ? b : 4; if(b<=max) b++; });
+  });
+}
+
+/* ---- mover o adelantar un trabajo; absorbe lo pendiente del sitio ---- */
+function modalMover(id){
+  const p = todas().find(x=>x.id===id); if(!p) return;
+  const e = E[p.rbd]||{};
+  const otras = todas().filter(x=>x.rbd===p.rbd && x.id!==id && x.estado!=='realizada');
+  modal(`<h2>Mover ${p.rbd} · ${esc(e.nombre||'')}</h2>
+   <div class="dim">Hoy está para el ${fmt(p.fecha)} con ${D.META.tecnicos[p.tec].nombre}.</div>
+   <div class="grid2" style="margin-top:12px">
+     <div><label class="f" for="mvFecha">Nueva fecha</label>
+       <input type="date" id="mvFecha" value="${p.fecha}"></div>
+     <div><label class="f" for="mvTec">Técnico</label><select id="mvTec">
+       <option value="RODRIGO" ${p.tec==='RODRIGO'?'selected':''}>Rodrigo Martínez</option>
+       <option value="CAMILO" ${p.tec==='CAMILO'?'selected':''}>Camilo Santis</option></select></div>
+   </div>
+   ${otras.length?`<div class="card" style="margin-top:12px;background:var(--amberSoft)">
+     <b>Este establecimiento tiene ${otras.length} visita(s) más pendiente(s)</b>
+     <div class="mini" style="margin-top:5px">${otras.map(o=>`${fmt(o.fecha)} · ${o.clase} · ${esc(o.detalle||'')}`).join('<br>')}</div>
+     <label style="display:flex;gap:8px;align-items:center;margin-top:9px;cursor:pointer">
+       <input type="checkbox" class="chk" id="mvAbsorbe" checked>
+       <span>Resolverlas en esta misma visita</span></label></div>`:''}
+   <div class="row" style="margin-top:14px">
+     <button class="btn" onclick="aplicarMover('${id}')">Guardar</button>
+     <button class="btn gray" onclick="cerrarModal()">Cancelar</button></div>`);
+}
+function aplicarMover(id){
+  const p = todas().find(x=>x.id===id); if(!p) return;
+  const nueva = document.getElementById('mvFecha').value;
+  const tec = document.getElementById('mvTec').value;
+  const abs = document.getElementById('mvAbsorbe');
+  const antes = p.fecha;
+  p.fecha = nueva; p.tec = tec;
+  if(abs && abs.checked){
+    const otras = todas().filter(x=>x.rbd===p.rbd && x.id!==id && x.estado!=='realizada');
+    const extra = otras.map(o=>o.detalle).filter(Boolean);
+    otras.forEach(o=>{ o.estado='anulada'; o.absorbidaPor=id;
+      ST.log.push({ts:new Date().toISOString(), id:o.id, rbd:o.rbd,
+        motivo:'resuelta en la visita del '+nueva, aplaz:o.aplaz||0, nueva}); });
+    if(extra.length) p.detalle = (p.detalle||'') + '  ||  ' + extra.join('  ||  ');
+    ST.extras = ST.extras.filter(x=>x.estado!=='anulada');
+  }
+  reordenarDia(nueva); if(antes!==nueva) reordenarDia(antes);
+  guardar(); cerrarModal(); ir(actual);
 }
 
 /* ---- agregar emergencia (ilimitadas) ---- */
@@ -477,26 +598,46 @@ function dDropSem(ev,tec,fecha){ ev.preventDefault(); ev.currentTarget.classList
   p.tec=tec; p.fecha=fecha; guardar(); vSemana(); }
 
 /* ============================ CRONOGRAMA ============================ */
+let ganttAll=false;
 function vCrono(){
-  const sem=D.META.semanas;
+  const sem = ganttAll ? D.META.semanasAll : D.META.semanas;
   let h=barrasMeta();
-  const porSem={}; todas().forEach(p=>{ const i=sem.findIndex((s,k)=> p.fecha>=s && (k===sem.length-1||p.fecha<sem[k+1]));
-    if(i>=0){ (porSem[p.rbd]=porSem[p.rbd]||{})[i]=p; } });
+  const porSem={};
+  todas().filter(p=>p.estado!=='anulada').forEach(p=>{
+    let i=-1;
+    for(let k=sem.length-1;k>=0;k--){ if(p.fecha>=sem[k]){ i=k; break; } }
+    if(i<0) return;
+    const cel=(porSem[p.rbd]=porSem[p.rbd]||{});
+    if(!cel[i] || (cel[i].clase==='HISTORICO' && p.clase!=='HISTORICO')) cel[i]=p;
+  });
   const orden=[...D.ESTAB].sort((a,b)=> b.pts-a.pts || a.rbd-b.rbd);
-  h+=`<div class="card"><h2>Carta Gantt</h2>
-   <div class="dim">P preventiva · M preventiva + correctivo · C correctivo urgente · X extra. Verde = realizada.</div>
-   <div class="gantt" style="margin-top:10px"><table><tr><th>Pts</th><th>RBD</th><th>Establecimiento</th><th>Inst.</th>
-   ${sem.map((s,i)=>`<th>S${i+1}<br>${fcorto(s)}</th>`).join('')}</tr>`;
+  h+=`<div class="card"><div class="row"><h2 style="margin:0">Carta Gantt</h2>
+   <div class="row" style="margin-left:auto">
+     <button class="chip ${!ganttAll?'on':''}" onclick="ganttAll=false;vCrono()">Plan (oct–dic)</button>
+     <button class="chip ${ganttAll?'on':''}" onclick="ganttAll=true;vCrono()">Todo el año (desde mayo)</button>
+   </div></div>
+   <div class="dim" style="margin-top:6px">V visita · P preventiva · M con correctivo · C correctivo urgente ·
+   X extra · <b>H</b> histórico ya ejecutado (registro Excel y Datácora). Verde = realizada.</div>
+   <div class="gantt" style="margin-top:10px"><table><tr>
+   <th style="position:sticky;left:0;background:var(--panel);z-index:2">Pts</th><th>RBD</th>
+   <th>Establecimiento</th><th>Inst.</th>
+   ${sem.map((x,i)=>`<th>${fcorto(x)}</th>`).join('')}</tr>`;
   orden.forEach(e=>{
-    h+=`<tr><td><span class="score ${sc(e.pts)}">${e.pts}</span></td><td><b>${e.rbd}</b></td>
-      <td style="max-width:230px;overflow:hidden;text-overflow:ellipsis">${esc(e.nombre)}</td>
+    h+=`<tr><td style="position:sticky;left:0;background:var(--panel)"><span class="score ${sc(e.pts)}">${e.pts}</span></td>
+      <td><b>${e.rbd}</b></td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis">${esc(e.nombre)}</td>
       <td>${esc(e.inst)}</td>`;
-    sem.forEach((s,i)=>{ const p=(porSem[e.rbd]||{})[i];
+    sem.forEach((x,i)=>{ const p=(porSem[e.rbd]||{})[i];
       if(!p){ h+='<td></td>'; return; }
-      const L=p.clase==='PREVENTIVA'?'P':p.clase==='PREV + CORRECTIVO'?'M':p.clase==='EXTRA'?'X':'C';
-      const bg=p.estado==='realizada'?'var(--green2)':p.clase==='PREVENTIVA'?'var(--blue)':
-        p.clase==='PREV + CORRECTIVO'?'var(--amber)':p.clase==='EXTRA'?'var(--violet)':'var(--red)';
-      h+=`<td><div class="cell" style="background:${bg}" title="${fmt(p.fecha)} · ${esc(p.detalle||'')}">${L}</div></td>`; });
+      const L = p.clase==='HISTORICO'?'H':p.clase.startsWith('PREVENTIVA')?'P':
+        p.clase.startsWith('VISITA')?'V':p.clase==='EXTRA'?'X':'C';
+      const conCor = p.clase.includes('CORRECTIVO');
+      const bg = p.clase==='HISTORICO' ? 'var(--muted)' :
+        p.estado==='realizada' ? 'var(--green2)' :
+        conCor && p.clase!=='CORRECTIVO URGENTE' ? 'var(--amber)' :
+        p.clase==='CORRECTIVO URGENTE' ? 'var(--red)' :
+        p.clase==='EXTRA' ? 'var(--violet)' : 'var(--blue)';
+      h+=`<td><div class="cell" style="background:${bg}" title="${fmt(p.fecha)} · ${esc(p.clase)} · ${esc((p.detalle||'').slice(0,90))}">${conCor&&L!=='C'?'M':L}</div></td>`; });
     h+='</tr>';
   });
   h+='</table></div></div>';
@@ -856,13 +997,168 @@ function vPend(){
   document.getElementById('v-pend').innerHTML=h;
 }
 
+/* ============================ SUPERVISORAS ============================ */
+function compromisos(){
+  const g={};
+  D.CORR.forEach(c=>{
+    const e=E[c.rbd]||{}; const sup=e.sup||'Sin supervisora';
+    const pr=todas().find(p=>p.rbd===c.rbd && p.clase.includes('CORRECTIVO') && p.estado!=='anulada');
+    (g[sup]=g[sup]||[]).push({...c, nombre:e.nombre, comuna:e.comuna, inst:e.inst,
+      fecha: pr?pr.fecha:c.agendado, tec: pr?pr.tec:'', hecho: pr?pr.estado==='realizada':false});
+  });
+  Object.keys(g).forEach(k=>g[k].sort((a,b)=> (a.fecha||'9')<(b.fecha||'9')?-1:1));
+  return g;
+}
+function msgWA(sup, items){
+  const hoy = items.filter(i=>i.fecha===hoyISO());
+  const L=[];
+  L.push('*SOSER San Pablo · Mantención*');
+  L.push('Compromisos de tus establecimientos — al '+fmt(hoyISO()));
+  L.push('');
+  if(hoy.length){
+    L.push('*HOY '+fcorto(hoyISO()).toUpperCase()+'*');
+    hoy.forEach(i=>L.push('• '+i.rbd+' '+i.nombre+' — '+i.detalle));
+    L.push('');
+  }
+  const resto = items.filter(i=>i.fecha>hoyISO());
+  if(resto.length){
+    L.push('*PROGRAMADO*');
+    resto.forEach(i=>L.push('• '+fcorto(i.fecha)+' — '+i.rbd+' '+i.nombre+'\n   '+i.detalle));
+    L.push('');
+  }
+  const gas = items.filter(i=>i.crit==='GAS');
+  if(gas.length){ L.push('*Prioridad por gas:* '+gas.map(i=>i.nombre).join(', ')); L.push(''); }
+  L.push('Si algo cambia de urgencia o el colegio no da acceso ese día, avísame y lo reordeno.');
+  L.push('Manuel Echeverría · Encargado de Mantención');
+  return L.join('\n');
+}
+function vSupers(){
+  const g=compromisos();
+  const sups=Object.keys(g).sort();
+  let h=`<div class="card"><h2>Compromisos por supervisora</h2>
+   <div class="dim">Tres mensajes listos para pegar en WhatsApp y un cuadro general para sacarle pantallazo al grupo.
+   Las fechas salen del cronograma: si mueves un trabajo, acá se actualiza solo.</div></div>`;
+  sups.forEach((sup,k)=>{
+    const items=g[sup];
+    h+=`<div class="card"><div class="row"><h3 style="margin:0">${esc(sup)}</h3>
+      <span class="pill p-grn">${items.length} compromiso(s)</span>
+      <button class="btn" style="margin-left:auto" onclick="copiarWA(${k})">Copiar mensaje</button></div>
+      <div class="wa" id="wa-${k}" style="margin-top:10px">${esc(msgWA(sup,items))}</div></div>`;
+  });
+  h+=`<div class="card noprint"><div class="row"><h3 style="margin:0">Cuadro general para el grupo</h3>
+    <button class="btn ghost" style="margin-left:auto" onclick="window.print()">Imprimir / pantallazo</button></div></div>
+    <div class="card"><table><tr><th>Fecha</th><th>RBD</th><th>Establecimiento</th><th>Comuna</th>
+    <th>Supervisora</th><th>Trabajo comprometido</th><th>Tipo</th><th>Técnico</th><th>Estado</th></tr>`;
+  const todos=[].concat(...sups.map(x=>g[x])).sort((a,b)=>(a.fecha||'9')<(b.fecha||'9')?-1:1);
+  todos.forEach(i=>{
+    h+=`<tr><td><b>${i.fecha?fcorto(i.fecha):'—'}</b></td><td>${i.rbd}</td>
+     <td>${esc(i.nombre||'')}</td><td>${esc(i.comuna||'')}</td><td>${esc(i.sup||E[i.rbd].sup)}</td>
+     <td>${esc(i.detalle)}</td>
+     <td><span class="pill ${i.crit==='GAS'?'p-red':i.crit==='OTRO'?'p-grn':'p-amb'}">${i.crit}</span></td>
+     <td>${i.tec?D.META.tecnicos[i.tec].nombre.split(' ')[0]:'—'}</td>
+     <td>${i.hecho?'<span class="pill p-grn">listo</span>':'<span class="pill p-amb">pendiente</span>'}</td></tr>`;
+  });
+  h+='</table></div>';
+  document.getElementById('v-supers').innerHTML=h;
+}
+function copiarWA(k){
+  const t=document.getElementById('wa-'+k).textContent;
+  navigator.clipboard.writeText(t).then(()=>{
+    const a=document.getElementById('aviso');
+    a.innerHTML='<b>Copiado</b><div style="margin-top:5px;font-size:13px">Pégalo en el chat de la supervisora.</div>';
+    a.classList.add('on'); setTimeout(()=>a.classList.remove('on'),2200);
+  }).catch(()=>alert('No pude copiar. Selecciona el texto a mano.'));
+}
+
+/* ============================ EXPORTAR A EXCEL ============================ */
+function exportarExcel(){
+  if(typeof XLSX==='undefined'){ alert('No cargó la librería de Excel. Revisa la conexión y recarga.'); return; }
+  const wb=XLSX.utils.book_new();
+  const link=(rbd)=>({v:rbd, l:{Target:"#'Establecimientos'!A1", Tooltip:'Ver ficha del establecimiento'}});
+  const add=(nombre,rows,anchos)=>{ const ws=XLSX.utils.json_to_sheet(rows);
+    if(anchos) ws['!cols']=anchos.map(w=>({wch:w}));
+    ws['!autofilter']={ref:ws['!ref']}; ws['!freeze']={xSplit:0,ySplit:1};
+    XLSX.utils.book_append_sheet(wb,ws,nombre); return ws; };
+
+  const a=avance();
+  add('Resumen',[
+    {Indicador:'Sitios de la sucursal',Valor:D.ESTAB.length,Detalle:'60 Junaeb + 27 Junji + 6 Integra'},
+    {Indicador:'Meta 1 · JUNAEB visitados al 31-10',Valor:a.hechoJ+' / '+a.junaeb,Detalle:'Basta con visita registrada en Datácora, no exige preventiva'},
+    {Indicador:'Meta 2 · Jardines con preventiva al 15-12',Valor:a.hechoG+' / '+a.jard,Detalle:'JUNJI e INTEGRA: preventiva obligatoria'},
+    {Indicador:'Correctivos abiertos',Valor:D.CORR.length,Detalle:'Reportados por las supervisoras'},
+    {Indicador:'Visitas planificadas',Valor:todas().filter(p=>p.origen!=='historico').length,Detalle:'Del 30-09 al 24-11'},
+    {Indicador:'Visitas históricas registradas',Valor:todas().filter(p=>p.origen==='historico').length,Detalle:'Desde mayo 2026 (Excel + Datácora)'},
+    {Indicador:'Trabajos agregados a mano',Valor:ST.extras.length,Detalle:'Emergencias sumadas en el tablero'},
+    {Indicador:'Bitácoras con detalle',Valor:ST.bits.concat(D.BITS).length,Detalle:'PDF cargados y leídos'},
+    {Indicador:'Exportado',Valor:new Date().toLocaleString('es-CL'),Detalle:''}
+  ],[42,22,60]);
+
+  add('Establecimientos', D.ESTAB.map(e=>({
+    RBD:e.rbd, Establecimiento:e.nombre, Institucion:e.inst, Direccion:e.dir, Comuna:e.comuna,
+    Supervisora:e.sup, Gas:e.gas, Raciones:e.rac, Bitacoras:e.nbit, Unidades:e.unidades.join(' + '),
+    Puntaje:e.pts, Cobertura:e.cobertura, 'Visitas 1er sem':e.s1, 'Visitas 2do sem':e.s2,
+    'Ultima visita':e.ultima||'', 'Desglose del puntaje':e.why
+  })),[9,34,11,30,17,20,17,9,9,32,8,16,12,12,13,70]);
+
+  add('Programa', todas().filter(p=>p.estado!=='anulada').sort((x,y)=>x.fecha<y.fecha?-1:1).map(p=>{
+    const e=E[p.rbd]||{};
+    return {Fecha:p.fecha, Dia:diaSem(p.fecha), Tipo:p.origen==='historico'?'Histórico':'Planificado',
+      Clase:p.clase, Bloque:p.bloque, Horario:p.hora||horaBloque(p.fecha,p.bloque),
+      Tecnico:D.META.tecnicos[p.tec]?D.META.tecnicos[p.tec].nombre:p.tec,
+      RBD:p.rbd, Establecimiento:e.nombre||'', Institucion:e.inst||'', Comuna:e.comuna||'',
+      Direccion:e.dir||'', Supervisora:e.sup||'', Puntaje:p.pts||'', Estado:p.estado,
+      Aplazamientos:p.aplaz||0, Folio:p.folio||'', Trabajo:p.detalle||''};
+  }),[11,10,12,22,7,14,22,9,32,11,17,28,20,8,12,13,9,70]);
+
+  add('Correctivos', D.CORR.map(c=>{ const e=E[c.rbd]||{};
+    const pr=todas().find(p=>p.rbd===c.rbd && p.clase.includes('CORRECTIVO') && p.estado!=='anulada');
+    return {Puntaje:c.pts, RBD:c.rbd, Establecimiento:e.nombre||'', Supervisora:e.sup||'',
+      Comuna:e.comuna||'', Tipo:c.crit, Estado:c.estado, Reportado:c.freporte,
+      'Dias abiertos':c.dias, Prioridad:c.prio?'SI':'', Agendado:pr?pr.fecha:'',
+      Tecnico:pr?(D.META.tecnicos[pr.tec]||{}).nombre:'', Cerrado:pr&&pr.estado==='realizada'?'SI':'NO',
+      Trabajo:c.detalle};
+  }),[8,9,32,20,17,8,11,11,12,10,11,22,9,72]);
+
+  const it=[]; ST.bits.concat(D.BITS).forEach(b=> b.items.forEach(i=> it.push({
+    Folio:b.folio||'', Fecha:b.fecha, RBD:b.rbd, Establecimiento:b.estab||(E[b.rbd]||{}).nombre||'',
+    Categoria:i.categoria, Item:i.item, Ubicacion:i.ubicacion||'', Cantidad:i.cantidad,
+    Accion:i.accion, Observacion:i.observacion, Tecnico:b.tecnico||'', 'Encargado PAE':b.encargado||''})));
+  add('Bitacoras detalle', it.length?it:[{Folio:'',Fecha:'',RBD:'',Establecimiento:'',Categoria:'',
+    Item:'',Ubicacion:'',Cantidad:'',Accion:'',Observacion:'',Tecnico:'','Encargado PAE':''}],
+    [8,11,9,32,15,38,13,9,14,60,22,22]);
+
+  add('Historial visitas', D.HIST.map(x=>({Fecha:x.fecha, RBD:x.rbd,
+    Establecimiento:(E[x.rbd]||{}).nombre||'', Tipo:x.tipo, Folio:x.folio||'',
+    Tecnico:(D.META.tecnicos[x.tec]||{}).nombre||x.tec, Fuente:x.fuente})),[11,9,32,18,9,22,20]);
+
+  add('Reportes supervisoras', D.MENC.map(m=>({Fecha:m.fecha, Autor:m.autor, RBD:m.rbd,
+    Establecimiento:(E[m.rbd]||{}).nombre||'', Texto:m.texto})),[11,26,9,32,90]);
+
+  const g=compromisos();
+  const comp=[]; Object.keys(g).sort().forEach(sup=> g[sup].forEach(i=> comp.push({
+    Fecha:i.fecha||'', Supervisora:sup, RBD:i.rbd, Establecimiento:i.nombre||'',
+    Comuna:i.comuna||'', Tipo:i.crit, Tecnico:i.tec?(D.META.tecnicos[i.tec]||{}).nombre:'',
+    Estado:i.hecho?'Listo':'Pendiente', 'Trabajo comprometido':i.detalle})));
+  add('Compromisos supervisoras', comp,[11,20,9,32,17,8,22,11,72]);
+
+  add('Aplazamientos', ST.log.length?ST.log.map(l=>({Cuando:l.ts, RBD:l.rbd,
+    Establecimiento:(E[l.rbd]||{}).nombre||'', Veces:l.aplaz, 'Nueva fecha':l.nueva, Motivo:l.motivo}))
+    :[{Cuando:'',RBD:'',Establecimiento:'',Veces:'','Nueva fecha':'',Motivo:'Sin aplazamientos registrados'}],
+    [20,9,32,8,13,55]);
+
+  XLSX.writeFile(wb,'SOSER_San_Pablo_'+hoyISO()+'.xlsx');
+}
+
 /* ============================ AJUSTES ============================ */
 function vConfig(){
   const a=avance();
   let h=`<div class="card"><h2>Guardar y respaldar</h2>
-   <div class="dim">Todo lo que editas queda en este navegador. Para que quede en GitHub, exporta y sube el archivo al repo.</div>
+   <div class="dim">Los cambios quedan en IndexedDB de este navegador, que aguanta indefinidamente y sobrevive al cierre de la pestaña.
+   El Excel sale con nueve hojas cruzadas: resumen, establecimientos, programa, correctivos, detalle de bitácoras,
+   historial, reportes de las supervisoras, compromisos y aplazamientos.</div>
    <div class="row" style="margin-top:12px">
-     <button class="btn" onclick="exportar()">Exportar respaldo (.json)</button>
+     <button class="btn" onclick="exportarExcel()">Exportar TODO a Excel (.xlsx)</button>
+     <button class="btn ghost" onclick="exportar()">Respaldo (.json)</button>
      <label class="btn ghost" style="cursor:pointer">Importar respaldo
        <input type="file" accept="application/json" style="display:none" onchange="importar(this.files[0])"></label>
      <button class="btn red" onclick="if(confirm('Esto borra todos tus cambios locales y vuelve al plan original. ¿Seguro?')){localStorage.removeItem(LS);cargar();ir('hoy')}">Volver al plan original</button>
