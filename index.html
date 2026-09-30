@@ -1230,25 +1230,26 @@ function compromisos(){
   return g;
 }
 function msgWA(sup, items){
-  const hoy = items.filter(i=>i.fecha===hoyISO());
+  const con = items.filter(i=>i.fecha);
+  const ult = con.length ? con.map(i=>i.fecha).sort().slice(-1)[0] : null;
   const L=[];
   L.push('*SOSER San Pablo · Mantención*');
-  L.push('Compromisos de tus establecimientos — al '+fmt(hoyISO()));
+  L.push('Buen día. Te dejo las fechas de todo lo que tienes pedido.'
+    + (ult ? ' Queda cerrado el '+fcorto(ult)+'.' : ''));
   L.push('');
-  if(hoy.length){
-    L.push('*HOY '+fcorto(hoyISO()).toUpperCase()+'*');
-    hoy.forEach(i=>L.push('• '+i.rbd+' '+i.nombre+' — '+i.detalle));
-    L.push('');
-  }
-  const resto = items.filter(i=>i.fecha>hoyISO());
-  if(resto.length){
-    L.push('*PROGRAMADO*');
-    resto.forEach(i=>L.push('• '+fcorto(i.fecha)+' — '+i.rbd+' '+i.nombre+'\n   '+i.detalle));
-    L.push('');
-  }
+  con.forEach(i=>{
+    const et = i.fecha===hoyISO() ? 'HOY' : fcorto(i.fecha);
+    L.push('*'+et+'* — '+i.rbd+' '+i.nombre+(i.crit==='GAS'?' ⚠️':'')
+      +(i.hecho?' ✅ listo':''));
+    L.push('   '+i.detalle);
+  });
+  const sinf = items.filter(i=>!i.fecha);
+  if(sinf.length){ L.push(''); L.push('*Sin fecha todavía:*');
+    sinf.forEach(i=>L.push('• '+i.rbd+' '+i.nombre+' — '+i.detalle)); }
+  L.push('');
   const gas = items.filter(i=>i.crit==='GAS');
-  if(gas.length){ L.push('*Prioridad por gas:* '+gas.map(i=>i.nombre).join(', ')); L.push(''); }
-  L.push('Si algo cambia de urgencia o el colegio no da acceso ese día, avísame y lo reordeno.');
+  if(gas.length){ L.push('Lo de gas va primero por seguridad: '+gas.map(i=>i.nombre).join(', ')); L.push(''); }
+  L.push('Si algún colegio no da acceso ese día, avísame al tiro y lo reordeno.');
   L.push('Manuel Echeverría · Encargado de Mantención');
   return L.join('\n');
 }
@@ -1257,7 +1258,13 @@ function vSupers(){
   const sups=Object.keys(g).sort();
   let h=`<div class="card"><h2>Compromisos por supervisora</h2>
    <div class="dim">Tres mensajes listos para pegar en WhatsApp y un cuadro general para sacarle pantallazo al grupo.
-   Las fechas salen del cronograma: si mueves un trabajo, acá se actualiza solo.</div></div>`;
+   Las fechas salen del cronograma: si mueves un trabajo, acá se actualiza solo.
+   Regla: ningún requerimiento espera más de 10 días.</div>
+   <div class="kpi" style="margin-top:12px">
+     <div class="k"><b>${D.CORR.length}</b><span>requerimientos abiertos</span></div>
+     <div class="k"><b>${(()=>{const f=D.CORR.map(c=>c.agendado).filter(Boolean).sort();return f.length?fcorto(f[f.length-1]):'—'})()}</b><span>último cierra el</span></div>
+     <div class="k"><b>${D.CORR.filter(c=>c.crit==='GAS').length}</b><span>de gas, van primero</span></div>
+   </div></div>`;
   sups.forEach((sup,k)=>{
     const items=g[sup];
     h+=`<div class="card"><div class="row"><h3 style="margin:0">${esc(sup)}</h3>
