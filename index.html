@@ -320,13 +320,20 @@ function avance(){
      Cuenta cualquier tipo de formulario, no exige preventiva. */
   const okJ = new Set(todas().filter(p=>p.estado==='realizada'
       && p.fecha >= D.META.inicio && p.fecha <= D.META.metaJunaeb).map(p=>p.rbd));
-  /* Meta 2 — jardines: solo cuenta si la bitácora dice Plan Preventivo Mantención,
-     y dentro del 2° semestre. Un registro sin tipo NO sirve. */
-  const okG = new Set(todas().filter(p=>p.estado==='realizada'
-      && p.fecha >= D.META.corteS2 && ES_PREV(p.tipoReal)).map(p=>p.rbd));
+  /* Meta 2 — jardines: preventiva del 2° semestre, y si el jardín tiene sala cuna
+     tienen que estar las dos partes (JI y SC). Viene clasificado del registro. */
+  const partes = {};
+  todas().filter(p=>p.estado==='realizada' && p.fecha >= D.META.corteS2 && ES_PREV(p.tipoReal))
+    .forEach(p=>{ (partes[p.rbd]=partes[p.rbd]||new Set()).add(p.parte||'JI'); });
+  const okG = new Set(jard.filter(e=>{
+    const h = partes[e.rbd]; if(!h || !h.size) return false;
+    return e.nbit===2 ? (h.has('JI') && h.has('SC')) : true;
+  }).map(e=>e.rbd));
+  const medias = jard.filter(e=>!okG.has(e.rbd) && partes[e.rbd] && partes[e.rbd].size);
   return {junaeb:junaeb.length, hechoJ:junaeb.filter(e=>okJ.has(e.rbd)).length,
-          jard:jard.length, hechoG:jard.filter(e=>okG.has(e.rbd)).length,
-          faltanJ:junaeb.filter(e=>!okJ.has(e.rbd)), faltanG:jard.filter(e=>!okG.has(e.rbd))};
+          jard:jard.length, hechoG:okG.size, medias:medias.length,
+          faltanJ:junaeb.filter(e=>!okJ.has(e.rbd)), faltanG:jard.filter(e=>!okG.has(e.rbd)),
+          partes};
 }
 function barrasMeta(){
   const a=avance();
@@ -343,9 +350,10 @@ function barrasMeta(){
    </div>
    <div class="card" style="margin:0">
      <h3>Meta 2 · Preventivo jardines</h3>
-     <div class="dim">Plazo ${fmt(D.META.metaJardines)} · JUNJI e INTEGRA · solo cuenta si la bitácora dice Plan Preventivo</div>
+     <div class="dim">Plazo ${fmt(D.META.metaJardines)} · JUNJI e INTEGRA · cuenta solo con Plan Preventivo,
+     y los que tienen sala cuna necesitan las dos bitácoras</div>
      <div class="row" style="margin-top:8px"><b style="font-size:26px">${a.hechoG}</b>
-       <span class="dim">de ${a.jard} · faltan ${a.faltanG.length}</span>
+       <span class="dim">de ${a.jard} · faltan ${a.faltanG.length}${a.medias?' ('+a.medias+' a medias)':''}</span>
        <span class="pill p-grn" style="margin-left:auto">${pg}%</span></div>
      <div class="bar"><i style="width:${pg}%"></i></div>
    </div></div>`;
@@ -778,7 +786,7 @@ function vEstab(){
       ${['SIN VISITA','SIN PREVENTIVA','CON PREVENTIVA'].map(i=>`<option ${fEstab.cob===i?'selected':''}>${i}</option>`).join('')}</select>
     <span class="dim">${l.length} de ${D.ESTAB.length}</span></div></div>
     <div class="card"><div class="scroll"><table><tr><th>Pts</th><th>RBD</th><th>Establecimiento</th>
-    <th>Comuna</th><th>Inst.</th><th>Gas</th><th>Rac.</th><th>Cobertura</th><th>Próxima</th></tr>`;
+    <th>Comuna</th><th>Inst.</th><th>Gas</th><th>Rac.</th><th>Preventiva 2°sem</th><th>Próxima</th></tr>`;
   l.forEach(e=>{
     const pr=todas().filter(p=>p.rbd===e.rbd&&p.estado!=='realizada').sort((a,b)=>a.fecha<b.fecha?-1:1)[0];
     h+=`<tr style="cursor:pointer" onclick="fichaEstab(${e.rbd})">
@@ -786,11 +794,23 @@ function vEstab(){
       <td>${esc(e.nombre)}<div class="mini">${esc(e.dir)}</div></td>
       <td>${esc(e.comuna)}</td><td>${esc(e.inst)}</td><td class="mini">${esc(e.gas)}</td>
       <td>${e.rac}</td>
-      <td><span class="pill ${e.cobertura==='SIN VISITA'?'p-red':e.cobertura==='SIN PREVENTIVA'?'p-amb':'p-grn'}">${e.cobertura}</span></td>
+      <td>${estadoPrev(e)}</td>
       <td>${pr?fcorto(pr.fecha):'—'}</td></tr>`;
   });
   h+='</table></div></div>';
   document.getElementById('v-estab').innerHTML=h;
+}
+function estadoPrev(e){
+  if(e.inst==='Junaeb'){
+    const v = todas().some(p=>p.rbd===e.rbd && p.estado==='realizada'
+      && p.fecha>=D.META.inicio && p.fecha<=D.META.metaJunaeb);
+    return v ? '<span class="pill p-grn">visitado oct</span>'
+             : '<span class="pill p-amb">falta visita oct</span>';
+  }
+  const h = (e.prevPartes||[]);
+  if(e.prevOK) return `<span class="pill p-grn">completa ${h.join('+')}</span>`;
+  if(h.length) return `<span class="pill p-amb">falta ${e.nbit===2&&!h.includes('SC')?'SC':'JI'}</span>`;
+  return '<span class="pill p-red">sin preventiva</span>';
 }
 function fichaEstab(rbd){
   const e=E[rbd]; if(!e) return;
@@ -803,7 +823,13 @@ function fichaEstab(rbd){
    <span class="score ${sc(e.pts)}" style="margin-left:auto;min-width:40px;height:34px;font-size:17px">${e.pts}</span></div>
    <div class="dim">${esc(e.dir)} · ${esc(e.comuna)} · ${esc(e.inst)} · ${e.rac} raciones · ${esc(e.gas)}</div>
    <div class="dim">Supervisora: ${esc(e.sup)} · Unidades: ${e.unidades.map(esc).join(' + ')}</div>
-   <div class="card" style="margin-top:12px;background:var(--greenSoft)"><b>Puntaje ${e.pts}/20</b>
+   <div class="card" style="margin-top:12px;background:${e.inst!=='Junaeb'&&!e.prevOK?'var(--amberSoft)':'var(--greenSoft)'}">
+     <b>${e.inst==='Junaeb'?'Meta JUNAEB · visita al 31-oct':'Meta jardines · preventiva al 15-dic'}</b>
+     <div class="mini" style="margin-top:4px">${estadoPrev(e)}
+       ${e.prevFecha?' · primera preventiva del 2° semestre el '+fmt(e.prevFecha):''}
+       ${e.nbit===2?' · este jardín necesita 2 bitácoras (JI y SC)':''}</div>
+     <div class="mini">${e.corr2||0} visita(s) correctiva(s) en el 2° semestre</div></div>
+   <div class="card" style="background:var(--greenSoft)"><b>Puntaje ${e.pts}/20</b>
      <div class="mini" style="margin-top:4px">${esc(e.why)}</div></div>
    ${cor?`<div class="card" style="background:var(--redSoft)"><b>Correctivo abierto (${cor.crit})</b>
      <div class="mini">${esc(cor.detalle)}</div>
@@ -817,7 +843,7 @@ function fichaEstab(rbd){
    ${bits.length?bits.map(b=>`<details><summary>Folio ${b.folio} · ${fmt(b.fecha)} · ${b.items.length} ítems</summary>
      <div class="in">${b.items.map(i=>`<div class="mini">• <b>${esc(i.item)}</b> (${esc(i.categoria)}) ×${i.cantidad} — ${esc(i.accion)} · ${esc(i.observacion)}</div>`).join('')}</div></details>`).join(''):'<div class="dim">Todavía no se ha cargado ningún PDF de este establecimiento.</div>'}
    <h3 style="margin-top:14px">Visitas registradas 2° semestre (${hist.length})</h3>
-   <div class="mini">${hist.length?hist.map(x=>`${fmt(x.fecha)} · ${x.tipo}${x.folio?' · folio '+x.folio:''} · ${x.fuente}`).join('<br>'):'Sin registros desde el 01-07.'}</div>
+   <div class="mini">${hist.length?hist.map(x=>`${fmt(x.fecha)} · <b>${esc(x.tipo)}</b>${x.parte&&x.tipo==='Preventiva'?' ('+x.parte+')':''}${x.folio?' · bitácora '+esc(x.folio):''}${x.detalle?'<br>&nbsp;&nbsp;&nbsp;'+esc(x.detalle.slice(0,120)):''}`).join('<br>'):'Sin registros desde el 01-07.'}</div>
    <h3 style="margin-top:14px">Lo que dijeron las supervisoras (${men.length})</h3>
    <div class="mini">${men.length?men.map(m=>`<b>${fcorto(m.fecha)}</b> ${esc(m.autor)}: ${esc(m.texto)}`).join('<br><br>'):'Sin menciones en el chat.'}</div>
    <div class="row" style="margin-top:16px"><button class="btn" onclick="cerrarModal()">Cerrar</button></div>`);
