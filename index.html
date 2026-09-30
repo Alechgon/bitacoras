@@ -167,6 +167,7 @@ mark{background:var(--amberSoft);color:var(--ink);padding:0 2px;border-radius:3p
   <section class="view" id="v-bits"></section>
   <section class="view" id="v-buscar"></section>
   <section class="view" id="v-pend"></section>
+  <section class="view" id="v-datacora"></section>
   <section class="view" id="v-supers"></section>
   <section class="view" id="v-config"></section>
 </main>
@@ -291,14 +292,14 @@ function todas(){ return ST.plan.concat(ST.extras); }
 
 /* ============================ NAV ============================ */
 const VISTAS=[['hoy','Hoy'],['semana','Semana'],['crono','Cronograma'],['estab','Establecimientos'],
-              ['bits','Bitácoras'],['buscar','Buscador'],['pend','Pendientes'],['supers','Supervisoras'],['config','Ajustes']];
+              ['bits','Bitácoras'],['buscar','Buscador'],['pend','Pendientes'],['datacora','Datácora'],['supers','Supervisoras'],['config','Ajustes']];
 let actual='hoy';
 document.getElementById('nav').innerHTML = VISTAS.map(([k,t])=>
   `<button id="nb-${k}" onclick="ir('${k}')" aria-label="Ir a ${t}">${t}</button>`).join('');
 function ir(k){ actual=k;
   VISTAS.forEach(([v])=>{ document.getElementById('v-'+v).classList.toggle('on',v===k);
     document.getElementById('nb-'+v).classList.toggle('on',v===k); });
-  ({hoy:vHoy,semana:vSemana,crono:vCrono,estab:vEstab,bits:vBits,buscar:vBuscar,pend:vPend,supers:vSupers,config:vConfig})[k]();
+  ({hoy:vHoy,semana:vSemana,crono:vCrono,estab:vEstab,bits:vBits,buscar:vBuscar,pend:vPend,datacora:vDatacora,supers:vSupers,config:vConfig})[k]();
   window.scrollTo(0,0);
 }
 function toggleTema(){ const r=document.documentElement;
@@ -316,15 +317,18 @@ const ES_PREV = t => /plan preventivo|preventiv/i.test(t||'');
 function avance(){
   const junaeb = D.ESTAB.filter(e=>e.inst==='Junaeb');
   const jard   = D.ESTAB.filter(e=>e.inst!=='Junaeb');
-  /* Meta 1 — JUNAEB: basta con una visita registrada en Datácora entre hoy y el 31-10.
-     Cuenta cualquier tipo de formulario, no exige preventiva. */
-  const okJ = new Set(todas().filter(p=>p.estado==='realizada'
-      && p.fecha >= D.META.inicio && p.fecha <= D.META.metaJunaeb).map(p=>p.rbd));
+  /* Meta 1 — JUNAEB: cuenta cualquier visita cargada en Datácora (emergencia, preventiva,
+     mutualidad, acta). El export del 30-09 ya trae 31; lo que marques acá se suma. */
+  const okJ = new Set((D.DC||[]).filter(d=>d.cuenta).map(d=>d.rbd));
+  todas().filter(p=>p.estado==='realizada' && p.fecha >= D.META.datacoraCorte).forEach(p=>okJ.add(p.rbd));
   /* Meta 2 — jardines: preventiva del 2° semestre, y si el jardín tiene sala cuna
      tienen que estar las dos partes (JI y SC). Viene clasificado del registro. */
   const partes = {};
   todas().filter(p=>p.estado==='realizada' && p.fecha >= D.META.corteS2 && ES_PREV(p.tipoReal))
     .forEach(p=>{ (partes[p.rbd]=partes[p.rbd]||new Set()).add(p.parte||'JI'); });
+  /* en jardines una correctiva NO suma: solo entra la preventiva */
+  (D.DC||[]).filter(d=>d.tipo==='Preventiva').forEach(d=>{
+    (partes[d.rbd]=partes[d.rbd]||new Set()).add('JI'); });
   const okG = new Set(jard.filter(e=>{
     const h = partes[e.rbd]; if(!h || !h.size) return false;
     return e.nbit===2 ? (h.has('JI') && h.has('SC')) : true;
@@ -342,7 +346,7 @@ function barrasMeta(){
   return `<div class="grid2">
    <div class="card" style="margin:0">
      <h3>Meta 1 · JUNAEB en Datácora</h3>
-     <div class="dim">Plazo ${fmt(D.META.metaJunaeb)} · regla número uno · basta con la visita, no exige preventiva</div>
+     <div class="dim">Plazo ${fmt(D.META.metaJunaeb)} · regla número uno · cuenta cualquier visita cargada en Datácora</div>
      <div class="row" style="margin-top:8px"><b style="font-size:26px">${a.hechoJ}</b>
        <span class="dim">de ${a.junaeb} · faltan ${a.faltanJ.length}</span>
        <span class="pill ${tardeJ?'p-red':'p-grn'}" style="margin-left:auto">${pj}%</span></div>
@@ -1143,6 +1147,76 @@ function vPend(){
   document.getElementById('v-pend').innerHTML=h;
 }
 
+/* ============================ DATÁCORA ============================ */
+let fDC={q:'',tipo:'',inst:'',cuenta:''};
+function vDatacora(){
+  const dc = D.DC||[];
+  let l = dc.filter(d=>{
+    if(fDC.tipo && d.tipo!==fDC.tipo) return false;
+    if(fDC.inst && d.inst!==fDC.inst) return false;
+    if(fDC.cuenta==='si' && !d.cuenta) return false;
+    if(fDC.cuenta==='no' && d.cuenta) return false;
+    if(fDC.q){ const n=norm(fDC.q);
+      if(!(String(d.rbd).includes(n)||norm(d.estab).includes(n)||norm(d.det).includes(n)
+         ||norm(d.tec).includes(n)||String(d.folio).includes(n))) return false; }
+    return true;
+  }).sort((a,b)=>b.fecha<a.fecha?-1:1);
+  const jun = D.ESTAB.filter(e=>e.inst==='Junaeb');
+  const junOK = new Set(dc.filter(d=>d.cuenta && d.inst==='Junaeb').map(d=>d.rbd));
+  const noCuenta = dc.filter(d=>!d.cuenta);
+  let h=`<div class="card"><h2>Bitácoras cargadas en Datácora</h2>
+   <div class="dim">Export del ${fmt(D.META.datacoraCorte)} · ${dc.length} bitácoras válidas
+   (ya sin las de prueba). Este es el conteo que vale para JUNAEB.</div>
+   <div class="kpi" style="margin-top:12px">
+     <div class="k"><b>${dc.length}</b><span>bitácoras en Datácora</span></div>
+     <div class="k"><b>${dc.filter(d=>d.cuenta).length}</b><span>cuentan para el conteo</span></div>
+     <div class="k"><b>${junOK.size}/${jun.length}</b><span>JUNAEB con visita</span></div>
+     <div class="k"><b>${dc.filter(d=>d.tipo==='Preventiva').length}</b><span>preventivas</span></div>
+     <div class="k"><b>${noCuenta.length}</b><span>correctivas de jardín, no suman</span></div>
+   </div></div>
+   <div class="card"><div class="row">
+     <input placeholder="Buscar folio, RBD, establecimiento, técnico u observación…"
+       value="${esc(fDC.q)}" oninput="fDC.q=this.value;vDatacora()" style="flex:1;min-width:200px">
+     <select onchange="fDC.tipo=this.value;vDatacora()" style="width:auto" aria-label="Tipo">
+       <option value="">Todo tipo</option>
+       ${['Preventiva','Correctiva','Mutualidad','Acta'].map(t=>`<option ${fDC.tipo===t?'selected':''}>${t}</option>`).join('')}</select>
+     <select onchange="fDC.inst=this.value;vDatacora()" style="width:auto" aria-label="Institución">
+       <option value="">Toda institución</option>
+       ${['Junaeb','Junji','Integra'].map(t=>`<option ${fDC.inst===t?'selected':''}>${t}</option>`).join('')}</select>
+     <select onchange="fDC.cuenta=this.value;vDatacora()" style="width:auto" aria-label="Cuenta">
+       <option value="">Cuenten o no</option>
+       <option value="si" ${fDC.cuenta==='si'?'selected':''}>Solo las que cuentan</option>
+       <option value="no" ${fDC.cuenta==='no'?'selected':''}>Solo las que no cuentan</option></select>
+     <span class="dim">${l.length} de ${dc.length}</span></div></div>
+   <div class="card"><div class="scroll"><table><tr><th>Folio</th><th>Fecha</th><th>Tipo</th>
+   <th>RBD</th><th>Establecimiento</th><th>Inst.</th><th>Técnico</th><th>Observación</th>
+   <th>¿Cuenta?</th></tr>`;
+  l.forEach(d=>{
+    h+=`<tr style="cursor:pointer" onclick="fichaEstab(${d.rbd})">
+     <td><b>${esc(d.folio)}</b></td><td>${fcorto(d.fecha)}</td>
+     <td><span class="pill ${d.tipo==='Preventiva'?'p-grn':d.tipo==='Correctiva'?'p-red':'p-amb'}">${d.tipo}</span></td>
+     <td>${d.rbd}</td><td>${esc(d.estab)}</td><td>${esc(d.inst)}</td>
+     <td class="mini">${esc(d.tec)}</td><td class="mini">${esc((d.det||'').slice(0,90))}</td>
+     <td>${d.cuenta?'<span class="pill p-grn">sí</span>':'<span class="pill p-amb">no · correctiva de jardín</span>'}</td></tr>`;
+  });
+  h+=`</table></div></div>
+   <div class="card"><h3>JUNAEB que todavía no aparecen en Datácora (${jun.length-junOK.size})</h3>
+   <div class="dim">Estos son los que hay que cerrar antes del ${fmt(D.META.metaJunaeb)}.</div>
+   <div class="scroll" style="max-height:44vh;margin-top:10px"><table><tr><th>Pts</th><th>RBD</th>
+   <th>Establecimiento</th><th>Comuna</th><th>Supervisora</th><th>Agendado</th><th>Técnico</th></tr>`;
+  jun.filter(e=>!junOK.has(e.rbd)).sort((a,b)=>b.pts-a.pts).forEach(e=>{
+    const pr=todas().filter(p=>p.rbd===e.rbd&&p.estado!=='realizada'&&p.origen!=='historico')
+      .sort((a,b)=>a.fecha<b.fecha?-1:1)[0];
+    h+=`<tr style="cursor:pointer" onclick="fichaEstab(${e.rbd})">
+     <td><span class="score ${sc(e.pts)}">${e.pts}</span></td><td><b>${e.rbd}</b></td>
+     <td>${esc(e.nombre)}</td><td>${esc(e.comuna)}</td><td class="mini">${esc(e.sup)}</td>
+     <td>${pr?fcorto(pr.fecha):'—'}</td>
+     <td class="mini">${pr?(D.META.tecnicos[pr.tec]||{}).nombre:'—'}</td></tr>`;
+  });
+  h+='</table></div></div>';
+  document.getElementById('v-datacora').innerHTML=h;
+}
+
 /* ============================ SUPERVISORAS ============================ */
 function compromisos(){
   const g={};
@@ -1286,6 +1360,11 @@ function exportarExcel(){
     Comuna:i.comuna||'', Tipo:i.crit, Tecnico:i.tec?(D.META.tecnicos[i.tec]||{}).nombre:'',
     Estado:i.hecho?'Listo':'Pendiente', 'Trabajo comprometido':i.detalle})));
   add('Compromisos supervisoras', comp,[11,20,9,32,17,8,22,11,72]);
+
+  add('Datacora', (D.DC||[]).map(d=>({Folio:d.folio, Fecha:d.fecha, Tipo:d.tipo, RBD:d.rbd,
+    Establecimiento:d.estab, Institucion:d.inst, Tecnico:d.tec,
+    'Cuenta para el conteo':d.cuenta?'SI':'NO', Revision:d.revision||'', Observacion:d.det})),
+    [9,11,13,9,32,11,20,18,20,70]);
 
   add('Aplazamientos', ST.log.length?ST.log.map(l=>({Cuando:l.ts, RBD:l.rbd,
     Establecimiento:(E[l.rbd]||{}).nombre||'', Veces:l.aplaz, 'Nueva fecha':l.nueva, Motivo:l.motivo}))

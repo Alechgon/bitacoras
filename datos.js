@@ -1,7 +1,7 @@
 // SOSER San Pablo — datos generados el 30-09-2026. No editar a mano.
 window.SOSER = {
  "META": {
-  "version": "2026-09-30-r5",
+  "version": "2026-09-30-r6",
   "corteS2": "2026-07-01",
   "hoy": "2026-09-30",
   "inicio": "2026-09-30",
@@ -162,7 +162,8 @@ window.SOSER = {
    "jardin": 2,
    "gasRiesgo": 1,
    "aplazamiento": 1
-  }
+  },
+  "datacoraCorte": "2026-09-30"
  },
  "ESTAB": [
   {
@@ -189,7 +190,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 2
+   "corr2": 2,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 8492,
@@ -206,16 +209,18 @@ window.SOSER = {
    ],
    "lat": -33.466963,
    "lon": -70.648888,
-   "pts": 5,
-   "why": "sin preventiva certificada +2; 1012 raciones +2; gas GRANEL GASCO +1",
+   "pts": 11,
+   "why": "sin visita 2°sem +6; sin visita en todo 2026 +2; 1012 raciones +2; gas GRANEL GASCO +1",
    "s1": 0,
    "s2": 2,
    "ultima": "2026-09-09",
-   "cobertura": "SIN PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 2
+   "corr2": 2,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 8495,
@@ -232,16 +237,18 @@ window.SOSER = {
    ],
    "lat": -33.451304,
    "lon": -70.637776,
-   "pts": 5,
-   "why": "sin preventiva certificada +2; falla EQUIPO abierta +1; 486 raciones +1; gas CILINDRO 45K +1",
+   "pts": 9,
+   "why": "sin visita 2°sem +6; falla EQUIPO abierta +1; 486 raciones +1; gas CILINDRO 45K +1",
    "s1": 8,
    "s2": 3,
    "ultima": "2026-09-21",
-   "cobertura": "SIN PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 3
+   "corr2": 3,
+   "enDatacora": true,
+   "dcVisitas": 2
   },
   {
    "rbd": 8496,
@@ -258,18 +265,20 @@ window.SOSER = {
    ],
    "lat": -33.456134,
    "lon": -70.653229,
-   "pts": 1,
-   "why": "425 raciones +1",
+   "pts": 3,
+   "why": "sin preventiva certificada +2; 425 raciones +1",
    "s1": 2,
    "s2": 5,
    "ultima": "2026-09-14",
-   "cobertura": "CON PREVENTIVA",
+   "cobertura": "SIN PREVENTIVA",
    "prevPartes": [
     "JI"
    ],
    "prevOK": null,
    "prevFecha": "2026-09-14",
-   "corr2": 4
+   "corr2": 4,
+   "enDatacora": true,
+   "dcVisitas": 2
   },
   {
    "rbd": 8498,
@@ -286,18 +295,20 @@ window.SOSER = {
    ],
    "lat": -33.455643,
    "lon": -70.669156,
-   "pts": 9,
-   "why": "falla AGUA abierta +4; prioridad de jefatura +2; 1478 raciones +2; gas GRANEL METROGAS +1",
+   "pts": 15,
+   "why": "sin visita 2°sem +6; falla AGUA abierta +4; prioridad de jefatura +2; 1478 raciones +2; gas GRANEL METROGAS +1",
    "s1": 2,
    "s2": 2,
    "ultima": "2026-08-26",
-   "cobertura": "CON PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [
     "JI"
    ],
    "prevOK": null,
    "prevFecha": "2026-08-26",
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 8501,
@@ -323,7 +334,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 7
+   "corr2": 7,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 8507,
@@ -349,7 +362,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 5
+   "corr2": 5,
+   "enDatacora": true,
+   "dcVisitas": 2
   },
   {
    "rbd": 8513,
@@ -375,7 +390,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 8518,
@@ -401,7 +418,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 3
+   "corr2": 3,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 8520,
@@ -418,16 +437,18 @@ window.SOSER = {
    ],
    "lat": -33.470746,
    "lon": -70.671369,
-   "pts": 5,
-   "why": "sin preventiva certificada +2; 940 raciones +2; gas CILINDRO 45K +1",
+   "pts": 11,
+   "why": "sin visita 2°sem +6; sin visita en todo 2026 +2; 940 raciones +2; gas CILINDRO 45K +1",
    "s1": 0,
    "s2": 3,
    "ultima": "2026-09-22",
-   "cobertura": "SIN PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 3
+   "corr2": 3,
+   "enDatacora": true,
+   "dcVisitas": 2
   },
   {
    "rbd": 8521,
@@ -444,18 +465,20 @@ window.SOSER = {
    ],
    "lat": -33.461464,
    "lon": -70.700384,
-   "pts": 3,
-   "why": "1153 raciones +2; gas GRANEL ABASTIBLE +1",
+   "pts": 5,
+   "why": "sin preventiva certificada +2; 1153 raciones +2; gas GRANEL ABASTIBLE +1",
    "s1": 2,
    "s2": 5,
    "ultima": "2026-09-23",
-   "cobertura": "CON PREVENTIVA",
+   "cobertura": "SIN PREVENTIVA",
    "prevPartes": [
     "JI"
    ],
    "prevOK": null,
    "prevFecha": "2026-09-21",
-   "corr2": 3
+   "corr2": 3,
+   "enDatacora": true,
+   "dcVisitas": 2
   },
   {
    "rbd": 8531,
@@ -472,18 +495,20 @@ window.SOSER = {
    ],
    "lat": -33.467792,
    "lon": -70.644024,
-   "pts": 3,
-   "why": "947 raciones +2; gas GRANEL METROGAS +1",
+   "pts": 5,
+   "why": "sin preventiva certificada +2; 947 raciones +2; gas GRANEL METROGAS +1",
    "s1": 2,
    "s2": 3,
    "ultima": "2026-09-01",
-   "cobertura": "CON PREVENTIVA",
+   "cobertura": "SIN PREVENTIVA",
    "prevPartes": [
     "JI"
    ],
    "prevOK": null,
    "prevFecha": "2026-09-01",
-   "corr2": 1
+   "corr2": 1,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 8533,
@@ -509,7 +534,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 3
+   "corr2": 3,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 8535,
@@ -535,7 +562,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 8537,
@@ -552,16 +581,18 @@ window.SOSER = {
    ],
    "lat": -33.458589,
    "lon": -70.692224,
-   "pts": 4,
-   "why": "sin preventiva certificada +2; 715 raciones +1; gas GRANEL ABASTIBLE +1",
+   "pts": 10,
+   "why": "sin visita 2°sem +6; sin visita en todo 2026 +2; 715 raciones +1; gas GRANEL ABASTIBLE +1",
    "s1": 0,
    "s2": 3,
    "ultima": "2026-09-28",
-   "cobertura": "SIN PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 3
+   "corr2": 3,
+   "enDatacora": true,
+   "dcVisitas": 2
   },
   {
    "rbd": 8540,
@@ -587,7 +618,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 8544,
@@ -613,7 +646,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 2
+   "corr2": 2,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 8549,
@@ -639,7 +674,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 2
+   "corr2": 2,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 8554,
@@ -665,7 +702,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 8555,
@@ -691,7 +730,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 2
+   "corr2": 2,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 8556,
@@ -717,7 +758,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 1
+   "corr2": 1,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 8558,
@@ -743,7 +786,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 8562,
@@ -769,7 +814,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 8563,
@@ -786,16 +833,18 @@ window.SOSER = {
    ],
    "lat": -33.449571,
    "lon": -70.636693,
-   "pts": 4,
-   "why": "sin preventiva certificada +2; 741 raciones +1; gas GRANEL METROGAS +1",
+   "pts": 10,
+   "why": "sin visita 2°sem +6; sin visita en todo 2026 +2; 741 raciones +1; gas GRANEL METROGAS +1",
    "s1": 0,
    "s2": 2,
    "ultima": "2026-09-29",
-   "cobertura": "SIN PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 2
+   "corr2": 2,
+   "enDatacora": true,
+   "dcVisitas": 2
   },
   {
    "rbd": 8576,
@@ -821,7 +870,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 1
+   "corr2": 1,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 8579,
@@ -847,7 +898,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 8581,
@@ -864,18 +917,20 @@ window.SOSER = {
    ],
    "lat": -33.466155,
    "lon": -70.652762,
-   "pts": 2,
-   "why": "508 raciones +1; gas CILINDRO 45K +1",
+   "pts": 8,
+   "why": "sin visita 2°sem +6; 508 raciones +1; gas CILINDRO 45K +1",
    "s1": 2,
    "s2": 2,
    "ultima": "2026-09-10",
-   "cobertura": "CON PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [
     "JI"
    ],
    "prevOK": null,
    "prevFecha": "2026-09-10",
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 8585,
@@ -892,16 +947,18 @@ window.SOSER = {
    ],
    "lat": -33.45429,
    "lon": -70.66036,
-   "pts": 9,
-   "why": "sin preventiva certificada +2; falla AGUA abierta +4; prioridad de jefatura +2; gas CILINDRO 45K +1",
+   "pts": 13,
+   "why": "sin visita 2°sem +6; falla AGUA abierta +4; prioridad de jefatura +2; gas CILINDRO 45K +1",
    "s1": 1,
    "s2": 1,
    "ultima": "2026-09-25",
-   "cobertura": "SIN PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 1
+   "corr2": 1,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 8586,
@@ -927,7 +984,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 3
+   "corr2": 3,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 8587,
@@ -953,7 +1012,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 8617,
@@ -970,18 +1031,20 @@ window.SOSER = {
    ],
    "lat": -33.467809,
    "lon": -70.648533,
-   "pts": 3,
-   "why": "871 raciones +2; gas GRANEL METROGAS +1",
+   "pts": 9,
+   "why": "sin visita 2°sem +6; 871 raciones +2; gas GRANEL METROGAS +1",
    "s1": 3,
    "s2": 1,
    "ultima": "2026-09-14",
-   "cobertura": "CON PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [
     "JI"
    ],
    "prevOK": null,
    "prevFecha": "2026-09-14",
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 8625,
@@ -1007,7 +1070,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 8657,
@@ -1024,16 +1089,18 @@ window.SOSER = {
    ],
    "lat": -33.470747,
    "lon": -70.691858,
-   "pts": 4,
-   "why": "sin preventiva certificada +2; 793 raciones +1; gas CILINDRO 45K +1",
+   "pts": 8,
+   "why": "sin visita 2°sem +6; 793 raciones +1; gas CILINDRO 45K +1",
    "s1": 5,
    "s2": 7,
    "ultima": "2026-09-09",
-   "cobertura": "SIN PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 6
+   "corr2": 6,
+   "enDatacora": true,
+   "dcVisitas": 3
   },
   {
    "rbd": 8658,
@@ -1059,7 +1126,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 2
+   "corr2": 2,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 8659,
@@ -1085,7 +1154,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 2
+   "corr2": 2,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 8661,
@@ -1111,7 +1182,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 4
+   "corr2": 4,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 8663,
@@ -1128,18 +1201,20 @@ window.SOSER = {
    ],
    "lat": -33.475348,
    "lon": -70.649546,
-   "pts": 3,
-   "why": "928 raciones +2; gas GRANEL LIPIGAS +1",
+   "pts": 11,
+   "why": "sin visita 2°sem +6; sin visita en todo 2026 +2; 928 raciones +2; gas GRANEL LIPIGAS +1",
    "s1": 0,
    "s2": 2,
    "ultima": "2026-09-03",
-   "cobertura": "CON PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [
     "JI"
    ],
    "prevOK": null,
    "prevFecha": "2026-09-03",
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 8665,
@@ -1167,7 +1242,9 @@ window.SOSER = {
    ],
    "prevOK": null,
    "prevFecha": "2026-08-11",
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 8666,
@@ -1193,7 +1270,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 8678,
@@ -1210,16 +1289,18 @@ window.SOSER = {
    ],
    "lat": -33.46673,
    "lon": -70.68381,
-   "pts": 4,
-   "why": "sin preventiva certificada +2; 519 raciones +1; gas CILINDRO 45K +1",
+   "pts": 8,
+   "why": "sin visita 2°sem +6; 519 raciones +1; gas CILINDRO 45K +1",
    "s1": 2,
    "s2": 7,
    "ultima": "2026-09-24",
-   "cobertura": "SIN PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 7
+   "corr2": 7,
+   "enDatacora": true,
+   "dcVisitas": 5
   },
   {
    "rbd": 8812,
@@ -1245,7 +1326,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 5
+   "corr2": 5,
+   "enDatacora": true,
+   "dcVisitas": 2
   },
   {
    "rbd": 8814,
@@ -1271,7 +1354,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 9862,
@@ -1299,7 +1384,9 @@ window.SOSER = {
    ],
    "prevOK": null,
    "prevFecha": "2026-07-21",
-   "corr2": 3
+   "corr2": 3,
+   "enDatacora": true,
+   "dcVisitas": 3
   },
   {
    "rbd": 9866,
@@ -1325,7 +1412,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 2
+   "corr2": 2,
+   "enDatacora": true,
+   "dcVisitas": 2
   },
   {
    "rbd": 9869,
@@ -1353,7 +1442,9 @@ window.SOSER = {
    ],
    "prevOK": null,
    "prevFecha": "2026-07-21",
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 9872,
@@ -1370,16 +1461,18 @@ window.SOSER = {
    ],
    "lat": -33.466036,
    "lon": -70.702886,
-   "pts": 4,
-   "why": "sin preventiva certificada +2; 586 raciones +1; gas GRANEL ABASTIBLE +1",
+   "pts": 10,
+   "why": "sin visita 2°sem +6; sin visita en todo 2026 +2; 586 raciones +1; gas GRANEL ABASTIBLE +1",
    "s1": 0,
    "s2": 2,
    "ultima": "2026-09-02",
-   "cobertura": "SIN PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 9873,
@@ -1405,7 +1498,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 1
+   "corr2": 1,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 9879,
@@ -1431,7 +1526,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 2
+   "corr2": 2,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 9880,
@@ -1448,16 +1545,18 @@ window.SOSER = {
    ],
    "lat": -33.473583,
    "lon": -70.701607,
-   "pts": 4,
-   "why": "sin preventiva certificada +2; 527 raciones +1; gas GRANEL ABASTIBLE +1",
+   "pts": 8,
+   "why": "sin visita 2°sem +6; 527 raciones +1; gas GRANEL ABASTIBLE +1",
    "s1": 1,
    "s2": 2,
    "ultima": "2026-09-02",
-   "cobertura": "SIN PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 9912,
@@ -1483,7 +1582,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 1
+   "corr2": 1,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 9930,
@@ -1500,16 +1601,18 @@ window.SOSER = {
    ],
    "lat": -33.463997,
    "lon": -70.698807,
-   "pts": 5,
-   "why": "sin preventiva certificada +2; 840 raciones +2; gas CILINDRO 45K +1",
+   "pts": 11,
+   "why": "sin visita 2°sem +6; sin visita en todo 2026 +2; 840 raciones +2; gas CILINDRO 45K +1",
    "s1": 0,
-   "s2": 3,
+   "s2": 2,
    "ultima": "2026-09-02",
-   "cobertura": "SIN PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 12130,
@@ -1526,18 +1629,20 @@ window.SOSER = {
    ],
    "lat": -33.46665,
    "lon": -70.672398,
-   "pts": 2,
-   "why": "401 raciones +1; gas CILINDRO 45K +1",
+   "pts": 10,
+   "why": "sin visita 2°sem +6; sin visita en todo 2026 +2; 401 raciones +1; gas CILINDRO 45K +1",
    "s1": 0,
    "s2": 3,
    "ultima": "2026-09-29",
-   "cobertura": "CON PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [
     "JI"
    ],
    "prevOK": null,
    "prevFecha": "2026-09-03",
-   "corr2": 1
+   "corr2": 1,
+   "enDatacora": true,
+   "dcVisitas": 2
   },
   {
    "rbd": 25575,
@@ -1554,18 +1659,20 @@ window.SOSER = {
    ],
    "lat": -33.458546,
    "lon": -70.70276,
-   "pts": 1,
-   "why": "gas CILINDRO 45K +1",
+   "pts": 9,
+   "why": "sin visita 2°sem +6; sin visita en todo 2026 +2; gas CILINDRO 45K +1",
    "s1": 0,
    "s2": 4,
    "ultima": "2026-09-02",
-   "cobertura": "CON PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [
     "JI"
    ],
    "prevOK": null,
    "prevFecha": "2026-08-25",
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": true,
+   "dcVisitas": 2
   },
   {
    "rbd": 31295,
@@ -1591,7 +1698,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 4
+   "corr2": 4,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 881276,
@@ -1617,7 +1726,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 886284,
@@ -1644,7 +1755,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": false,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 886753,
@@ -1674,7 +1787,9 @@ window.SOSER = {
    ],
    "prevOK": true,
    "prevFecha": "2026-07-14",
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 888522,
@@ -1700,7 +1815,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 888536,
@@ -1726,7 +1843,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 888755,
@@ -1752,7 +1871,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": false,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 888953,
@@ -1778,7 +1899,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 889111,
@@ -1804,7 +1927,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 889117,
@@ -1830,7 +1955,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": null,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 946036,
@@ -1857,7 +1984,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": false,
    "prevFecha": null,
-   "corr2": 5
+   "corr2": 5,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 946051,
@@ -1874,18 +2003,20 @@ window.SOSER = {
    ],
    "lat": -33.4701275363502,
    "lon": -70.6924910412384,
-   "pts": 3,
-   "why": "jardín/sala cuna +2; gas CILINDRO 45K +1",
+   "pts": 11,
+   "why": "sin visita 2°sem +6; sin visita en todo 2026 +2; jardín/sala cuna +2; gas CILINDRO 45K +1",
    "s1": 0,
    "s2": 1,
    "ultima": "2026-09-21",
-   "cobertura": "CON PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [
     "JI"
    ],
    "prevOK": true,
    "prevFecha": "2026-09-21",
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 946064,
@@ -1913,7 +2044,9 @@ window.SOSER = {
    ],
    "prevOK": true,
    "prevFecha": "2026-07-15",
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 946067,
@@ -1939,7 +2072,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": false,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 946074,
@@ -1966,7 +2101,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": false,
    "prevFecha": null,
-   "corr2": 1
+   "corr2": 1,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 946606,
@@ -1987,8 +2124,8 @@ window.SOSER = {
    "pts": 7,
    "why": "sin preventiva certificada +2; falla OTRO abierta +1; 15 días sin atender +1; jardín/sala cuna +2; gas CILINDRO 45K +1",
    "s1": 1,
-   "s2": 5,
-   "ultima": "2026-08-13",
+   "s2": 6,
+   "ultima": "2026-09-30",
    "cobertura": "SIN PREVENTIVA",
    "prevPartes": [
     "JI",
@@ -1996,7 +2133,9 @@ window.SOSER = {
    ],
    "prevOK": true,
    "prevFecha": "2026-08-13",
-   "corr2": 3
+   "corr2": 4,
+   "enDatacora": false,
+   "dcVisitas": 1
   },
   {
    "rbd": 946727,
@@ -2024,7 +2163,9 @@ window.SOSER = {
    ],
    "prevOK": true,
    "prevFecha": "2026-07-15",
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 946743,
@@ -2051,7 +2192,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": false,
    "prevFecha": null,
-   "corr2": 1
+   "corr2": 1,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 946748,
@@ -2078,7 +2221,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": false,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 946754,
@@ -2105,7 +2250,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": false,
    "prevFecha": null,
-   "corr2": 6
+   "corr2": 6,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 946764,
@@ -2126,13 +2273,15 @@ window.SOSER = {
    "pts": 7,
    "why": "sin preventiva certificada +2; falla OTRO abierta +1; 478 raciones +1; jardín/sala cuna +2; gas CILINDRO 45K +1",
    "s1": 2,
-   "s2": 6,
-   "ultima": "2026-09-22",
+   "s2": 7,
+   "ultima": "2026-09-30",
    "cobertura": "SIN PREVENTIVA",
    "prevPartes": [],
    "prevOK": false,
    "prevFecha": null,
-   "corr2": 6
+   "corr2": 7,
+   "enDatacora": false,
+   "dcVisitas": 2
   },
   {
    "rbd": 946781,
@@ -2159,7 +2308,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": false,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 946792,
@@ -2189,7 +2340,9 @@ window.SOSER = {
    ],
    "prevOK": true,
    "prevFecha": "2026-08-12",
-   "corr2": 6
+   "corr2": 6,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 946797,
@@ -2216,7 +2369,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": false,
    "prevFecha": null,
-   "corr2": 1
+   "corr2": 1,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 946904,
@@ -2234,18 +2389,20 @@ window.SOSER = {
    ],
    "lat": -33.4599993473951,
    "lon": -70.7010525412127,
-   "pts": 3,
-   "why": "jardín/sala cuna +2; gas CILINDRO 45K +1",
+   "pts": 11,
+   "why": "sin visita 2°sem +6; sin visita en todo 2026 +2; jardín/sala cuna +2; gas CILINDRO 45K +1",
    "s1": 0,
    "s2": 1,
    "ultima": "2026-09-29",
-   "cobertura": "CON PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [
     "JI"
    ],
    "prevOK": false,
    "prevFecha": "2026-09-29",
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 946909,
@@ -2272,7 +2429,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": false,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 947115,
@@ -2289,18 +2448,20 @@ window.SOSER = {
    ],
    "lat": -33.4675415152534,
    "lon": -70.642524739363,
-   "pts": 5,
-   "why": "sin preventiva certificada +2; jardín/sala cuna +2; gas CILINDRO 45K +1",
+   "pts": 9,
+   "why": "sin visita 2°sem +6; jardín/sala cuna +2; gas CILINDRO 45K +1",
    "s1": 1,
    "s2": 2,
    "ultima": "2026-09-17",
-   "cobertura": "SIN PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [
     "JI"
    ],
    "prevOK": true,
    "prevFecha": "2026-09-17",
-   "corr2": 1
+   "corr2": 1,
+   "enDatacora": false,
+   "dcVisitas": 1
   },
   {
    "rbd": 947118,
@@ -2318,18 +2479,20 @@ window.SOSER = {
    ],
    "lat": -33.4735700384577,
    "lon": -70.7009616045239,
-   "pts": 3,
-   "why": "jardín/sala cuna +2; gas CILINDRO 45K +1",
+   "pts": 9,
+   "why": "sin visita 2°sem +6; jardín/sala cuna +2; gas CILINDRO 45K +1",
    "s1": 1,
    "s2": 1,
    "ultima": "2026-09-16",
-   "cobertura": "CON PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [
     "JI"
    ],
    "prevOK": false,
    "prevFecha": "2026-09-16",
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": true,
+   "dcVisitas": 1
   },
   {
    "rbd": 947123,
@@ -2356,7 +2519,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": false,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 947129,
@@ -2383,7 +2548,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": false,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 947280,
@@ -2412,7 +2579,9 @@ window.SOSER = {
    ],
    "prevOK": false,
    "prevFecha": "2026-07-20",
-   "corr2": 1
+   "corr2": 1,
+   "enDatacora": false,
+   "dcVisitas": 1
   },
   {
    "rbd": 947296,
@@ -2439,7 +2608,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": false,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 947477,
@@ -2467,7 +2638,9 @@ window.SOSER = {
    ],
    "prevOK": true,
    "prevFecha": "2026-07-14",
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 995437,
@@ -2494,7 +2667,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": false,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 995438,
@@ -2511,18 +2686,20 @@ window.SOSER = {
    ],
    "lat": -33.4762911652058,
    "lon": -70.6911204661827,
-   "pts": 3,
-   "why": "jardín/sala cuna +2; gas GRANEL LIPIGAS +1",
+   "pts": 9,
+   "why": "sin visita 2°sem +6; jardín/sala cuna +2; gas GRANEL LIPIGAS +1",
    "s1": 1,
    "s2": 2,
    "ultima": "2026-09-23",
-   "cobertura": "CON PREVENTIVA",
+   "cobertura": "SIN VISITA",
    "prevPartes": [
     "JI"
    ],
    "prevOK": true,
    "prevFecha": "2026-09-23",
-   "corr2": 1
+   "corr2": 1,
+   "enDatacora": true,
+   "dcVisitas": 2
   },
   {
    "rbd": 995440,
@@ -2552,7 +2729,9 @@ window.SOSER = {
    ],
    "prevOK": true,
    "prevFecha": "2026-07-30",
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 995441,
@@ -2582,7 +2761,9 @@ window.SOSER = {
    ],
    "prevOK": true,
    "prevFecha": "2026-08-27",
-   "corr2": 3
+   "corr2": 3,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 998554,
@@ -2612,7 +2793,9 @@ window.SOSER = {
    ],
    "prevOK": true,
    "prevFecha": "2026-07-01",
-   "corr2": 2
+   "corr2": 2,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 998555,
@@ -2639,7 +2822,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": false,
    "prevFecha": null,
-   "corr2": 2
+   "corr2": 2,
+   "enDatacora": false,
+   "dcVisitas": 0
   },
   {
    "rbd": 998556,
@@ -2666,7 +2851,9 @@ window.SOSER = {
    "prevPartes": [],
    "prevOK": false,
    "prevFecha": null,
-   "corr2": 0
+   "corr2": 0,
+   "enDatacora": false,
+   "dcVisitas": 0
   }
  ],
  "PLAN": [
@@ -2783,7 +2970,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Filas nuevas FALTANTES (j",
-   "pts": 4,
+   "pts": 10,
    "crit": "",
    "folio": "1902",
    "estado": "realizada",
@@ -3183,7 +3370,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 3,
+   "pts": 5,
    "crit": "",
    "folio": "5269",
    "estado": "realizada",
@@ -3423,7 +3610,7 @@ window.SOSER = {
    "tipoReal": "Acta",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 3,
+   "pts": 5,
    "crit": "",
    "folio": "1922",
    "estado": "realizada",
@@ -3523,7 +3710,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 1,
+   "pts": 3,
    "crit": "",
    "folio": "5281",
    "estado": "realizada",
@@ -3683,7 +3870,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 3,
+   "pts": 5,
    "crit": "",
    "folio": "1924",
    "estado": "realizada",
@@ -4143,7 +4330,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 1,
+   "pts": 3,
    "crit": "",
    "folio": "1941",
    "estado": "realizada",
@@ -4163,7 +4350,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 3,
+   "pts": 5,
    "crit": "",
    "folio": "1945",
    "estado": "realizada",
@@ -4343,7 +4530,7 @@ window.SOSER = {
    "tipoReal": "Acta",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 4,
+   "pts": 8,
    "crit": "",
    "folio": "1955",
    "estado": "realizada",
@@ -4843,7 +5030,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Filas nuevas PARA PEGAR (",
-   "pts": 1,
+   "pts": 9,
    "crit": "",
    "folio": "App-18",
    "estado": "realizada",
@@ -4863,7 +5050,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 1,
+   "pts": 9,
    "crit": "",
    "folio": "D-18",
    "estado": "realizada",
@@ -4883,7 +5070,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Filas nuevas PARA PEGAR (",
-   "pts": 9,
+   "pts": 15,
    "crit": "",
    "folio": "App-31",
    "estado": "realizada",
@@ -4903,7 +5090,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 9,
+   "pts": 15,
    "crit": "",
    "folio": "D-31",
    "estado": "realizada",
@@ -5023,7 +5210,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Filas nuevas PARA PEGAR (",
-   "pts": 5,
+   "pts": 11,
    "crit": "",
    "folio": "App-48",
    "estado": "realizada",
@@ -5043,7 +5230,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 5,
+   "pts": 11,
    "crit": "",
    "folio": "D-48",
    "estado": "realizada",
@@ -5143,7 +5330,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Filas nuevas PARA PEGAR (",
-   "pts": 4,
+   "pts": 8,
    "crit": "",
    "folio": "App-65",
    "estado": "realizada",
@@ -5163,7 +5350,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 4,
+   "pts": 8,
    "crit": "",
    "folio": "D-65",
    "estado": "realizada",
@@ -5183,7 +5370,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Filas nuevas PARA PEGAR (",
-   "pts": 3,
+   "pts": 5,
    "crit": "",
    "folio": "App-74",
    "estado": "realizada",
@@ -5203,7 +5390,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 3,
+   "pts": 5,
    "crit": "",
    "folio": "D-74",
    "estado": "realizada",
@@ -5343,7 +5530,7 @@ window.SOSER = {
    "tipoReal": "Mutualidad",
    "parte": "JI",
    "fuente": "Filas nuevas PARA PEGAR (",
-   "pts": 4,
+   "pts": 10,
    "crit": "",
    "folio": "App-102",
    "estado": "realizada",
@@ -5363,7 +5550,7 @@ window.SOSER = {
    "tipoReal": "Mutualidad",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 4,
+   "pts": 10,
    "crit": "",
    "folio": "D-102",
    "estado": "realizada",
@@ -5383,7 +5570,7 @@ window.SOSER = {
    "tipoReal": "Mutualidad",
    "parte": "JI",
    "fuente": "Filas nuevas PARA PEGAR (",
-   "pts": 4,
+   "pts": 8,
    "crit": "",
    "folio": "App-105",
    "estado": "realizada",
@@ -5403,7 +5590,7 @@ window.SOSER = {
    "tipoReal": "Mutualidad",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 4,
+   "pts": 8,
    "crit": "",
    "folio": "D-105",
    "estado": "realizada",
@@ -5423,7 +5610,7 @@ window.SOSER = {
    "tipoReal": "Mutualidad",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 5,
+   "pts": 11,
    "crit": "",
    "folio": "D-108",
    "estado": "realizada",
@@ -5439,31 +5626,11 @@ window.SOSER = {
    "hora": "",
    "rbd": 9930,
    "clase": "EXTRA",
-   "detalle": "Mutualidad · bitácora D-s/n",
-   "tipoReal": "Mutualidad",
-   "parte": "JI",
-   "fuente": "Datácora",
-   "pts": 5,
-   "crit": "",
-   "folio": "D-s/n",
-   "estado": "realizada",
-   "aplaz": 0,
-   "origen": "historico"
-  },
-  {
-   "id": "C0140",
-   "fase": "HIST",
-   "fecha": "2026-09-02",
-   "tec": "CAMILO",
-   "bloque": 4,
-   "hora": "",
-   "rbd": 9930,
-   "clase": "EXTRA",
    "detalle": "Mutualidad · bitácora s/n",
    "tipoReal": "Mutualidad",
    "parte": "JI",
    "fuente": "Filas nuevas PARA PEGAR (",
-   "pts": 5,
+   "pts": 11,
    "crit": "",
    "folio": "s/n",
    "estado": "realizada",
@@ -5471,7 +5638,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0141",
+   "id": "C0140",
    "fase": "HIST",
    "fecha": "2026-09-02",
    "tec": "RODRIGO",
@@ -5491,7 +5658,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0142",
+   "id": "C0141",
    "fase": "HIST",
    "fecha": "2026-09-02",
    "tec": "RODRIGO",
@@ -5511,7 +5678,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0143",
+   "id": "C0142",
    "fase": "HIST",
    "fecha": "2026-09-02",
    "tec": "RODRIGO",
@@ -5523,7 +5690,7 @@ window.SOSER = {
    "tipoReal": "Mutualidad",
    "parte": "JI",
    "fuente": "Filas nuevas PARA PEGAR (",
-   "pts": 1,
+   "pts": 9,
    "crit": "",
    "folio": "App-91",
    "estado": "realizada",
@@ -5531,7 +5698,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0144",
+   "id": "C0143",
    "fase": "HIST",
    "fecha": "2026-09-02",
    "tec": "RODRIGO",
@@ -5543,7 +5710,7 @@ window.SOSER = {
    "tipoReal": "Mutualidad",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 1,
+   "pts": 9,
    "crit": "",
    "folio": "D-91",
    "estado": "realizada",
@@ -5551,7 +5718,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0145",
+   "id": "C0144",
    "fase": "HIST",
    "fecha": "2026-09-03",
    "tec": "RODRIGO",
@@ -5563,7 +5730,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Filas nuevas PARA PEGAR (",
-   "pts": 3,
+   "pts": 11,
    "crit": "",
    "folio": "App-119",
    "estado": "realizada",
@@ -5571,7 +5738,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0146",
+   "id": "C0145",
    "fase": "HIST",
    "fecha": "2026-09-03",
    "tec": "RODRIGO",
@@ -5583,7 +5750,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 3,
+   "pts": 11,
    "crit": "",
    "folio": "D-119",
    "estado": "realizada",
@@ -5591,7 +5758,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0147",
+   "id": "C0146",
    "fase": "HIST",
    "fecha": "2026-09-03",
    "tec": "RODRIGO",
@@ -5603,7 +5770,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Filas nuevas PARA PEGAR (",
-   "pts": 2,
+   "pts": 10,
    "crit": "",
    "folio": "App-129",
    "estado": "realizada",
@@ -5611,7 +5778,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0148",
+   "id": "C0147",
    "fase": "HIST",
    "fecha": "2026-09-03",
    "tec": "RODRIGO",
@@ -5623,7 +5790,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 2,
+   "pts": 10,
    "crit": "",
    "folio": "D-129",
    "estado": "realizada",
@@ -5631,7 +5798,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0149",
+   "id": "C0148",
    "fase": "HIST",
    "fecha": "2026-09-04",
    "tec": "CAMILO",
@@ -5643,7 +5810,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Filas nuevas PARA PEGAR (",
-   "pts": 4,
+   "pts": 8,
    "crit": "",
    "folio": "App-149",
    "estado": "realizada",
@@ -5651,7 +5818,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0150",
+   "id": "C0149",
    "fase": "HIST",
    "fecha": "2026-09-04",
    "tec": "CAMILO",
@@ -5663,7 +5830,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 4,
+   "pts": 8,
    "crit": "",
    "folio": "D-149",
    "estado": "realizada",
@@ -5671,7 +5838,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0151",
+   "id": "C0150",
    "fase": "HIST",
    "fecha": "2026-09-04",
    "tec": "RODRIGO",
@@ -5691,7 +5858,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0152",
+   "id": "C0151",
    "fase": "HIST",
    "fecha": "2026-09-04",
    "tec": "RODRIGO",
@@ -5711,7 +5878,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0153",
+   "id": "C0152",
    "fase": "HIST",
    "fecha": "2026-09-04",
    "tec": "RODRIGO",
@@ -5731,7 +5898,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0154",
+   "id": "C0153",
    "fase": "HIST",
    "fecha": "2026-09-07",
    "tec": "CAMILO",
@@ -5743,7 +5910,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Filas nuevas PARA PEGAR (",
-   "pts": 4,
+   "pts": 8,
    "crit": "",
    "folio": "App-162",
    "estado": "realizada",
@@ -5751,7 +5918,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0155",
+   "id": "C0154",
    "fase": "HIST",
    "fecha": "2026-09-07",
    "tec": "CAMILO",
@@ -5763,7 +5930,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 4,
+   "pts": 8,
    "crit": "",
    "folio": "D-162",
    "estado": "realizada",
@@ -5771,7 +5938,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0156",
+   "id": "C0155",
    "fase": "HIST",
    "fecha": "2026-09-08",
    "tec": "CAMILO",
@@ -5791,7 +5958,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0157",
+   "id": "C0156",
    "fase": "HIST",
    "fecha": "2026-09-08",
    "tec": "CAMILO",
@@ -5811,7 +5978,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0158",
+   "id": "C0157",
    "fase": "HIST",
    "fecha": "2026-09-08",
    "tec": "CAMILO",
@@ -5823,7 +5990,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Filas nuevas PARA PEGAR (",
-   "pts": 1,
+   "pts": 3,
    "crit": "",
    "folio": "App-182",
    "estado": "realizada",
@@ -5831,7 +5998,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0159",
+   "id": "C0158",
    "fase": "HIST",
    "fecha": "2026-09-08",
    "tec": "CAMILO",
@@ -5843,9 +6010,29 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 1,
+   "pts": 3,
    "crit": "",
    "folio": "D-182",
+   "estado": "realizada",
+   "aplaz": 0,
+   "origen": "historico"
+  },
+  {
+   "id": "C0159",
+   "fase": "HIST",
+   "fecha": "2026-09-08",
+   "tec": "CAMILO",
+   "bloque": 4,
+   "hora": "",
+   "rbd": 8657,
+   "clase": "CORRECTIVO URGENTE",
+   "detalle": "Correctiva · bitácora App-187",
+   "tipoReal": "Correctiva",
+   "parte": "JI",
+   "fuente": "Filas nuevas PARA PEGAR (",
+   "pts": 8,
+   "crit": "",
+   "folio": "App-187",
    "estado": "realizada",
    "aplaz": 0,
    "origen": "historico"
@@ -5859,31 +6046,11 @@ window.SOSER = {
    "hora": "",
    "rbd": 8657,
    "clase": "CORRECTIVO URGENTE",
-   "detalle": "Correctiva · bitácora App-187",
-   "tipoReal": "Correctiva",
-   "parte": "JI",
-   "fuente": "Filas nuevas PARA PEGAR (",
-   "pts": 4,
-   "crit": "",
-   "folio": "App-187",
-   "estado": "realizada",
-   "aplaz": 0,
-   "origen": "historico"
-  },
-  {
-   "id": "C0161",
-   "fase": "HIST",
-   "fecha": "2026-09-08",
-   "tec": "CAMILO",
-   "bloque": 4,
-   "hora": "",
-   "rbd": 8657,
-   "clase": "CORRECTIVO URGENTE",
    "detalle": "Correctiva · bitácora D-187",
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 4,
+   "pts": 8,
    "crit": "",
    "folio": "D-187",
    "estado": "realizada",
@@ -5891,7 +6058,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0162",
+   "id": "C0161",
    "fase": "HIST",
    "fecha": "2026-09-08",
    "tec": "RODRIGO",
@@ -5903,7 +6070,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Filas nuevas PARA PEGAR (",
-   "pts": 5,
+   "pts": 9,
    "crit": "",
    "folio": "App-180",
    "estado": "realizada",
@@ -5911,7 +6078,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0163",
+   "id": "C0162",
    "fase": "HIST",
    "fecha": "2026-09-08",
    "tec": "RODRIGO",
@@ -5923,7 +6090,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 5,
+   "pts": 9,
    "crit": "",
    "folio": "D-180",
    "estado": "realizada",
@@ -5931,7 +6098,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0164",
+   "id": "C0163",
    "fase": "HIST",
    "fecha": "2026-09-08",
    "tec": "RODRIGO",
@@ -5951,7 +6118,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0165",
+   "id": "C0164",
    "fase": "HIST",
    "fecha": "2026-09-08",
    "tec": "RODRIGO",
@@ -5971,7 +6138,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0166",
+   "id": "C0165",
    "fase": "HIST",
    "fecha": "2026-09-08",
    "tec": "RODRIGO",
@@ -5991,7 +6158,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0167",
+   "id": "C0166",
    "fase": "HIST",
    "fecha": "2026-09-08",
    "tec": "RODRIGO",
@@ -6011,7 +6178,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0168",
+   "id": "C0167",
    "fase": "HIST",
    "fecha": "2026-09-09",
    "tec": "CAMILO",
@@ -6023,7 +6190,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Filas nuevas PARA PEGAR (",
-   "pts": 5,
+   "pts": 11,
    "crit": "",
    "folio": "App-192",
    "estado": "realizada",
@@ -6031,7 +6198,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0169",
+   "id": "C0168",
    "fase": "HIST",
    "fecha": "2026-09-09",
    "tec": "CAMILO",
@@ -6043,7 +6210,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 5,
+   "pts": 11,
    "crit": "",
    "folio": "D-192",
    "estado": "realizada",
@@ -6051,7 +6218,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0170",
+   "id": "C0169",
    "fase": "HIST",
    "fecha": "2026-09-09",
    "tec": "CAMILO",
@@ -6071,7 +6238,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0171",
+   "id": "C0170",
    "fase": "HIST",
    "fecha": "2026-09-09",
    "tec": "CAMILO",
@@ -6091,7 +6258,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0172",
+   "id": "C0171",
    "fase": "HIST",
    "fecha": "2026-09-09",
    "tec": "RODRIGO",
@@ -6103,7 +6270,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Filas nuevas PARA PEGAR (",
-   "pts": 4,
+   "pts": 8,
    "crit": "",
    "folio": "App-195",
    "estado": "realizada",
@@ -6111,7 +6278,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0173",
+   "id": "C0172",
    "fase": "HIST",
    "fecha": "2026-09-09",
    "tec": "RODRIGO",
@@ -6123,7 +6290,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 4,
+   "pts": 8,
    "crit": "",
    "folio": "D-195",
    "estado": "realizada",
@@ -6131,7 +6298,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0174",
+   "id": "C0173",
    "fase": "HIST",
    "fecha": "2026-09-10",
    "tec": "RODRIGO",
@@ -6143,7 +6310,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Filas nuevas PARA PEGAR (",
-   "pts": 2,
+   "pts": 8,
    "crit": "",
    "folio": "App-210",
    "estado": "realizada",
@@ -6151,7 +6318,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0175",
+   "id": "C0174",
    "fase": "HIST",
    "fecha": "2026-09-10",
    "tec": "RODRIGO",
@@ -6163,7 +6330,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 2,
+   "pts": 8,
    "crit": "",
    "folio": "D-210",
    "estado": "realizada",
@@ -6171,7 +6338,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0176",
+   "id": "C0175",
    "fase": "HIST",
    "fecha": "2026-09-14",
    "tec": "CAMILO",
@@ -6183,7 +6350,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 3,
+   "pts": 9,
    "crit": "",
    "folio": "D-236",
    "estado": "realizada",
@@ -6191,7 +6358,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0177",
+   "id": "C0176",
    "fase": "HIST",
    "fecha": "2026-09-14",
    "tec": "RODRIGO",
@@ -6203,7 +6370,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 1,
+   "pts": 3,
    "crit": "",
    "folio": "D-242",
    "estado": "realizada",
@@ -6211,7 +6378,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0178",
+   "id": "C0177",
    "fase": "HIST",
    "fecha": "2026-09-16",
    "tec": "CAMILO",
@@ -6223,7 +6390,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 5,
+   "pts": 9,
    "crit": "",
    "folio": "D-263",
    "estado": "realizada",
@@ -6231,7 +6398,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0179",
+   "id": "C0178",
    "fase": "HIST",
    "fecha": "2026-09-16",
    "tec": "RODRIGO",
@@ -6243,7 +6410,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 3,
+   "pts": 9,
    "crit": "",
    "folio": "D-262",
    "estado": "realizada",
@@ -6251,7 +6418,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0180",
+   "id": "C0179",
    "fase": "HIST",
    "fecha": "2026-09-17",
    "tec": "CAMILO",
@@ -6263,7 +6430,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Plan Mantención",
-   "pts": 5,
+   "pts": 9,
    "crit": "",
    "folio": "",
    "estado": "realizada",
@@ -6271,7 +6438,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0181",
+   "id": "C0180",
    "fase": "HIST",
    "fecha": "2026-09-21",
    "tec": "CAMILO",
@@ -6283,7 +6450,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 5,
+   "pts": 9,
    "crit": "",
    "folio": "D-287",
    "estado": "realizada",
@@ -6291,7 +6458,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0182",
+   "id": "C0181",
    "fase": "HIST",
    "fecha": "2026-09-21",
    "tec": "CAMILO",
@@ -6303,7 +6470,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 4,
+   "pts": 8,
    "crit": "",
    "folio": "D-307",
    "estado": "realizada",
@@ -6311,7 +6478,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0183",
+   "id": "C0182",
    "fase": "HIST",
    "fecha": "2026-09-21",
    "tec": "RODRIGO",
@@ -6323,7 +6490,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 3,
+   "pts": 5,
    "crit": "",
    "folio": "D-332",
    "estado": "realizada",
@@ -6331,7 +6498,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0184",
+   "id": "C0183",
    "fase": "HIST",
    "fecha": "2026-09-21",
    "tec": "RODRIGO",
@@ -6343,7 +6510,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 3,
+   "pts": 11,
    "crit": "",
    "folio": "D-337",
    "estado": "realizada",
@@ -6351,7 +6518,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0185",
+   "id": "C0184",
    "fase": "HIST",
    "fecha": "2026-09-22",
    "tec": "RODRIGO",
@@ -6363,7 +6530,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 5,
+   "pts": 11,
    "crit": "",
    "folio": "D-606",
    "estado": "realizada",
@@ -6371,7 +6538,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0186",
+   "id": "C0185",
    "fase": "HIST",
    "fecha": "2026-09-22",
    "tec": "RODRIGO",
@@ -6391,7 +6558,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0187",
+   "id": "C0186",
    "fase": "HIST",
    "fecha": "2026-09-23",
    "tec": "CAMILO",
@@ -6403,7 +6570,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 3,
+   "pts": 5,
    "crit": "",
    "folio": "D-432",
    "estado": "realizada",
@@ -6411,7 +6578,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0188",
+   "id": "C0187",
    "fase": "HIST",
    "fecha": "2026-09-23",
    "tec": "CAMILO",
@@ -6423,7 +6590,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 4,
+   "pts": 8,
    "crit": "",
    "folio": "D-420",
    "estado": "realizada",
@@ -6431,7 +6598,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0189",
+   "id": "C0188",
    "fase": "HIST",
    "fecha": "2026-09-23",
    "tec": "CAMILO",
@@ -6451,7 +6618,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0190",
+   "id": "C0189",
    "fase": "HIST",
    "fecha": "2026-09-23",
    "tec": "CAMILO",
@@ -6463,7 +6630,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 3,
+   "pts": 9,
    "crit": "",
    "folio": "D-412",
    "estado": "realizada",
@@ -6471,7 +6638,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0191",
+   "id": "C0190",
    "fase": "HIST",
    "fecha": "2026-09-23",
    "tec": "CAMILO",
@@ -6483,7 +6650,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 3,
+   "pts": 9,
    "crit": "",
    "folio": "D-410",
    "estado": "realizada",
@@ -6491,7 +6658,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0192",
+   "id": "C0191",
    "fase": "HIST",
    "fecha": "2026-09-24",
    "tec": "CAMILO",
@@ -6503,7 +6670,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 4,
+   "pts": 10,
    "crit": "",
    "folio": "D-462",
    "estado": "realizada",
@@ -6511,7 +6678,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0193",
+   "id": "C0192",
    "fase": "HIST",
    "fecha": "2026-09-24",
    "tec": "CAMILO",
@@ -6523,7 +6690,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 4,
+   "pts": 8,
    "crit": "",
    "folio": "D-455",
    "estado": "realizada",
@@ -6531,7 +6698,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0194",
+   "id": "C0193",
    "fase": "HIST",
    "fecha": "2026-09-25",
    "tec": "CAMILO",
@@ -6543,7 +6710,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 9,
+   "pts": 13,
    "crit": "",
    "folio": "D-485",
    "estado": "realizada",
@@ -6551,7 +6718,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0195",
+   "id": "C0194",
    "fase": "HIST",
    "fecha": "2026-09-28",
    "tec": "CAMILO",
@@ -6563,7 +6730,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 4,
+   "pts": 10,
    "crit": "",
    "folio": "D-621",
    "estado": "realizada",
@@ -6571,7 +6738,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0196",
+   "id": "C0195",
    "fase": "HIST",
    "fecha": "2026-09-28",
    "tec": "RODRIGO",
@@ -6583,7 +6750,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 4,
+   "pts": 10,
    "crit": "",
    "folio": "D-622",
    "estado": "realizada",
@@ -6591,7 +6758,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0197",
+   "id": "C0196",
    "fase": "HIST",
    "fecha": "2026-09-29",
    "tec": "CAMILO",
@@ -6611,7 +6778,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0198",
+   "id": "C0197",
    "fase": "HIST",
    "fecha": "2026-09-29",
    "tec": "CAMILO",
@@ -6631,7 +6798,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0199",
+   "id": "C0198",
    "fase": "HIST",
    "fecha": "2026-09-29",
    "tec": "CAMILO",
@@ -6643,7 +6810,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 2,
+   "pts": 10,
    "crit": "",
    "folio": "D-679",
    "estado": "realizada",
@@ -6651,7 +6818,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0200",
+   "id": "C0199",
    "fase": "HIST",
    "fecha": "2026-09-29",
    "tec": "CAMILO",
@@ -6671,7 +6838,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0201",
+   "id": "C0200",
    "fase": "HIST",
    "fecha": "2026-09-29",
    "tec": "RODRIGO",
@@ -6683,7 +6850,7 @@ window.SOSER = {
    "tipoReal": "Correctiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 4,
+   "pts": 10,
    "crit": "",
    "folio": "D-706",
    "estado": "realizada",
@@ -6691,7 +6858,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0202",
+   "id": "C0201",
    "fase": "HIST",
    "fecha": "2026-09-29",
    "tec": "RODRIGO",
@@ -6703,7 +6870,7 @@ window.SOSER = {
    "tipoReal": "Preventiva",
    "parte": "JI",
    "fuente": "Datácora",
-   "pts": 3,
+   "pts": 11,
    "crit": "",
    "folio": "D-751",
    "estado": "realizada",
@@ -6711,7 +6878,7 @@ window.SOSER = {
    "origen": "historico"
   },
   {
-   "id": "C0203",
+   "id": "C0202",
    "fase": "HIST",
    "fecha": "2026-09-29",
    "tec": "RODRIGO",
@@ -6731,10 +6898,67 @@ window.SOSER = {
    "origen": "historico"
   },
   {
+   "id": "C0203",
+   "fase": "HIST",
+   "fecha": "2026-09-30",
+   "tec": "CAMILO",
+   "bloque": 1,
+   "hora": "",
+   "rbd": 946764,
+   "clase": "CORRECTIVO URGENTE",
+   "detalle": "Correctiva · bitácora D-792",
+   "tipoReal": "Correctiva",
+   "parte": "JI",
+   "fuente": "Datácora",
+   "pts": 7,
+   "crit": "",
+   "folio": "D-792",
+   "estado": "realizada",
+   "aplaz": 0,
+   "origen": "historico"
+  },
+  {
+   "id": "C0204",
+   "fase": "HIST",
+   "fecha": "2026-09-30",
+   "tec": "RODRIGO",
+   "bloque": 1,
+   "hora": "",
+   "rbd": 946606,
+   "clase": "CORRECTIVO URGENTE",
+   "detalle": "Correctiva · bitácora D-796",
+   "tipoReal": "Correctiva",
+   "parte": "JI",
+   "fuente": "Datácora",
+   "pts": 7,
+   "crit": "",
+   "folio": "D-796",
+   "estado": "realizada",
+   "aplaz": 0,
+   "origen": "historico"
+  },
+  {
    "id": "P0001",
    "fase": "F1",
    "fecha": "2026-09-30",
    "tec": "RODRIGO",
+   "bloque": 1,
+   "hora": "08:30 - 10:30",
+   "rbd": 8498,
+   "clase": "VISITA + CORRECTIVO",
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07  ||  CORRECTIVO: Calefont no funciona — prioridad declarada por supervisión",
+   "pts": 15,
+   "crit": "AGUA",
+   "estado": "programada",
+   "aplaz": 0,
+   "tipoReal": "Visita",
+   "origen": "plan"
+  },
+  {
+   "id": "P0002",
+   "fase": "F1",
+   "fecha": "2026-09-30",
+   "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
    "rbd": 8579,
@@ -6748,34 +6972,17 @@ window.SOSER = {
    "origen": "plan"
   },
   {
-   "id": "P0002",
-   "fase": "F1",
-   "fecha": "2026-09-30",
-   "tec": "CAMILO",
-   "bloque": 1,
-   "hora": "08:30 - 10:30",
-   "rbd": 8540,
-   "clase": "VISITA + CORRECTIVO",
-   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07  ||  CORRECTIVO: 5 focos quemados, cocina a oscuras — prioridad declarada por supervisión",
-   "pts": 14,
-   "crit": "ELEC",
-   "estado": "programada",
-   "aplaz": 0,
-   "tipoReal": "Visita",
-   "origen": "plan"
-  },
-  {
    "id": "P0003",
    "fase": "F1",
    "fecha": "2026-09-30",
    "tec": "RODRIGO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 8558,
+   "rbd": 8540,
    "clase": "VISITA + CORRECTIVO",
-   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07  ||  CORRECTIVO: Baño maría malo (sigue igual)",
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07  ||  CORRECTIVO: 5 focos quemados, cocina a oscuras — prioridad declarada por supervisión",
    "pts": 14,
-   "crit": "EQUIPO",
+   "crit": "ELEC",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -6788,11 +6995,11 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 8513,
+   "rbd": 8558,
    "clase": "VISITA + CORRECTIVO",
-   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07  ||  CORRECTIVO: Baja presión de agua caliente, anafes sin anclar y llave con poca presión",
-   "pts": 13,
-   "crit": "AGUA",
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07  ||  CORRECTIVO: Baño maría malo (sigue igual)",
+   "pts": 14,
+   "crit": "EQUIPO",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -6822,11 +7029,11 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 8661,
+   "rbd": 8513,
    "clase": "VISITA + CORRECTIVO",
-   "detalle": "VISITA para Datácora — última visita 31-07  ||  CORRECTIVO: Puerta de horno suelta, no pasa de 200° y sale OLOR A GAS del horno",
-   "pts": 12,
-   "crit": "GAS",
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07  ||  CORRECTIVO: Baja presión de agua caliente, anafes sin anclar y llave con poca presión",
+   "pts": 13,
+   "crit": "AGUA",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -6839,11 +7046,11 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 8625,
-   "clase": "VISITA",
-   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
-   "pts": 11,
-   "crit": "",
+   "rbd": 8585,
+   "clase": "VISITA + CORRECTIVO",
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07  ||  CORRECTIVO: Calefont no funciona y llave de lavafondos se sale — prioridad declarada",
+   "pts": 13,
+   "crit": "AGUA",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -6856,11 +7063,11 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 8659,
+   "rbd": 8661,
    "clase": "VISITA + CORRECTIVO",
-   "detalle": "VISITA para Datácora — última visita 27-07  ||  CORRECTIVO: Sin pilas para el calefont",
-   "pts": 11,
-   "crit": "AGUA",
+   "detalle": "VISITA para Datácora — última visita 31-07  ||  CORRECTIVO: Puerta de horno suelta, no pasa de 200° y sale OLOR A GAS del horno",
+   "pts": 12,
+   "crit": "GAS",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -6873,11 +7080,11 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 8562,
-   "clase": "VISITA + CORRECTIVO",
-   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07  ||  CORRECTIVO: Hallazgos reportados con fotos por supervisora — sin visita",
-   "pts": 10,
-   "crit": "OTRO",
+   "rbd": 8492,
+   "clase": "VISITA",
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
+   "pts": 11,
+   "crit": "",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -6907,10 +7114,10 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:15 - 10:15",
-   "rbd": 8665,
+   "rbd": 8520,
    "clase": "VISITA",
    "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
-   "pts": 10,
+   "pts": 11,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -6924,10 +7131,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:15 - 10:15",
-   "rbd": 8666,
+   "rbd": 8625,
    "clase": "VISITA",
    "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
-   "pts": 10,
+   "pts": 11,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -6941,11 +7148,11 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 8814,
-   "clase": "VISITA",
-   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
-   "pts": 10,
-   "crit": "",
+   "rbd": 8659,
+   "clase": "VISITA + CORRECTIVO",
+   "detalle": "VISITA para Datácora — última visita 27-07  ||  CORRECTIVO: Sin pilas para el calefont",
+   "pts": 11,
+   "crit": "AGUA",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -6958,10 +7165,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 881276,
+   "rbd": 8663,
    "clase": "VISITA",
    "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
-   "pts": 10,
+   "pts": 11,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -6975,11 +7182,11 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 8498,
-   "clase": "VISITA + CORRECTIVO",
-   "detalle": "VISITA para Datácora — última visita 26-08  ||  CORRECTIVO: Calefont no funciona — prioridad declarada por supervisión",
-   "pts": 9,
-   "crit": "AGUA",
+   "rbd": 9930,
+   "clase": "VISITA",
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
+   "pts": 11,
+   "crit": "",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -6992,10 +7199,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 8554,
+   "rbd": 8537,
    "clase": "VISITA",
    "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
-   "pts": 9,
+   "pts": 10,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7026,11 +7233,11 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 8556,
-   "clase": "VISITA",
-   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
-   "pts": 9,
-   "crit": "",
+   "rbd": 8562,
+   "clase": "VISITA + CORRECTIVO",
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07  ||  CORRECTIVO: Hallazgos reportados con fotos por supervisora — sin visita",
+   "pts": 10,
+   "crit": "OTRO",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -7043,11 +7250,11 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 8585,
-   "clase": "VISITA + CORRECTIVO",
-   "detalle": "VISITA para Datácora — última visita 25-09  ||  CORRECTIVO: Calefont no funciona y llave de lavafondos se sale — prioridad declarada",
-   "pts": 9,
-   "crit": "AGUA",
+   "rbd": 8563,
+   "clase": "VISITA",
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
+   "pts": 10,
+   "crit": "",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -7060,10 +7267,10 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 8587,
+   "rbd": 8665,
    "clase": "VISITA",
    "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
-   "pts": 9,
+   "pts": 10,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7077,11 +7284,11 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 9862,
-   "clase": "VISITA + CORRECTIVO",
-   "detalle": "VISITA para Datácora — última visita 23-09  ||  CORRECTIVO: Calefont instalado pero no operativo + limpieza de cámara no ejecutada",
-   "pts": 9,
-   "crit": "AGUA",
+   "rbd": 8666,
+   "clase": "VISITA",
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
+   "pts": 10,
+   "crit": "",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -7111,11 +7318,11 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 9873,
-   "clase": "VISITA + CORRECTIVO",
-   "detalle": "VISITA para Datácora — última visita 11-08  ||  CORRECTIVO: Calefont no funciona",
-   "pts": 9,
-   "crit": "AGUA",
+   "rbd": 8814,
+   "clase": "VISITA",
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
+   "pts": 10,
+   "crit": "",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -7128,10 +7335,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 888953,
+   "rbd": 9872,
    "clase": "VISITA",
    "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
-   "pts": 9,
+   "pts": 10,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7145,10 +7352,10 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 889111,
+   "rbd": 12130,
    "clase": "VISITA",
    "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
-   "pts": 9,
+   "pts": 10,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7162,10 +7369,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 889117,
+   "rbd": 881276,
    "clase": "VISITA",
    "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
-   "pts": 9,
+   "pts": 10,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7196,11 +7403,11 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 8535,
-   "clase": "VISITA",
-   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
-   "pts": 8,
-   "crit": "",
+   "rbd": 8495,
+   "clase": "VISITA + CORRECTIVO",
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07  ||  CORRECTIVO: Salad bar ya operativo; falta el horno del centro (mala cocción)",
+   "pts": 9,
+   "crit": "EQUIPO",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -7213,10 +7420,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 8549,
+   "rbd": 8554,
    "clase": "VISITA",
    "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
-   "pts": 8,
+   "pts": 9,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7230,11 +7437,11 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 8812,
-   "clase": "VISITA + CORRECTIVO",
-   "detalle": "VISITA para Datácora — última visita 29-09  ||  CORRECTIVO: Puerta de horno caída — adicional de horno solicitado",
-   "pts": 8,
-   "crit": "EQUIPO",
+   "rbd": 8556,
+   "clase": "VISITA",
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
+   "pts": 9,
+   "crit": "",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -7247,10 +7454,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 888522,
+   "rbd": 8587,
    "clase": "VISITA",
    "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
-   "pts": 8,
+   "pts": 9,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7281,10 +7488,10 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:15 - 10:15",
-   "rbd": 888536,
+   "rbd": 8617,
    "clase": "VISITA",
    "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
-   "pts": 8,
+   "pts": 9,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7298,11 +7505,11 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:15 - 10:15",
-   "rbd": 9869,
+   "rbd": 9862,
    "clase": "VISITA + CORRECTIVO",
-   "detalle": "VISITA para Datácora — última visita 21-07  ||  CORRECTIVO: Salad bar instalado, falta puesta en marcha",
-   "pts": 7,
-   "crit": "EQUIPO",
+   "detalle": "VISITA para Datácora — última visita 21-07  ||  CORRECTIVO: Calefont instalado pero no operativo + limpieza de cámara no ejecutada",
+   "pts": 9,
+   "crit": "AGUA",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -7315,11 +7522,11 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 9879,
+   "rbd": 9873,
    "clase": "VISITA + CORRECTIVO",
-   "detalle": "VISITA para Datácora — última visita 02-09  ||  CORRECTIVO: Malla mosquitera rota y baño maría malo",
-   "pts": 7,
-   "crit": "EQUIPO",
+   "detalle": "VISITA para Datácora — última visita 11-08  ||  CORRECTIVO: Calefont no funciona",
+   "pts": 9,
+   "crit": "AGUA",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -7332,11 +7539,11 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 8489,
-   "clase": "VISITA + CORRECTIVO",
-   "detalle": "VISITA para Datácora — última visita 08-09  ||  CORRECTIVO: Equipo se apagó y no prende + limpieza de cámara no ejecutada — dejar marcado con observaciones",
-   "pts": 6,
-   "crit": "FRIO",
+   "rbd": 25575,
+   "clase": "VISITA",
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
+   "pts": 9,
+   "crit": "",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -7349,10 +7556,10 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 8492,
+   "rbd": 888953,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 09-09",
-   "pts": 5,
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
+   "pts": 9,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7366,11 +7573,11 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 8495,
-   "clase": "VISITA + CORRECTIVO",
-   "detalle": "VISITA para Datácora — última visita 21-09  ||  CORRECTIVO: Salad bar ya operativo; falta el horno del centro (mala cocción)",
-   "pts": 5,
-   "crit": "EQUIPO",
+   "rbd": 889111,
+   "clase": "VISITA",
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
+   "pts": 9,
+   "crit": "",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -7400,10 +7607,10 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 8501,
+   "rbd": 889117,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 31-08",
-   "pts": 5,
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
+   "pts": 9,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7417,10 +7624,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 8507,
+   "rbd": 8535,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 08-09",
-   "pts": 5,
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
+   "pts": 8,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7434,10 +7641,10 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 8518,
+   "rbd": 8549,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 28-08",
-   "pts": 5,
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
+   "pts": 8,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7451,10 +7658,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 8520,
+   "rbd": 8581,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 22-09",
-   "pts": 5,
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
+   "pts": 8,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7485,10 +7692,10 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 8544,
+   "rbd": 8657,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 15-07",
-   "pts": 5,
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
+   "pts": 8,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7502,10 +7709,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 8658,
+   "rbd": 8678,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 29-09",
-   "pts": 5,
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
+   "pts": 8,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7519,11 +7726,11 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 9866,
-   "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 08-09",
-   "pts": 5,
-   "crit": "",
+   "rbd": 8812,
+   "clase": "VISITA + CORRECTIVO",
+   "detalle": "VISITA para Datácora — última visita 10-08  ||  CORRECTIVO: Puerta de horno caída — adicional de horno solicitado",
+   "pts": 8,
+   "crit": "EQUIPO",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -7536,10 +7743,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 9912,
+   "rbd": 9880,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 23-07",
-   "pts": 5,
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
+   "pts": 8,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7570,10 +7777,10 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:15 - 10:15",
-   "rbd": 9930,
+   "rbd": 888522,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 02-09",
-   "pts": 5,
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
+   "pts": 8,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7587,10 +7794,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:15 - 10:15",
-   "rbd": 31295,
+   "rbd": 888536,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 29-09",
-   "pts": 5,
+   "detalle": "VISITA para Datácora — sin ninguna visita desde el 01-07",
+   "pts": 8,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7604,11 +7811,11 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 8533,
-   "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 01-09",
-   "pts": 4,
-   "crit": "",
+   "rbd": 9869,
+   "clase": "VISITA + CORRECTIVO",
+   "detalle": "VISITA para Datácora — última visita 21-07  ||  CORRECTIVO: Salad bar instalado, falta puesta en marcha",
+   "pts": 7,
+   "crit": "EQUIPO",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -7621,11 +7828,11 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 8537,
-   "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 28-09",
-   "pts": 4,
-   "crit": "",
+   "rbd": 9879,
+   "clase": "VISITA + CORRECTIVO",
+   "detalle": "VISITA para Datácora — última visita 04-08  ||  CORRECTIVO: Malla mosquitera rota y baño maría malo",
+   "pts": 7,
+   "crit": "EQUIPO",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -7638,11 +7845,11 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 8563,
-   "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 29-09",
-   "pts": 4,
-   "crit": "",
+   "rbd": 8489,
+   "clase": "VISITA + CORRECTIVO",
+   "detalle": "VISITA para Datácora — última visita 21-07  ||  CORRECTIVO: Equipo se apagó y no prende + limpieza de cámara no ejecutada — dejar marcado con observaciones",
+   "pts": 6,
+   "crit": "FRIO",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Visita",
@@ -7655,10 +7862,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 8576,
+   "rbd": 8501,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 10-08",
-   "pts": 4,
+   "detalle": "VISITA para Datácora — última visita 07-08",
+   "pts": 5,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7689,10 +7896,10 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 8586,
+   "rbd": 8507,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 04-08",
-   "pts": 4,
+   "detalle": "VISITA para Datácora — última visita 31-07",
+   "pts": 5,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7706,10 +7913,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 8657,
+   "rbd": 8518,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 09-09",
-   "pts": 4,
+   "detalle": "VISITA para Datácora — última visita 29-07",
+   "pts": 5,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7723,10 +7930,10 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 8678,
+   "rbd": 8521,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 24-09",
-   "pts": 4,
+   "detalle": "VISITA para Datácora — última visita 06-08",
+   "pts": 5,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7740,10 +7947,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 9872,
+   "rbd": 8531,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 02-09",
-   "pts": 4,
+   "detalle": "VISITA para Datácora — última visita 29-07",
+   "pts": 5,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7774,10 +7981,10 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 9880,
+   "rbd": 8544,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 02-09",
-   "pts": 4,
+   "detalle": "VISITA para Datácora — última visita 15-07",
+   "pts": 5,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7791,10 +7998,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 8521,
+   "rbd": 8658,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 23-09",
-   "pts": 3,
+   "detalle": "VISITA para Datácora — última visita 12-08",
+   "pts": 5,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7808,10 +8015,10 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 8531,
+   "rbd": 9866,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 01-09",
-   "pts": 3,
+   "detalle": "VISITA para Datácora — última visita 23-07",
+   "pts": 5,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7825,10 +8032,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 8555,
+   "rbd": 9912,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 08-09",
-   "pts": 3,
+   "detalle": "VISITA para Datácora — última visita 23-07",
+   "pts": 5,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7842,10 +8049,10 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 8617,
+   "rbd": 31295,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 14-09",
-   "pts": 3,
+   "detalle": "VISITA para Datácora — última visita 30-07",
+   "pts": 5,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7859,10 +8066,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 8663,
+   "rbd": 8533,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 03-09",
-   "pts": 3,
+   "detalle": "VISITA para Datácora — última visita 28-07",
+   "pts": 4,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7876,10 +8083,10 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 8581,
+   "rbd": 8576,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 10-09",
-   "pts": 2,
+   "detalle": "VISITA para Datácora — última visita 10-08",
+   "pts": 4,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7893,10 +8100,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 2,
    "hora": "11:00 - 13:00",
-   "rbd": 12130,
+   "rbd": 8586,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 29-09",
-   "pts": 2,
+   "detalle": "VISITA para Datácora — última visita 04-08",
+   "pts": 4,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7912,8 +8119,8 @@ window.SOSER = {
    "hora": "08:15 - 10:15",
    "rbd": 8496,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 14-09",
-   "pts": 1,
+   "detalle": "VISITA para Datácora — última visita 06-08",
+   "pts": 3,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -7927,10 +8134,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:15 - 10:15",
-   "rbd": 25575,
+   "rbd": 8555,
    "clase": "VISITA",
-   "detalle": "VISITA para Datácora — última visita 02-09",
-   "pts": 1,
+   "detalle": "VISITA para Datácora — última visita 08-09",
+   "pts": 3,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -8012,9 +8219,9 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 947123,
+   "rbd": 946904,
    "clase": "PREVENTIVA",
-   "detalle": "PREVENTIVA obligatoria — sin ninguna preventiva del 2° semestre · este jardín necesita 2 bitácoras (JI y SC)",
+   "detalle": "PREVENTIVA obligatoria — ya tiene la parte JI, falta levantar SC",
    "pts": 11,
    "crit": "",
    "estado": "programada",
@@ -8029,6 +8236,23 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
+   "rbd": 947123,
+   "clase": "PREVENTIVA",
+   "detalle": "PREVENTIVA obligatoria — sin ninguna preventiva del 2° semestre · este jardín necesita 2 bitácoras (JI y SC)",
+   "pts": 11,
+   "crit": "",
+   "estado": "programada",
+   "aplaz": 0,
+   "tipoReal": "Plan Preventivo",
+   "origen": "plan"
+  },
+  {
+   "id": "P0078",
+   "fase": "F2",
+   "fecha": "2026-11-05",
+   "tec": "RODRIGO",
+   "bloque": 1,
+   "hora": "08:30 - 10:30",
    "rbd": 998555,
    "clase": "PREVENTIVA + CORRECTIVO",
    "detalle": "PREVENTIVA obligatoria — sin ninguna preventiva del 2° semestre · este jardín necesita 2 bitácoras (JI y SC)  ||  CORRECTIVO: Calefont no prende y llave de lavaplatos con poca agua — no se ha ido a ver nada",
@@ -8040,10 +8264,10 @@ window.SOSER = {
    "origen": "plan"
   },
   {
-   "id": "P0078",
+   "id": "P0079",
    "fase": "F2",
    "fecha": "2026-11-05",
-   "tec": "RODRIGO",
+   "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
    "rbd": 946754,
@@ -8057,34 +8281,17 @@ window.SOSER = {
    "origen": "plan"
   },
   {
-   "id": "P0079",
-   "fase": "F2",
-   "fecha": "2026-11-05",
-   "tec": "CAMILO",
-   "bloque": 1,
-   "hora": "08:30 - 10:30",
-   "rbd": 998556,
-   "clase": "PREVENTIVA + CORRECTIVO",
-   "detalle": "PREVENTIVA obligatoria — sin ninguna preventiva del 2° semestre · este jardín necesita 2 bitácoras (JI y SC)  ||  CORRECTIVO: Malla, puerta rota por el camión y calefont — directora pide priorización",
-   "pts": 10,
-   "crit": "OTRO",
-   "estado": "programada",
-   "aplaz": 0,
-   "tipoReal": "Plan Preventivo",
-   "origen": "plan"
-  },
-  {
    "id": "P0080",
    "fase": "F2",
    "fecha": "2026-11-06",
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:15 - 10:15",
-   "rbd": 946067,
-   "clase": "PREVENTIVA",
-   "detalle": "PREVENTIVA obligatoria — sin ninguna preventiva del 2° semestre",
-   "pts": 9,
-   "crit": "",
+   "rbd": 998556,
+   "clase": "PREVENTIVA + CORRECTIVO",
+   "detalle": "PREVENTIVA obligatoria — sin ninguna preventiva del 2° semestre · este jardín necesita 2 bitácoras (JI y SC)  ||  CORRECTIVO: Malla, puerta rota por el camión y calefont — directora pide priorización",
+   "pts": 10,
+   "crit": "OTRO",
    "estado": "programada",
    "aplaz": 0,
    "tipoReal": "Plan Preventivo",
@@ -8097,9 +8304,9 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:15 - 10:15",
-   "rbd": 946781,
+   "rbd": 946067,
    "clase": "PREVENTIVA",
-   "detalle": "PREVENTIVA obligatoria — sin ninguna preventiva del 2° semestre · este jardín necesita 2 bitácoras (JI y SC)",
+   "detalle": "PREVENTIVA obligatoria — sin ninguna preventiva del 2° semestre",
    "pts": 9,
    "crit": "",
    "estado": "programada",
@@ -8114,7 +8321,7 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 946909,
+   "rbd": 946781,
    "clase": "PREVENTIVA",
    "detalle": "PREVENTIVA obligatoria — sin ninguna preventiva del 2° semestre · este jardín necesita 2 bitácoras (JI y SC)",
    "pts": 9,
@@ -8131,7 +8338,7 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 947129,
+   "rbd": 946909,
    "clase": "PREVENTIVA",
    "detalle": "PREVENTIVA obligatoria — sin ninguna preventiva del 2° semestre · este jardín necesita 2 bitácoras (JI y SC)",
    "pts": 9,
@@ -8148,9 +8355,9 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 947296,
+   "rbd": 947118,
    "clase": "PREVENTIVA",
-   "detalle": "PREVENTIVA obligatoria — sin ninguna preventiva del 2° semestre · este jardín necesita 2 bitácoras (JI y SC)",
+   "detalle": "PREVENTIVA obligatoria — ya tiene la parte JI, falta levantar SC",
    "pts": 9,
    "crit": "",
    "estado": "programada",
@@ -8165,7 +8372,7 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 995437,
+   "rbd": 947129,
    "clase": "PREVENTIVA",
    "detalle": "PREVENTIVA obligatoria — sin ninguna preventiva del 2° semestre · este jardín necesita 2 bitácoras (JI y SC)",
    "pts": 9,
@@ -8182,6 +8389,40 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
+   "rbd": 947296,
+   "clase": "PREVENTIVA",
+   "detalle": "PREVENTIVA obligatoria — sin ninguna preventiva del 2° semestre · este jardín necesita 2 bitácoras (JI y SC)",
+   "pts": 9,
+   "crit": "",
+   "estado": "programada",
+   "aplaz": 0,
+   "tipoReal": "Plan Preventivo",
+   "origen": "plan"
+  },
+  {
+   "id": "P0087",
+   "fase": "F2",
+   "fecha": "2026-11-11",
+   "tec": "CAMILO",
+   "bloque": 1,
+   "hora": "08:30 - 10:30",
+   "rbd": 995437,
+   "clase": "PREVENTIVA",
+   "detalle": "PREVENTIVA obligatoria — sin ninguna preventiva del 2° semestre · este jardín necesita 2 bitácoras (JI y SC)",
+   "pts": 9,
+   "crit": "",
+   "estado": "programada",
+   "aplaz": 0,
+   "tipoReal": "Plan Preventivo",
+   "origen": "plan"
+  },
+  {
+   "id": "P0088",
+   "fase": "F2",
+   "fecha": "2026-11-12",
+   "tec": "RODRIGO",
+   "bloque": 1,
+   "hora": "08:30 - 10:30",
    "rbd": 946764,
    "clase": "PREVENTIVA + CORRECTIVO",
    "detalle": "PREVENTIVA obligatoria — sin ninguna preventiva del 2° semestre · este jardín necesita 2 bitácoras (JI y SC)  ||  CORRECTIVO: Hallazgos reportados con fotos por supervisora — sin visita",
@@ -8193,9 +8434,9 @@ window.SOSER = {
    "origen": "plan"
   },
   {
-   "id": "P0087",
+   "id": "P0089",
    "fase": "F2",
-   "fecha": "2026-11-11",
+   "fecha": "2026-11-12",
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
@@ -8210,50 +8451,16 @@ window.SOSER = {
    "origen": "plan"
   },
   {
-   "id": "P0088",
-   "fase": "F2",
-   "fecha": "2026-11-12",
-   "tec": "RODRIGO",
-   "bloque": 1,
-   "hora": "08:30 - 10:30",
-   "rbd": 946743,
-   "clase": "PREVENTIVA",
-   "detalle": "PREVENTIVA obligatoria — sin ninguna preventiva del 2° semestre · este jardín necesita 2 bitácoras (JI y SC)",
-   "pts": 6,
-   "crit": "",
-   "estado": "programada",
-   "aplaz": 0,
-   "tipoReal": "Plan Preventivo",
-   "origen": "plan"
-  },
-  {
-   "id": "P0089",
-   "fase": "F2",
-   "fecha": "2026-11-12",
-   "tec": "CAMILO",
-   "bloque": 1,
-   "hora": "08:30 - 10:30",
-   "rbd": 946074,
-   "clase": "PREVENTIVA",
-   "detalle": "PREVENTIVA obligatoria — sin ninguna preventiva del 2° semestre · este jardín necesita 2 bitácoras (JI y SC)",
-   "pts": 5,
-   "crit": "",
-   "estado": "programada",
-   "aplaz": 0,
-   "tipoReal": "Plan Preventivo",
-   "origen": "plan"
-  },
-  {
    "id": "P0090",
    "fase": "F2",
    "fecha": "2026-11-13",
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:15 - 10:15",
-   "rbd": 947280,
+   "rbd": 946743,
    "clase": "PREVENTIVA",
-   "detalle": "PREVENTIVA obligatoria — ya tiene la parte JI, falta levantar SC",
-   "pts": 5,
+   "detalle": "PREVENTIVA obligatoria — sin ninguna preventiva del 2° semestre · este jardín necesita 2 bitácoras (JI y SC)",
+   "pts": 6,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -8267,10 +8474,10 @@ window.SOSER = {
    "tec": "CAMILO",
    "bloque": 1,
    "hora": "08:15 - 10:15",
-   "rbd": 946904,
+   "rbd": 946074,
    "clase": "PREVENTIVA",
-   "detalle": "PREVENTIVA obligatoria — ya tiene la parte JI, falta levantar SC",
-   "pts": 3,
+   "detalle": "PREVENTIVA obligatoria — sin ninguna preventiva del 2° semestre · este jardín necesita 2 bitácoras (JI y SC)",
+   "pts": 5,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -8284,10 +8491,10 @@ window.SOSER = {
    "tec": "RODRIGO",
    "bloque": 1,
    "hora": "08:30 - 10:30",
-   "rbd": 947118,
+   "rbd": 947280,
    "clase": "PREVENTIVA",
    "detalle": "PREVENTIVA obligatoria — ya tiene la parte JI, falta levantar SC",
-   "pts": 3,
+   "pts": 5,
    "crit": "",
    "estado": "programada",
    "aplaz": 0,
@@ -9393,7 +9600,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-18",
    "tec": "CAMILO",
-   "detalle": "Plan Preventivo registrada en Datácora",
+   "detalle": "-Repisa de no perecibles , falta pintura\n- mueble con ruedas en mal estado\n-desague filtra en área sucia\n- puerta malla mosquitera dañada\n-enchufes con desnivel\n-desague cocina con protección suelta\n-espacio para productos químicos  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -9413,7 +9620,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-31",
    "tec": "CAMILO",
-   "detalle": "Plan Preventivo registrada en Datácora",
+   "detalle": "Se requiere \n- revisar taa\n\n--- Nueva contingencia incorporada ---\nSe requiere \n- revisar tapa de baño manipuladoras\n-cuello de cisne filtra por el costado\n-focos quemados en cocn\n\n--- Nueva contingencia incorporada ---\nSe requiere \n- revisar taa\n\n--- Nueva contingencia incorporada ---\nSe requiere \n- revisar tapa de baño manipuladoras\n-cuello de cisne filtra por el costado\n-focos quemados en cocina.\n-malla mosquitera rota\n-puerta de casillero dañda  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -9523,7 +9730,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-74",
    "tec": "RODRIGO",
-   "detalle": "Plan Preventivo registrada en Datácora",
+   "detalle": "Puerta con malla mosquitera dañada desarmando se sola.\nBodega sin iluminación\n\n--- Nueva contingencia incorporada ---\nPuerta con malla mosquitera dañada desarmando se sola.\nBodega sin iluminación\nIluminación bodega de perecibles mala\nRevisar interruptor de extractor \nRevisar flexibles de agua en lavafondos \nRevisar y realizar mantenimiento a fogones que Silvan al encenderse.\nFoco malo en cocina sobre la campana  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -9701,16 +9908,6 @@ window.SOSER = {
    "rbd": 9930,
    "tipo": "Mutualidad",
    "parte": "JI",
-   "folio": "D-s/n",
-   "tec": "CAMILO",
-   "detalle": "Mutualidad registrada en Datácora",
-   "fuente": "Datácora"
-  },
-  {
-   "fecha": "2026-09-02",
-   "rbd": 9930,
-   "tipo": "Mutualidad",
-   "parte": "JI",
    "folio": "s/n",
    "tec": "CAMILO",
    "detalle": "levantamiento mutualidad registrado en Datacora (sin N de bitacora)",
@@ -9753,7 +9950,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-119",
    "tec": "RODRIGO",
-   "detalle": "Plan Preventivo registrada en Datácora",
+   "detalle": "Se necesita revisar :\n2 sifones que filtran \nBaño María inoperativo \n2 fogones no prenden\nTapa de horno en mal estado\nSifon lavafondo filtra\nVisicooler no llega a temperatura \nEnchufes malos\nReparar desviaciones  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -9773,7 +9970,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-129",
    "tec": "RODRIGO",
-   "detalle": "Plan Preventivo registrada en Datácora",
+   "detalle": "Equipo de frío monda temperatura \nAnafes con descascaramiento\nAnafes se apagan \nHorno con oxidación\nMonse encuentran anclados \nCampana le falta malla, sacar metros cuadrados y hacer bitácora física con compromiso de instalación fecha 09/09\nSifon gotea\nLlave de desconche mala\nFoco quemado  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10043,7 +10240,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-210",
    "tec": "RODRIGO",
-   "detalle": "Plan Preventivo registrada en Datácora",
+   "detalle": "Revisar horno, termocuplas\nSifon de cobre caido  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10053,7 +10250,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-242",
    "tec": "RODRIGO",
-   "detalle": "Plan Preventivo registrada en Datácora",
+   "detalle": "Horno requiere revisión y ayuda para levantar, ya que posee filtración de bajos ppm en la perilla superior.\nRevisar salad bar  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10063,7 +10260,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-236",
    "tec": "CAMILO",
-   "detalle": "Plan Preventivo registrada en Datácora",
+   "detalle": "Llave filtra, le falta cuello y sifon caido\n\n--- Nueva contingencia incorporada ---\nMantenimiento preventivo  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10083,7 +10280,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-262",
    "tec": "RODRIGO",
-   "detalle": "Plan Preventivo registrada en Datácora",
+   "detalle": "Revisar y hacer plan de mantenimiento,\nRevisar cocina que falta por instalar \nMallas mosquiteras y extintor de incendio  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10103,7 +10300,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-287",
    "tec": "CAMILO",
-   "detalle": "Emergencia registrada en Datácora",
+   "detalle": "Reparación de salad bar  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10113,7 +10310,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-332",
    "tec": "RODRIGO",
-   "detalle": "Plan Preventivo registrada en Datácora",
+   "detalle": "Revisar, \nAldabas de casilleros, confeccion malla mosquetera en reja metálica entre cocina y casino.  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10123,7 +10320,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-307",
    "tec": "CAMILO",
-   "detalle": "Emergencia registrada en Datácora",
+   "detalle": "Prueba de hermeticidad tras reparación de establecimiento cañerías de cobre antiguamente con estaño y fractura  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10133,7 +10330,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-337",
    "tec": "RODRIGO",
-   "detalle": "Plan Preventivo registrada en Datácora",
+   "detalle": "Revisar mallas, \nanafes falta de pintura.\nCielos y hermeticidad bajo puertas.  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10143,7 +10340,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-606",
    "tec": "RODRIGO",
-   "detalle": "Emergencia registrada en Datácora",
+   "detalle": "Puerta malla mosquitera se cae  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10153,7 +10350,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-351",
    "tec": "RODRIGO",
-   "detalle": "Emergencia registrada en Datácora",
+   "detalle": "Cambio de llave combinación a muro 8\"\nHorario am, previo al viaje a paine.  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10163,7 +10360,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-432",
    "tec": "CAMILO",
-   "detalle": "Emergencia registrada en Datácora",
+   "detalle": "Soldar rejillas metálicas piso y cadena cierre  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10173,7 +10370,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-420",
    "tec": "CAMILO",
-   "detalle": "Emergencia registrada en Datácora",
+   "detalle": "Revisar trabajo realizado en cañerías de gas en establecimiento  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10183,7 +10380,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-398",
    "tec": "CAMILO",
-   "detalle": "Emergencia registrada en Datácora",
+   "detalle": "Instalar galones de gas y calefón retirados previo al 18 para evitar  robo  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10193,7 +10390,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-412",
    "tec": "CAMILO",
-   "detalle": "Emergencia registrada en Datácora",
+   "detalle": "Filtración de gas bajo anafe  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10203,7 +10400,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-410",
    "tec": "CAMILO",
-   "detalle": "Plan Preventivo registrada en Datácora",
+   "detalle": "Iluminación en cocina caída \n\nRevisar malla mosquiteras\nPintura de estantería bodega\nExtractores de 4\" caídos.\nSe debe realizar bitácora física\n\n--- Nueva contingencia incorporada ---\nFuga de gas  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10213,7 +10410,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-462",
    "tec": "CAMILO",
-   "detalle": "Emergencia registrada en Datácora",
+   "detalle": "Anafes no encienden  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10223,7 +10420,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-455",
    "tec": "CAMILO",
-   "detalle": "Emergencia registrada en Datácora",
+   "detalle": "Inspección de  instalación de red de gas  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10233,7 +10430,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-485",
    "tec": "CAMILO",
-   "detalle": "Emergencia registrada en Datácora",
+   "detalle": "Cambio de llave lavafondos  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10243,7 +10440,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-621",
    "tec": "CAMILO",
-   "detalle": "Emergencia registrada en Datácora",
+   "detalle": "Instalación provisional de gas debido a robo de cañerías de gas  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10253,7 +10450,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-622",
    "tec": "RODRIGO",
-   "detalle": "Emergencia registrada en Datácora",
+   "detalle": "Robo Cañerías de gas.  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10263,7 +10460,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-706",
    "tec": "RODRIGO",
-   "detalle": "Emergencia registrada en Datácora",
+   "detalle": "Anafes no encienden bien, se apaga  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10273,7 +10470,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-658",
    "tec": "CAMILO",
-   "detalle": "Emergencia registrada en Datácora",
+   "detalle": "Llaves de agua lavafondo dañadas  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10283,7 +10480,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-764",
    "tec": "CAMILO",
-   "detalle": "Emergencia registrada en Datácora",
+   "detalle": "Instalar horno  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10293,7 +10490,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-679",
    "tec": "CAMILO",
-   "detalle": "Emergencia registrada en Datácora",
+   "detalle": "Sifon arreglado hace 10 días, filtra nuevamente  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10303,7 +10500,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-675",
    "tec": "CAMILO",
-   "detalle": "Emergencia registrada en Datácora",
+   "detalle": "Llave combinación Antonella dañada  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10313,7 +10510,7 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-751",
    "tec": "RODRIGO",
-   "detalle": "Plan Preventivo registrada en Datácora",
+   "detalle": "Filtración en baño y anafe no encienden  [Datácora]",
    "fuente": "Datácora"
   },
   {
@@ -10323,7 +10520,27 @@ window.SOSER = {
    "parte": "JI",
    "folio": "D-660",
    "tec": "RODRIGO",
-   "detalle": "Emergencia registrada en Datácora",
+   "detalle": "Plan de mantenimiento en bitácora física, revisar porta extintores que se encuentran instalados pero sueltos.\nDejar ok el establecimiento, avisar en caso de faltar algo  [Datácora]",
+   "fuente": "Datácora"
+  },
+  {
+   "fecha": "2026-09-30",
+   "rbd": 946606,
+   "tipo": "Correctiva",
+   "parte": "JI",
+   "folio": "D-796",
+   "tec": "RODRIGO",
+   "detalle": "Se cae foco, reponer  [Datácora]",
+   "fuente": "Datácora"
+  },
+  {
+   "fecha": "2026-09-30",
+   "rbd": 946764,
+   "tipo": "Correctiva",
+   "parte": "JI",
+   "folio": "D-792",
+   "tec": "CAMILO",
+   "detalle": "Sifon se cae, atornillar  [Datácora]",
    "fuente": "Datácora"
   }
  ],
@@ -10765,6 +10982,17 @@ window.SOSER = {
    "agendado": "2026-09-30"
   },
   {
+   "rbd": 8498,
+   "estado": "PENDIENTE",
+   "detalle": "Calefont no funciona — prioridad declarada por supervisión",
+   "crit": "AGUA",
+   "freporte": "2026-09-28",
+   "dias": 2,
+   "prio": true,
+   "pts": 15,
+   "agendado": "2026-09-30"
+  },
+  {
    "rbd": 946748,
    "estado": "ADMIN",
    "detalle": "Sacar certificado de limpieza de cámara",
@@ -10817,7 +11045,18 @@ window.SOSER = {
    "dias": 2,
    "prio": false,
    "pts": 13,
-   "agendado": "2026-09-30"
+   "agendado": "2026-10-01"
+  },
+  {
+   "rbd": 8585,
+   "estado": "PENDIENTE",
+   "detalle": "Calefont no funciona y llave de lavafondos se sale — prioridad declarada",
+   "crit": "AGUA",
+   "freporte": "2026-09-23",
+   "dias": 7,
+   "prio": true,
+   "pts": 13,
+   "agendado": "2026-10-01"
   },
   {
    "rbd": 8661,
@@ -10850,7 +11089,7 @@ window.SOSER = {
    "dias": 30,
    "prio": false,
    "pts": 11,
-   "agendado": "2026-10-01"
+   "agendado": "2026-10-05"
   },
   {
    "rbd": 8562,
@@ -10861,7 +11100,7 @@ window.SOSER = {
    "dias": 27,
    "prio": false,
    "pts": 10,
-   "agendado": "2026-10-01"
+   "agendado": "2026-10-06"
   },
   {
    "rbd": 946754,
@@ -10894,7 +11133,18 @@ window.SOSER = {
    "dias": 6,
    "prio": false,
    "pts": 9,
-   "agendado": "2026-10-07"
+   "agendado": "2026-10-13"
+  },
+  {
+   "rbd": 8495,
+   "estado": "PARCIAL",
+   "detalle": "Salad bar ya operativo; falta el horno del centro (mala cocción)",
+   "crit": "EQUIPO",
+   "freporte": "2026-09-28",
+   "dias": 2,
+   "prio": false,
+   "pts": 9,
+   "agendado": "2026-10-08"
   },
   {
    "rbd": 9862,
@@ -10905,29 +11155,7 @@ window.SOSER = {
    "dias": 2,
    "prio": false,
    "pts": 9,
-   "agendado": "2026-10-06"
-  },
-  {
-   "rbd": 8498,
-   "estado": "PENDIENTE",
-   "detalle": "Calefont no funciona — prioridad declarada por supervisión",
-   "crit": "AGUA",
-   "freporte": "2026-09-28",
-   "dias": 2,
-   "prio": true,
-   "pts": 9,
-   "agendado": "2026-10-05"
-  },
-  {
-   "rbd": 8585,
-   "estado": "PENDIENTE",
-   "detalle": "Calefont no funciona y llave de lavafondos se sale — prioridad declarada",
-   "crit": "AGUA",
-   "freporte": "2026-09-23",
-   "dias": 7,
-   "prio": true,
-   "pts": 9,
-   "agendado": "2026-10-06"
+   "agendado": "2026-10-09"
   },
   {
    "rbd": 947477,
@@ -10949,7 +11177,7 @@ window.SOSER = {
    "dias": 7,
    "prio": true,
    "pts": 8,
-   "agendado": "2026-10-08"
+   "agendado": "2026-10-15"
   },
   {
    "rbd": 9869,
@@ -10960,7 +11188,7 @@ window.SOSER = {
    "dias": 21,
    "prio": false,
    "pts": 7,
-   "agendado": "2026-10-09"
+   "agendado": "2026-10-19"
   },
   {
    "rbd": 9879,
@@ -10971,7 +11199,7 @@ window.SOSER = {
    "dias": 20,
    "prio": false,
    "pts": 7,
-   "agendado": "2026-10-13"
+   "agendado": "2026-10-19"
   },
   {
    "rbd": 995441,
@@ -11037,18 +11265,7 @@ window.SOSER = {
    "dias": 2,
    "prio": false,
    "pts": 6,
-   "agendado": "2026-10-13"
-  },
-  {
-   "rbd": 8495,
-   "estado": "PARCIAL",
-   "detalle": "Salad bar ya operativo; falta el horno del centro (mala cocción)",
-   "crit": "EQUIPO",
-   "freporte": "2026-09-28",
-   "dias": 2,
-   "prio": false,
-   "pts": 5,
-   "agendado": "2026-10-13"
+   "agendado": "2026-10-19"
   }
  ],
  "MENC": [
@@ -11926,5 +12143,727 @@ window.SOSER = {
    "Basureros Cocina y Patio Servicios",
    "Pintura"
   ]
- }
+ },
+ "DC": [
+  {
+   "fecha": "2026-09-30",
+   "rbd": 946606,
+   "tipo": "Correctiva",
+   "folio": "796",
+   "tec": "Rodrigo Martinez",
+   "estab": "LOS CARIÑOSITOS",
+   "inst": "Junji",
+   "det": "Se cae foco, reponer",
+   "cuenta": false,
+   "revision": "Pendiente aprobación"
+  },
+  {
+   "fecha": "2026-09-30",
+   "rbd": 946764,
+   "tipo": "Correctiva",
+   "folio": "792",
+   "tec": "Camilo Santis",
+   "estab": "NEMESIO ANTUNEZ",
+   "inst": "Junji",
+   "det": "Sifon se cae, atornillar",
+   "cuenta": false,
+   "revision": "Pendiente aprobación"
+  },
+  {
+   "fecha": "2026-09-29",
+   "rbd": 946904,
+   "tipo": "Preventiva",
+   "folio": "751",
+   "tec": "Rodrigo Martinez",
+   "estab": "ARTEMISA",
+   "inst": "Junji",
+   "det": "Filtración en baño y anafe no encienden",
+   "cuenta": true,
+   "revision": "Pendiente aprobación"
+  },
+  {
+   "fecha": "2026-09-29",
+   "rbd": 8658,
+   "tipo": "Correctiva",
+   "folio": "658",
+   "tec": "Camilo Santis",
+   "estab": "FRANCISCO ARRIARAN",
+   "inst": "Junaeb",
+   "det": "Llaves de agua lavafondo dañadas",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-29",
+   "rbd": 8812,
+   "tipo": "Correctiva",
+   "folio": "764",
+   "tec": "Camilo Santis",
+   "estab": "INDUSTRIAL VICTOR BESANILLA",
+   "inst": "Junaeb",
+   "det": "Instalar horno",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-29",
+   "rbd": 31295,
+   "tipo": "Correctiva",
+   "folio": "675",
+   "tec": "Camilo Santis",
+   "estab": "LICEO BICENTENARIO ITALIA",
+   "inst": "Junaeb",
+   "det": "Llave combinación Antonella dañada",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-29",
+   "rbd": 12130,
+   "tipo": "Correctiva",
+   "folio": "679",
+   "tec": "Camilo Santis",
+   "estab": "MARIA TERESA SCHOOL",
+   "inst": "Junaeb",
+   "det": "Sifon arreglado hace 10 días, filtra nuevamente",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-29",
+   "rbd": 947280,
+   "tipo": "Correctiva",
+   "folio": "660",
+   "tec": "Rodrigo Martinez",
+   "estab": "NIETOS DE BELLO",
+   "inst": "Junji",
+   "det": "Plan de mantenimiento en bitácora física, revisar porta extintores que se encuentran instalados pero sueltos.\nDejar ok el establecimiento, avisar en caso de faltar algo",
+   "cuenta": false,
+   "revision": "Pendiente aprobación"
+  },
+  {
+   "fecha": "2026-09-29",
+   "rbd": 8563,
+   "tipo": "Correctiva",
+   "folio": "706",
+   "tec": "Rodrigo Martinez",
+   "estab": "REPUBLICA DE MEXICO",
+   "inst": "Junaeb",
+   "det": "Anafes no encienden bien, se apaga",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-28",
+   "rbd": 8537,
+   "tipo": "Correctiva",
+   "folio": "622",
+   "tec": "Rodrigo Martinez",
+   "estab": "ARNALDO FALABELLA",
+   "inst": "Junaeb",
+   "det": "Robo Cañerías de gas.",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-28",
+   "rbd": 8537,
+   "tipo": "Correctiva",
+   "folio": "621",
+   "tec": "Camilo Santis",
+   "estab": "ARNALDO FALABELLA",
+   "inst": "Junaeb",
+   "det": "Instalación provisional de gas debido a robo de cañerías de gas",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-25",
+   "rbd": 8585,
+   "tipo": "Correctiva",
+   "folio": "485",
+   "tec": "Camilo Santis",
+   "estab": "CENTRO CAPACITACION LABORAL",
+   "inst": "Junaeb",
+   "det": "Cambio de llave lavafondos",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-24",
+   "rbd": 8563,
+   "tipo": "Correctiva",
+   "folio": "462",
+   "tec": "Camilo Santis",
+   "estab": "REPUBLICA DE MEXICO",
+   "inst": "Junaeb",
+   "det": "Anafes no encienden",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-24",
+   "rbd": 8678,
+   "tipo": "Correctiva",
+   "folio": "455",
+   "tec": "Camilo Santis",
+   "estab": "SILVIA SALAS EDWARDS",
+   "inst": "Junaeb",
+   "det": "Inspección de  instalación de red de gas",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-23",
+   "rbd": 8521,
+   "tipo": "Correctiva",
+   "folio": "432",
+   "tec": "Camilo Santis",
+   "estab": "CARLOS CONDELL DE LA HAZA",
+   "inst": "Junaeb",
+   "det": "Soldar rejillas metálicas piso y cadena cierre",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-23",
+   "rbd": 995438,
+   "tipo": "Correctiva",
+   "folio": "412",
+   "tec": "Camilo Santis",
+   "estab": "MIS PRIMEROS PASOS",
+   "inst": "Junji",
+   "det": "Filtración de gas bajo anafe",
+   "cuenta": false,
+   "revision": "Pendiente aprobación"
+  },
+  {
+   "fecha": "2026-09-23",
+   "rbd": 995438,
+   "tipo": "Preventiva",
+   "folio": "410",
+   "tec": "Camilo Santis",
+   "estab": "MIS PRIMEROS PASOS",
+   "inst": "Junji",
+   "det": "Iluminación en cocina caída \n\nRevisar malla mosquiteras\nPintura de estantería bodega\nExtractores de 4\" caídos.\nSe debe realizar bitácora física\n\n--- Nueva contingencia incorporada ---\nFuga de gas",
+   "cuenta": true,
+   "revision": "Pendiente aprobación"
+  },
+  {
+   "fecha": "2026-09-23",
+   "rbd": 9862,
+   "tipo": "Correctiva",
+   "folio": "398",
+   "tec": "Camilo Santis",
+   "estab": "POLIVALENTE GUILLERMO FELIU CRUZ",
+   "inst": "Junaeb",
+   "det": "Instalar galones de gas y calefón retirados previo al 18 para evitar  robo",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-23",
+   "rbd": 8678,
+   "tipo": "Correctiva",
+   "folio": "420",
+   "tec": "Camilo Santis",
+   "estab": "SILVIA SALAS EDWARDS",
+   "inst": "Junaeb",
+   "det": "Revisar trabajo realizado en cañerías de gas en establecimiento",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-22",
+   "rbd": 946764,
+   "tipo": "Correctiva",
+   "folio": "351",
+   "tec": "Rodrigo Martinez",
+   "estab": "NEMESIO ANTUNEZ",
+   "inst": "Junji",
+   "det": "Cambio de llave combinación a muro 8\"\nHorario am, previo al viaje a paine.",
+   "cuenta": false,
+   "revision": "Pendiente aprobación"
+  },
+  {
+   "fecha": "2026-09-22",
+   "rbd": 8520,
+   "tipo": "Correctiva",
+   "folio": "606",
+   "tec": "Rodrigo Martinez",
+   "estab": "PROVINCIA DE CHILOE",
+   "inst": "Junaeb",
+   "det": "Puerta malla mosquitera se cae",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-21",
+   "rbd": 8521,
+   "tipo": "Preventiva",
+   "folio": "332",
+   "tec": "Rodrigo Martinez",
+   "estab": "CARLOS CONDELL DE LA HAZA",
+   "inst": "Junaeb",
+   "det": "Revisar, \nAldabas de casilleros, confeccion malla mosquetera en reja metálica entre cocina y casino.",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-21",
+   "rbd": 8495,
+   "tipo": "Correctiva",
+   "folio": "287",
+   "tec": "Camilo Santis",
+   "estab": "LICEO CONFEDERACION SUIZA",
+   "inst": "Junaeb",
+   "det": "Reparación de salad bar",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-21",
+   "rbd": 946051,
+   "tipo": "Preventiva",
+   "folio": "337",
+   "tec": "Rodrigo Martinez",
+   "estab": "SC LAS LUCIERNAGAS",
+   "inst": "Junji",
+   "det": "Revisar mallas, \nanafes falta de pintura.\nCielos y hermeticidad bajo puertas.",
+   "cuenta": true,
+   "revision": "Pendiente aprobación"
+  },
+  {
+   "fecha": "2026-09-21",
+   "rbd": 8678,
+   "tipo": "Correctiva",
+   "folio": "307",
+   "tec": "Camilo Santis",
+   "estab": "SILVIA SALAS EDWARDS",
+   "inst": "Junaeb",
+   "det": "Prueba de hermeticidad tras reparación de establecimiento cañerías de cobre antiguamente con estaño y fractura",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-16",
+   "rbd": 947115,
+   "tipo": "Correctiva",
+   "folio": "263",
+   "tec": "Camilo Santis",
+   "estab": "CELESTE AMANECER",
+   "inst": "Junji",
+   "det": "Revisar punto eléctrico que se enciende, dejando la cocina sin electricidad\n\n--- Nueva contingencia incorporada ---\nRevisar punto eléctrico que se enciende, dejando la cocina sin electricidad\nRevisar anafes no anclados y con pintura gris descascarados\n\n--- Nueva contingencia incorporada ---\nRevisar punto eléctrico dañado",
+   "cuenta": false,
+   "revision": "Pendiente aprobación"
+  },
+  {
+   "fecha": "2026-09-16",
+   "rbd": 947118,
+   "tipo": "Preventiva",
+   "folio": "262",
+   "tec": "Rodrigo Martinez",
+   "estab": "MIS PRIMERAS HUELLAS",
+   "inst": "Junji",
+   "det": "Revisar y hacer plan de mantenimiento,\nRevisar cocina que falta por instalar \nMallas mosquiteras y extintor de incendio",
+   "cuenta": true,
+   "revision": "Pendiente aprobación"
+  },
+  {
+   "fecha": "2026-09-14",
+   "rbd": 8496,
+   "tipo": "Preventiva",
+   "folio": "242",
+   "tec": "Rodrigo Martinez",
+   "estab": "LIBERTADOR JOSE DE SAN MARTIN",
+   "inst": "Junaeb",
+   "det": "Horno requiere revisión y ayuda para levantar, ya que posee filtración de bajos ppm en la perilla superior.\nRevisar salad bar",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-14",
+   "rbd": 8617,
+   "tipo": "Preventiva",
+   "folio": "236",
+   "tec": "Camilo Santis",
+   "estab": "POLITECNICO SARA BLINDER DARGOLTZ",
+   "inst": "Junaeb",
+   "det": "Llave filtra, le falta cuello y sifon caido\n\n--- Nueva contingencia incorporada ---\nMantenimiento preventivo",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-10",
+   "rbd": 8581,
+   "tipo": "Preventiva",
+   "folio": "210",
+   "tec": "Rodrigo Martinez",
+   "estab": "PILOTO PARDO",
+   "inst": "Junaeb",
+   "det": "Revisar horno, termocuplas\nSifon de cobre caido",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-09",
+   "rbd": 8492,
+   "tipo": "Correctiva",
+   "folio": "192",
+   "tec": "Camilo Santis",
+   "estab": "MANUEL BARROS BORGONO",
+   "inst": "Junaeb",
+   "det": "Revisar salad bar",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-09",
+   "rbd": 9862,
+   "tipo": "Correctiva",
+   "folio": "202",
+   "tec": "Camilo Santis",
+   "estab": "POLIVALENTE GUILLERMO FELIU CRUZ",
+   "inst": "Junaeb",
+   "det": "Baño filtra agua",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-09",
+   "rbd": 8657,
+   "tipo": "Correctiva",
+   "folio": "195",
+   "tec": "Rodrigo Martinez",
+   "estab": "POLIVALENTE SAN ALBERTO",
+   "inst": "Junaeb",
+   "det": "Anclar anafes",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-08",
+   "rbd": 8507,
+   "tipo": "Correctiva",
+   "folio": "172",
+   "tec": "Rodrigo Martinez",
+   "estab": "COMERCIAL JOAQUIN VERA INSUCO DOS",
+   "inst": "Junaeb",
+   "det": "Verificar salad bar",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-08",
+   "rbd": 8496,
+   "tipo": "Correctiva",
+   "folio": "182",
+   "tec": "Camilo Santis",
+   "estab": "LIBERTADOR JOSE DE SAN MARTIN",
+   "inst": "Junaeb",
+   "det": "Visar salad bar",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-08",
+   "rbd": 9866,
+   "tipo": "Correctiva",
+   "folio": "184",
+   "tec": "Rodrigo Martinez",
+   "estab": "LICEO COMERCIAL",
+   "inst": "Junaeb",
+   "det": "Filtración de gas en anafe",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-08",
+   "rbd": 8495,
+   "tipo": "Correctiva",
+   "folio": "180",
+   "tec": "Rodrigo Martinez",
+   "estab": "LICEO CONFEDERACION SUIZA",
+   "inst": "Junaeb",
+   "det": "Visar salad bar",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-08",
+   "rbd": 8657,
+   "tipo": "Correctiva",
+   "folio": "187",
+   "tec": "Camilo Santis",
+   "estab": "POLIVALENTE SAN ALBERTO",
+   "inst": "Junaeb",
+   "det": "Instalación anafes",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-08",
+   "rbd": 8489,
+   "tipo": "Correctiva",
+   "folio": "171",
+   "tec": "Camilo Santis",
+   "estab": "TERESA PRAT DE SARRATEA",
+   "inst": "Junaeb",
+   "det": "Verificar funcionamiento salad bar",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-07",
+   "rbd": 8678,
+   "tipo": "Correctiva",
+   "folio": "162",
+   "tec": "Camilo Santis",
+   "estab": "SILVIA SALAS EDWARDS",
+   "inst": "Junaeb",
+   "det": "Filtración de gas en cocina",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-04",
+   "rbd": 8507,
+   "tipo": "Correctiva",
+   "folio": "144",
+   "tec": "Rodrigo Martinez",
+   "estab": "COMERCIAL JOAQUIN VERA INSUCO DOS",
+   "inst": "Junaeb",
+   "det": "Dos sifones caídos,\nHorno hace explosión, parte de arriba.",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-04",
+   "rbd": 8678,
+   "tipo": "Correctiva",
+   "folio": "149",
+   "tec": "Camilo Santis",
+   "estab": "SILVIA SALAS EDWARDS",
+   "inst": "Junaeb",
+   "det": "Tengo 2 anafe si instalar, horno malo, calefont malo, llaves lavafondo suelta y filtración en sifón en colegio silvia salas Edwards",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-03",
+   "rbd": 8663,
+   "tipo": "Preventiva",
+   "folio": "119",
+   "tec": "Rodrigo Martinez",
+   "estab": "HERMANOS MATTE",
+   "inst": "Junaeb",
+   "det": "Se necesita revisar :\n2 sifones que filtran \nBaño María inoperativo \n2 fogones no prenden\nTapa de horno en mal estado\nSifon lavafondo filtra\nVisicooler no llega a temperatura \nEnchufes malos\nReparar desviaciones",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-03",
+   "rbd": 12130,
+   "tipo": "Preventiva",
+   "folio": "129",
+   "tec": "Rodrigo Martinez",
+   "estab": "MARIA TERESA SCHOOL",
+   "inst": "Junaeb",
+   "det": "Equipo de frío monda temperatura \nAnafes con descascaramiento\nAnafes se apagan \nHorno con oxidación\nMonse encuentran anclados \nCampana le falta malla, sacar metros cuadrados y hacer bitácora física con compromiso de instalación fecha 09/09\nSifon gotea\nLlave de desconche mala\nFoco quemado",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-02",
+   "rbd": 9879,
+   "tipo": "Mutualidad",
+   "folio": "98",
+   "tec": "Rodrigo Martinez",
+   "estab": "CAROLINA VERGARA AYARES",
+   "inst": "Junaeb",
+   "det": "Revisar muros o falta de pintura",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-02",
+   "rbd": 25575,
+   "tipo": "Mutualidad",
+   "folio": "91",
+   "tec": "Rodrigo Martinez",
+   "estab": "ESPECIAL ALAMEDA",
+   "inst": "Junaeb",
+   "det": "Revisar condiciónes de seguridad",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-02",
+   "rbd": 9880,
+   "tipo": "Mutualidad",
+   "folio": "105",
+   "tec": "Camilo Santis",
+   "estab": "ESTADO DE PALESTINA",
+   "inst": "Junaeb",
+   "det": "Inspeccionar campana",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-02",
+   "rbd": 9930,
+   "tipo": "Mutualidad",
+   "folio": "108",
+   "tec": "Camilo Santis",
+   "estab": "JOSE ANTONIO LECAROS",
+   "inst": "Junaeb",
+   "det": "Revisar condiciónes de seguridad, extintor y paredes",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-02",
+   "rbd": 9866,
+   "tipo": "Mutualidad",
+   "folio": "95",
+   "tec": "Camilo Santis",
+   "estab": "LICEO COMERCIAL",
+   "inst": "Junaeb",
+   "det": "Revisar muro dañado / pintura",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-02",
+   "rbd": 9862,
+   "tipo": "Mutualidad",
+   "folio": "82",
+   "tec": "Camilo Santis",
+   "estab": "POLIVALENTE GUILLERMO FELIU CRUZ",
+   "inst": "Junaeb",
+   "det": "Revisar desagüe por filtra",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-02",
+   "rbd": 9872,
+   "tipo": "Mutualidad",
+   "folio": "102",
+   "tec": "Camilo Santis",
+   "estab": "PROFESOR RAMON DEL RIO",
+   "inst": "Junaeb",
+   "det": "Verificar aspectos levantados durante visita.",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-01",
+   "rbd": 8533,
+   "tipo": "Correctiva",
+   "folio": "64",
+   "tec": "Camilo Santis",
+   "estab": "BENJAMIN VICUNA MACKENNA",
+   "inst": "Junaeb",
+   "det": "Horno no enciende",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-01",
+   "rbd": 8812,
+   "tipo": "Correctiva",
+   "folio": "79",
+   "tec": "Rodrigo Martinez",
+   "estab": "INDUSTRIAL VICTOR BESANILLA",
+   "inst": "Junaeb",
+   "det": "Arreglar calefón, que no mantiene\n\n--- Nueva contingencia incorporada ---\nCalefón con multivalula solenoide dañada, requiere cambio.",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-01",
+   "rbd": 8531,
+   "tipo": "Preventiva",
+   "folio": "74",
+   "tec": "Rodrigo Martinez",
+   "estab": "IRENE FREI DE CID",
+   "inst": "Junaeb",
+   "det": "Puerta con malla mosquitera dañada desarmando se sola.\nBodega sin iluminación\n\n--- Nueva contingencia incorporada ---\nPuerta con malla mosquitera dañada desarmando se sola.\nBodega sin iluminación\nIluminación bodega de perecibles mala\nRevisar interruptor de extractor \nRevisar flexibles de agua en lavafondos \nRevisar y realizar mantenimiento a fogones que Silvan al encenderse.\nFoco malo en cocina sobre la campana",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-09-01",
+   "rbd": 8657,
+   "tipo": "Correctiva",
+   "folio": "65",
+   "tec": "Camilo Santis",
+   "estab": "POLIVALENTE SAN ALBERTO",
+   "inst": "Junaeb",
+   "det": "Fuerte olor a gas",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-08-31",
+   "rbd": 8501,
+   "tipo": "Correctiva",
+   "folio": "63",
+   "tec": "Rodrigo Martinez",
+   "estab": "COMERCIAL GABRIEL GONZALEZ VIDELA",
+   "inst": "Junaeb",
+   "det": "Se debe habilitar confección eléctrica sobrepuesta, desconectar focos e instalar en red del establecimiento, retirar caja de derivación Legrand sobrepuesta y si enchufe, enchufe macho y cables de conexion eléctrica.\nSe debe cambiar mallas en sector cocina- hacia patio de servicio, las cuales no cuentan con la protección necesaria, también revisar baño María.",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-08-29",
+   "rbd": 8520,
+   "tipo": "Correctiva",
+   "folio": "48",
+   "tec": "Camilo Santis",
+   "estab": "PROVINCIA DE CHILOE",
+   "inst": "Junaeb",
+   "det": "Favor habilitar y/o limpiar extractor campana",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-08-28",
+   "rbd": 8518,
+   "tipo": "Correctiva",
+   "folio": "45",
+   "tec": "Rodrigo Martinez",
+   "estab": "COMPLEJO ESTACION CENTRAL",
+   "inst": "Junaeb",
+   "det": "Se solicita prueba de hermeticidad por olor a g",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-08-26",
+   "rbd": 8498,
+   "tipo": "Preventiva",
+   "folio": "31",
+   "tec": "Camilo Santis",
+   "estab": "LICEO DARIO SALAS",
+   "inst": "Junaeb",
+   "det": "Se requiere \n- revisar taa\n\n--- Nueva contingencia incorporada ---\nSe requiere \n- revisar tapa de baño manipuladoras\n-cuello de cisne filtra por el costado\n-focos quemados en cocn\n\n--- Nueva contingencia incorporada ---\nSe requiere \n- revisar taa\n\n--- Nueva contingencia incorporada ---\nSe requiere \n- revisar tapa de baño manipuladoras\n-cuello de cisne filtra por el costado\n-focos quemados en cocina.\n-malla mosquitera rota\n-puerta de casillero dañda",
+   "cuenta": true,
+   "revision": ""
+  },
+  {
+   "fecha": "2026-08-25",
+   "rbd": 25575,
+   "tipo": "Preventiva",
+   "folio": "18",
+   "tec": "Camilo Santis",
+   "estab": "ESPECIAL ALAMEDA",
+   "inst": "Junaeb",
+   "det": "-Repisa de no perecibles , falta pintura\n- mueble con ruedas en mal estado\n-desague filtra en área sucia\n- puerta malla mosquitera dañada\n-enchufes con desnivel\n-desague cocina con protección suelta\n-espacio para productos químicos",
+   "cuenta": true,
+   "revision": ""
+  }
+ ]
 };
