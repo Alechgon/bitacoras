@@ -312,12 +312,21 @@ function cerrarModal(){ document.getElementById('modal').classList.remove('on');
 document.getElementById('modal').addEventListener('click',e=>{ if(e.target.id==='modal') cerrarModal(); });
 
 /* ====================== AVANCE DE LAS METAS ====================== */
+const ES_PREV = t => /plan preventivo|preventiv/i.test(t||'');
 function avance(){
   const junaeb = D.ESTAB.filter(e=>e.inst==='Junaeb');
-  const jard = D.ESTAB.filter(e=>e.inst!=='Junaeb');
-  const hechoJ = junaeb.filter(e=> todas().some(p=>p.rbd===e.rbd && p.estado==='realizada')).length;
-  const hechoG = jard.filter(e=> todas().some(p=>p.rbd===e.rbd && p.estado==='realizada')).length;
-  return {junaeb:junaeb.length, hechoJ, jard:jard.length, hechoG};
+  const jard   = D.ESTAB.filter(e=>e.inst!=='Junaeb');
+  /* Meta 1 — JUNAEB: basta con una visita registrada en Datácora entre hoy y el 31-10.
+     Cuenta cualquier tipo de formulario, no exige preventiva. */
+  const okJ = new Set(todas().filter(p=>p.estado==='realizada'
+      && p.fecha >= D.META.inicio && p.fecha <= D.META.metaJunaeb).map(p=>p.rbd));
+  /* Meta 2 — jardines: solo cuenta si la bitácora dice Plan Preventivo Mantención,
+     y dentro del 2° semestre. Un registro sin tipo NO sirve. */
+  const okG = new Set(todas().filter(p=>p.estado==='realizada'
+      && p.fecha >= D.META.corteS2 && ES_PREV(p.tipoReal)).map(p=>p.rbd));
+  return {junaeb:junaeb.length, hechoJ:junaeb.filter(e=>okJ.has(e.rbd)).length,
+          jard:jard.length, hechoG:jard.filter(e=>okG.has(e.rbd)).length,
+          faltanJ:junaeb.filter(e=>!okJ.has(e.rbd)), faltanG:jard.filter(e=>!okG.has(e.rbd))};
 }
 function barrasMeta(){
   const a=avance();
@@ -326,17 +335,17 @@ function barrasMeta(){
   return `<div class="grid2">
    <div class="card" style="margin:0">
      <h3>Meta 1 · JUNAEB en Datácora</h3>
-     <div class="dim">Plazo ${fmt(D.META.metaJunaeb)} · regla número uno</div>
+     <div class="dim">Plazo ${fmt(D.META.metaJunaeb)} · regla número uno · basta con la visita, no exige preventiva</div>
      <div class="row" style="margin-top:8px"><b style="font-size:26px">${a.hechoJ}</b>
-       <span class="dim">de ${a.junaeb} establecimientos</span>
+       <span class="dim">de ${a.junaeb} · faltan ${a.faltanJ.length}</span>
        <span class="pill ${tardeJ?'p-red':'p-grn'}" style="margin-left:auto">${pj}%</span></div>
      <div class="bar"><i class="${tardeJ?'late':''}" style="width:${pj}%"></i></div>
    </div>
    <div class="card" style="margin:0">
      <h3>Meta 2 · Preventivo jardines</h3>
-     <div class="dim">Plazo ${fmt(D.META.metaJardines)} · JUNJI e INTEGRA</div>
+     <div class="dim">Plazo ${fmt(D.META.metaJardines)} · JUNJI e INTEGRA · solo cuenta si la bitácora dice Plan Preventivo</div>
      <div class="row" style="margin-top:8px"><b style="font-size:26px">${a.hechoG}</b>
-       <span class="dim">de ${a.jard} jardines</span>
+       <span class="dim">de ${a.jard} · faltan ${a.faltanG.length}</span>
        <span class="pill p-grn" style="margin-left:auto">${pg}%</span></div>
      <div class="bar"><i style="width:${pg}%"></i></div>
    </div></div>`;
@@ -420,7 +429,14 @@ function cardTarea(p){
 }
 function marcar(id,v){
   const p = todas().find(x=>x.id===id); if(!p) return;
-  p.estado = v?'realizada':'programada'; guardar(); vHoy();
+  p.estado = v?'realizada':'programada';
+  const e = E[p.rbd]||{};
+  if(v && e.inst && e.inst!=='Junaeb' && !ES_PREV(p.tipoReal)){
+    p.tipoReal = confirm('¿Esta visita a '+e.nombre+' se levantó como PLAN PREVENTIVO MANTENCIÓN?\n\n'+
+      'Aceptar = sí, cuenta para la meta de jardines.\nCancelar = fue otro formulario (emergencia, DT…).')
+      ? 'Plan Preventivo' : 'Emergencia';
+  }
+  guardar(); vHoy();
 }
 let dragId=null;
 function dStart(ev,id){ dragId=id; ev.dataTransfer.effectAllowed='move'; }
@@ -948,6 +964,11 @@ function revisarBit(b){
     <div><label class="f">Fecha</label><input type="date" id="bFecha" value="${b.fecha||hoyISO()}"></div>
     <div><label class="f">RBD</label><input id="bRbd" value="${b.rbd||''}" oninput="bNombre()"></div>
     <div><label class="f">Establecimiento</label><input id="bEstab" value="${esc(b.estab||'')}"></div>
+    <div><label class="f" for="bMotivo">Motivo de visita (define si cuenta como preventiva)</label>
+      <select id="bMotivo">
+        <option>Plan Preventivo Mantencion</option><option>Emergencia</option>
+        <option>Mutualidad</option><option>DT</option><option>Acta</option>
+        <option>Seremi</option><option>SEC</option></select></div>
     <div><label class="f">Técnico</label><input id="bTec" value="${esc(b.tecnico||'')}"></div>
     <div><label class="f">Encargado PAE</label><input id="bEnc" value="${esc(b.encargado||'')}"></div>
    </div>
@@ -978,7 +999,8 @@ function guardarBit(){
     categoria:d.querySelector('.bi-cat').value, item:d.querySelector('.bi-item').value,
     cantidad:+d.querySelector('.bi-cant').value||1, accion:d.querySelector('.bi-acc').value,
     observacion:d.querySelector('.bi-obs').value, ubicacion:''})).filter(i=>i.item);
-  const b={folio:+document.getElementById('bFolio').value||null,
+  const motivo=document.getElementById('bMotivo').value;
+  const b={motivo, tipoReal:motivo, folio:+document.getElementById('bFolio').value||null,
     fecha:document.getElementById('bFecha').value, rbd:+document.getElementById('bRbd').value,
     estab:document.getElementById('bEstab').value, tecnico:document.getElementById('bTec').value,
     encargado:document.getElementById('bEnc').value, direccion:bitBorrador.direccion||'',
@@ -987,16 +1009,17 @@ function guardarBit(){
   ST.bits.push(b);
   // sumarla al cronograma en su fecha
   const yaPlan = ST.plan.find(p=>p.rbd===b.rbd && p.fecha===b.fecha);
-  if(yaPlan){ yaPlan.estado='realizada'; yaPlan.folio=b.folio; }
+  if(yaPlan){ yaPlan.estado='realizada'; yaPlan.folio=b.folio; yaPlan.tipoReal=motivo; }
   else {
     ST.extras.push({id:'B'+Date.now(), fecha:b.fecha,
       tec: /camilo/i.test(b.tecnico)?'CAMILO':'RODRIGO', bloque:1, rbd:b.rbd,
       clase:'EXTRA', detalle:'Bitácora folio '+(b.folio||'s/n')+' — '+items.length+' ítems revisados',
-      crit:'OTRO', pts:(E[b.rbd]?E[b.rbd].pts:5), estado:'realizada', aplaz:0, origen:'bitacora'});
+      crit:'OTRO', tipoReal:motivo, pts:(E[b.rbd]?E[b.rbd].pts:5), estado:'realizada',
+      aplaz:0, origen:'bitacora'});
     // y si había una visita futura pendiente del mismo sitio, se marca cubierta
     const fut=ST.plan.filter(p=>p.rbd===b.rbd&&p.estado==='programada'&&p.fecha>=b.fecha)
       .sort((a,b2)=>a.fecha<b2.fecha?-1:1)[0];
-    if(fut){ fut.estado='realizada'; fut.folio=b.folio; }
+    if(fut){ fut.estado='realizada'; fut.folio=b.folio; fut.tipoReal=motivo; }
   }
   guardar(); cerrarModal(); vBits();
 }
