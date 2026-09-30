@@ -86,6 +86,7 @@ tr:hover td{background:var(--greenSoft)}
  border-radius:9px;padding:9px 10px;margin-bottom:7px;cursor:grab;box-shadow:var(--sh)}
 .task.k-cor{border-left-color:var(--red)} .task.k-mix{border-left-color:var(--amber)}
 .task.k-extra{border-left-color:var(--violet);border-style:dashed}
+.task.k-hist{border-left-color:#7b8a81;opacity:.82}
 .task.done{opacity:.55} .task.done .tt{text-decoration:line-through}
 .task .tt{font-weight:700;font-size:13.5px}
 .task .td{font-size:11.5px;color:var(--muted);margin-top:3px}
@@ -104,7 +105,15 @@ tr:hover td{background:var(--greenSoft)}
 .bar i.late{background:var(--red)}
 .gantt{overflow:auto;border:1px solid var(--line);border-radius:10px}
 .gantt table{font-size:11px} .gantt td,.gantt th{padding:3px 5px;white-space:nowrap}
-.gantt .cell{width:22px;text-align:center;font-weight:800;color:#fff;border-radius:4px}
+.gantt .cell{width:20px;height:19px;line-height:19px;text-align:center;font-weight:800;
+ color:#fff;border-radius:4px;font-size:10.5px;padding:0}
+.gantt .stk{position:sticky;left:0;background:var(--panel);z-index:3;box-shadow:1px 0 0 var(--line)}
+.gantt th.stk{z-index:4}
+.gantt .nm{max-width:210px;overflow:hidden;text-overflow:ellipsis}
+.gantt tr:hover td{background:var(--greenSoft)}
+.gantt tr:hover .stk{background:var(--greenSoft)}
+@media(max-width:620px){ .gantt .nm{max-width:110px} .gantt td,.gantt th{padding:2px 3px}
+ .gantt .cell{width:17px;height:17px;line-height:17px;font-size:9.5px} }
 .searchbig{max-width:720px;margin:26px auto}
 .searchbig input{font-size:19px;padding:15px 18px;border-radius:14px;text-align:center}
 .chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:12px}
@@ -191,18 +200,40 @@ async function persistirDuro(){
       return ok; }catch(e){} }
   return false;
 }
+let MIGRADO = 0;
+function fusionar(guardado){
+  /* Parte del plan nuevo de datos.js y le vuelve a aplicar lo que el usuario editó,
+     emparejando por id. Así entran las visitas nuevas sin perder cambios. */
+  const base = JSON.parse(JSON.stringify(D.PLAN));
+  const prev = {}; (guardado||[]).forEach(p=>prev[p.id]=p);
+  let tocados = 0;
+  base.forEach(p=>{
+    const v = prev[p.id]; if(!v) return;
+    const cambiado = v.estado!=='programada' || v.fecha!==p.fecha || v.tec!==p.tec
+      || v.bloque!==p.bloque || (v.aplaz||0)>0 || v.folio;
+    if(cambiado){ tocados++;
+      p.estado=v.estado; p.fecha=v.fecha; p.tec=v.tec; p.bloque=v.bloque;
+      p.aplaz=v.aplaz||0; p.pts=v.pts||p.pts; if(v.folio) p.folio=v.folio;
+      if(v.absorbidaPor) p.absorbidaPor=v.absorbidaPor;
+      if(v.detalle && v.detalle!==p.detalle) p.detalle=v.detalle; }
+  });
+  MIGRADO = base.length - (guardado||[]).length;
+  return base;
+}
 function cargar(){
   const raw = localStorage.getItem(LS);
-  ST = {plan:JSON.parse(JSON.stringify(D.PLAN)), extras:[], bits:[], hechos:{}, log:[], cfg:{}};
+  ST = {plan:JSON.parse(JSON.stringify(D.PLAN)), extras:[], bits:[], hechos:{}, log:[], cfg:{},
+        version:D.META.version};
   if(raw){ try{ const s = JSON.parse(raw);
-    if(s.plan) ST.plan = s.plan;
     ST.extras = s.extras||[]; ST.bits = s.bits||[]; ST.hechos = s.hechos||{};
-    ST.log = s.log||[]; ST.cfg = s.cfg||{};
+    ST.log = s.log||[]; ST.cfg = s.cfg||{}; ST.ts = s.ts;
+    if(s.version === D.META.version && s.plan){ ST.plan = s.plan; }
+    else { ST.plan = fusionar(s.plan); ST.version = D.META.version; }
   }catch(e){ console.warn('estado corrupto', e); } }
 }
 let guardarTO=null;
 function guardar(){
-  ST.ts = new Date().toISOString();
+  ST.ts = new Date().toISOString(); ST.version = D.META.version;
   try{ localStorage.setItem(LS, JSON.stringify(ST)); }
   catch(e){ console.warn('localStorage lleno', e); }
   clearTimeout(guardarTO);
@@ -213,7 +244,8 @@ cargar();
   IDB = await abrirIDB();
   const g = await idbGet('v1');
   if(g && (!ST.ts || (g.ts||'') > ST.ts)){
-    ST = Object.assign(ST, g);
+    const planG = (g.version === D.META.version) ? g.plan : fusionar(g.plan);
+    ST = Object.assign(ST, g, {plan:planG, version:D.META.version});
     try{ localStorage.setItem(LS, JSON.stringify(ST)); }catch(e){}
     if(typeof ir==='function') ir(actual);
   }
@@ -238,7 +270,18 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;',
 function sc(p){ return p>=13?'s-hi':p>=9?'s-md':'s-lo'; }
 function norm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
 function horaBloque(fecha,b){ return esViernes(fecha) ? (D.META.bloquesV[b]||'—') : (D.META.bloquesLJ[b]||'—'); }
-function claseCard(c){ return c==='CORRECTIVO URGENTE'?'k-cor':c==='PREV + CORRECTIVO'?'k-mix':c==='EXTRA'?'k-extra':''; }
+function claseCard(c){
+  if(c==='HISTORICO') return 'k-hist';
+  if(c==='CORRECTIVO URGENTE') return 'k-cor';
+  if(c.includes('CORRECTIVO')) return 'k-mix';
+  if(c==='EXTRA') return 'k-extra';
+  return ''; }
+function pillCard(c){
+  if(c==='HISTORICO') return 'p-grn';
+  if(c==='CORRECTIVO URGENTE') return 'p-red';
+  if(c.includes('CORRECTIVO')) return 'p-amb';
+  if(c==='EXTRA') return 'p-vio';
+  return 'p-blu'; }
 
 function tareasDe(fecha){
   return ST.plan.filter(p=>p.fecha===fecha && p.estado!=='anulada')
@@ -363,7 +406,7 @@ function cardTarea(p){
         <div class="td">${esc(p.detalle||'')}</div>
         <div class="tm">
           <span class="score ${sc(p.pts||0)}">${p.pts||'–'}</span>
-          <span class="pill ${p.clase==='PREVENTIVA'?'p-blu':p.clase==='EXTRA'?'p-vio':'p-red'}">${p.clase}</span>
+          <span class="pill ${pillCard(p.clase)}">${p.clase}</span>
           ${p.aplaz?`<span class="pill p-amb">aplazada ${p.aplaz}×</span>`:''}
           ${e.sup?`<span class="mini">Sup: ${esc(e.sup)}</span>`:''}
           <span style="margin-left:auto;display:flex;gap:4px">
@@ -565,7 +608,10 @@ function vSemana(){
     <button class="btn ghost" onclick="lunes=addDias(lunes,-7);vSemana()">◀ semana</button>
     <b>${fmt(dias[0])} al ${fmt(dias[4])}</b>
     <button class="btn ghost" onclick="lunes=addDias(lunes,7);vSemana()">semana ▶</button>
-    <span class="dim" style="margin-left:auto">Arrastra tarjetas entre días y técnicos</span></div></div>`;
+    <span class="dim" style="margin-left:auto">${dias.reduce((n,f)=>n+tareasDe(f).length,0)} trabajos ·
+    arrastra entre días y técnicos, o usa ⇄ para pasar al otro</span></div>
+    <div class="dim" style="margin-top:6px">Las semanas anteriores al 30-sep muestran en gris las visitas
+    ya ejecutadas que vienen del Excel y de Datácora.</div></div>`;
   h+='<div style="overflow:auto"><div style="display:grid;grid-template-columns:repeat(5,minmax(220px,1fr));gap:10px;min-width:1100px">';
   dias.forEach(f=>{
     const hab=esHabil(f);
@@ -598,46 +644,97 @@ function dDropSem(ev,tec,fecha){ ev.preventDefault(); ev.currentTarget.classList
   p.tec=tec; p.fecha=fecha; guardar(); vSemana(); }
 
 /* ============================ CRONOGRAMA ============================ */
-let ganttAll=false;
+let fG={desde:D.META.corteS2, hasta:D.META.fin, q:'', inst:'', sup:'', cob:'', soloAct:true};
+function semanasEntre(a,b){
+  const out=[]; let d=fISO(a); d.setDate(d.getDate()-((d.getDay()+6)%7));
+  const fin=fISO(b);
+  while(d<=fin){ out.push(d.getFullYear()+'-'+d2(d.getMonth()+1)+'-'+d2(d.getDate()));
+    d=new Date(d.getTime()+7*86400000); }
+  return out;
+}
+function rangoG(k){
+  if(k==='s2'){ fG.desde=D.META.corteS2; fG.hasta=D.META.fin; }
+  if(k==='plan'){ fG.desde=D.META.inicio; fG.hasta=D.META.fin; }
+  if(k==='todo'){ fG.desde='2026-05-04'; fG.hasta=D.META.fin; }
+  if(k==='mes'){ fG.desde=hoyISO().slice(0,8)+'01'; fG.hasta=addDias(hoyISO(),31); }
+  vCrono();
+}
 function vCrono(){
-  const sem = ganttAll ? D.META.semanasAll : D.META.semanas;
-  let h=barrasMeta();
+  const sem=semanasEntre(fG.desde,fG.hasta);
+  const finSem = addDias(sem[sem.length-1],6);
+  const act=todas().filter(p=>p.estado!=='anulada' && p.fecha>=sem[0] && p.fecha<=finSem);
   const porSem={};
-  todas().filter(p=>p.estado!=='anulada').forEach(p=>{
-    let i=-1;
-    for(let k=sem.length-1;k>=0;k--){ if(p.fecha>=sem[k]){ i=k; break; } }
+  act.forEach(p=>{
+    let i=-1; for(let k=sem.length-1;k>=0;k--){ if(p.fecha>=sem[k]){ i=k; break; } }
     if(i<0) return;
-    const cel=(porSem[p.rbd]=porSem[p.rbd]||{});
-    if(!cel[i] || (cel[i].clase==='HISTORICO' && p.clase!=='HISTORICO')) cel[i]=p;
+    const c=(porSem[p.rbd]=porSem[p.rbd]||{});
+    if(!c[i] || (c[i].clase==='HISTORICO' && p.clase!=='HISTORICO')) c[i]=p;
   });
-  const orden=[...D.ESTAB].sort((a,b)=> b.pts-a.pts || a.rbd-b.rbd);
-  h+=`<div class="card"><div class="row"><h2 style="margin:0">Carta Gantt</h2>
-   <div class="row" style="margin-left:auto">
-     <button class="chip ${!ganttAll?'on':''}" onclick="ganttAll=false;vCrono()">Plan (oct–dic)</button>
-     <button class="chip ${ganttAll?'on':''}" onclick="ganttAll=true;vCrono()">Todo el año (desde mayo)</button>
-   </div></div>
-   <div class="dim" style="margin-top:6px">V visita · P preventiva · M con correctivo · C correctivo urgente ·
-   X extra · <b>H</b> histórico ya ejecutado (registro Excel y Datácora). Verde = realizada.</div>
+  let filas=[...D.ESTAB].filter(e=>{
+    if(fG.inst && e.inst!==fG.inst) return false;
+    if(fG.sup && e.sup!==fG.sup) return false;
+    if(fG.cob && e.cobertura!==fG.cob) return false;
+    if(fG.soloAct && !porSem[e.rbd]) return false;
+    if(fG.q){ const n=norm(fG.q);
+      if(!(String(e.rbd).includes(n)||norm(e.nombre).includes(n)||norm(e.comuna).includes(n))) return false; }
+    return true;
+  }).sort((a,b)=> b.pts-a.pts || a.rbd-b.rbd);
+  const sups=[...new Set(D.ESTAB.map(e=>e.sup))].filter(Boolean).sort();
+  let h=barrasMeta();
+  h+=`<div class="card"><h2>Carta Gantt</h2>
+   <div class="row" style="margin-top:8px">
+     <button class="chip ${fG.desde===D.META.corteS2?'on':''}" onclick="rangoG('s2')">2° semestre · desde 01-jul</button>
+     <button class="chip ${fG.desde===D.META.inicio?'on':''}" onclick="rangoG('plan')">Solo el plan · oct–dic</button>
+     <button class="chip ${fG.desde==='2026-05-04'?'on':''}" onclick="rangoG('todo')">Todo el año</button>
+     <button class="chip" onclick="rangoG('mes')">Este mes</button>
+   </div>
+   <div class="row" style="margin-top:10px">
+     <div><label class="f" for="gd">Desde</label><input type="date" id="gd" value="${fG.desde}"
+       onchange="fG.desde=this.value;vCrono()" style="width:155px"></div>
+     <div><label class="f" for="gh">Hasta</label><input type="date" id="gh" value="${fG.hasta}"
+       onchange="fG.hasta=this.value;vCrono()" style="width:155px"></div>
+     <div style="flex:1;min-width:170px"><label class="f" for="gq">Buscar</label>
+       <input id="gq" value="${esc(fG.q)}" placeholder="RBD, nombre o comuna" oninput="fG.q=this.value;vCrono()"></div>
+   </div>
+   <div class="row" style="margin-top:8px">
+     <select onchange="fG.inst=this.value;vCrono()" style="width:auto" aria-label="Institución">
+       <option value="">Toda institución</option>
+       ${['Junaeb','Junji','Integra'].map(i=>`<option ${fG.inst===i?'selected':''}>${i}</option>`).join('')}</select>
+     <select onchange="fG.sup=this.value;vCrono()" style="width:auto" aria-label="Supervisora">
+       <option value="">Toda supervisora</option>
+       ${sups.map(i=>`<option ${fG.sup===i?'selected':''}>${esc(i)}</option>`).join('')}</select>
+     <select onchange="fG.cob=this.value;vCrono()" style="width:auto" aria-label="Cobertura">
+       <option value="">Toda cobertura</option>
+       ${['SIN VISITA','SIN PREVENTIVA','CON PREVENTIVA'].map(i=>`<option ${fG.cob===i?'selected':''}>${i}</option>`).join('')}</select>
+     <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:13px">
+       <input type="checkbox" class="chk" ${fG.soloAct?'checked':''} onchange="fG.soloAct=this.checked;vCrono()">
+       Solo con actividad en el rango</label>
+     <button class="btn ghost" onclick="fG={desde:D.META.corteS2,hasta:D.META.fin,q:'',inst:'',sup:'',cob:'',soloAct:true};vCrono()">Limpiar</button>
+     <span class="dim" style="margin-left:auto"><b>${filas.length}</b> de ${D.ESTAB.length} · ${sem.length} semanas · ${act.length} visitas</span>
+   </div>
+   <div class="dim" style="margin-top:8px">V visita · P preventiva · M con correctivo · C correctivo urgente ·
+   X extra · <b>H</b> visita histórica del Excel o Datácora. Verde = marcada como realizada.</div>
    <div class="gantt" style="margin-top:10px"><table><tr>
-   <th style="position:sticky;left:0;background:var(--panel);z-index:2">Pts</th><th>RBD</th>
-   <th>Establecimiento</th><th>Inst.</th>
-   ${sem.map((x,i)=>`<th>${fcorto(x)}</th>`).join('')}</tr>`;
-  orden.forEach(e=>{
-    h+=`<tr><td style="position:sticky;left:0;background:var(--panel)"><span class="score ${sc(e.pts)}">${e.pts}</span></td>
-      <td><b>${e.rbd}</b></td>
-      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis">${esc(e.nombre)}</td>
-      <td>${esc(e.inst)}</td>`;
+   <th class="stk">RBD</th><th>Establecimiento</th><th>Pts</th><th>Inst.</th>
+   ${sem.map(x=>`<th title="${fmt(x)}">${fcorto(x)}</th>`).join('')}</tr>`;
+  if(!filas.length) h+='<tr><td colspan="9" class="dim" style="padding:18px">Nada que mostrar con esos filtros.</td></tr>';
+  filas.forEach(e=>{
+    h+=`<tr><td class="stk"><b>${e.rbd}</b></td>
+      <td class="nm" title="${esc(e.nombre)}">${esc(e.nombre)}</td>
+      <td><span class="score ${sc(e.pts)}">${e.pts}</span></td><td>${esc(e.inst)}</td>`;
     sem.forEach((x,i)=>{ const p=(porSem[e.rbd]||{})[i];
       if(!p){ h+='<td></td>'; return; }
-      const L = p.clase==='HISTORICO'?'H':p.clase.startsWith('PREVENTIVA')?'P':
-        p.clase.startsWith('VISITA')?'V':p.clase==='EXTRA'?'X':'C';
-      const conCor = p.clase.includes('CORRECTIVO');
-      const bg = p.clase==='HISTORICO' ? 'var(--muted)' :
-        p.estado==='realizada' ? 'var(--green2)' :
-        conCor && p.clase!=='CORRECTIVO URGENTE' ? 'var(--amber)' :
-        p.clase==='CORRECTIVO URGENTE' ? 'var(--red)' :
-        p.clase==='EXTRA' ? 'var(--violet)' : 'var(--blue)';
-      h+=`<td><div class="cell" style="background:${bg}" title="${fmt(p.fecha)} · ${esc(p.clase)} · ${esc((p.detalle||'').slice(0,90))}">${conCor&&L!=='C'?'M':L}</div></td>`; });
+      const conCor=p.clase.includes('CORRECTIVO');
+      const L = p.clase==='HISTORICO'?'H':conCor&&p.clase!=='CORRECTIVO URGENTE'?'M':
+        p.clase.startsWith('PREVENTIVA')?'P':p.clase.startsWith('VISITA')?'V':
+        p.clase==='EXTRA'?'X':'C';
+      const bg = p.clase==='HISTORICO'?'#7b8a81':
+        p.estado==='realizada'?'var(--green2)':
+        p.clase==='CORRECTIVO URGENTE'?'var(--red)':
+        conCor?'var(--amber)':p.clase==='EXTRA'?'var(--violet)':'var(--blue)';
+      h+=`<td><button class="cell" style="background:${bg};border:0;cursor:pointer"
+        onclick="fichaEstab(${e.rbd})"
+        title="${fmt(p.fecha)} · ${esc(p.clase)} · ${esc((p.detalle||'').slice(0,110))}">${L}</button></td>`; });
     h+='</tr>';
   });
   h+='</table></div></div>';
@@ -1232,7 +1329,15 @@ setInterval(chequearAvisos, 20000);
 
 /* ============================ ARRANQUE ============================ */
 document.getElementById('hdrmeta').textContent =
-  'Hoy ' + fmt(hoyISO()) + ' · meta JUNAEB ' + fmt(D.META.metaJunaeb);
+  'Hoy ' + fmt(hoyISO()) + ' · JUNAEB al ' + fmt(D.META.metaJunaeb) + ' · jardines al ' + fmt(D.META.metaJardines);
+if(MIGRADO>0){
+  const a=document.getElementById('aviso');
+  a.innerHTML='<b>Datos actualizados</b><div style="margin-top:5px;font-size:13px">Entraron '+MIGRADO+
+    ' visitas nuevas del registro histórico. Tus cambios se conservaron.</div>'+
+    '<button class="btn ghost" style="color:#fff;border-color:#fff;margin-top:9px;padding:4px 10px" '+
+    'onclick="document.getElementById(\'aviso\').classList.remove(\'on\')">ok</button>';
+  a.classList.add('on'); setTimeout(()=>a.classList.remove('on'),9000);
+}
 ir('hoy');
 </script>
 </body>
