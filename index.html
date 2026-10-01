@@ -258,7 +258,7 @@ cargar();
     const planG = (g.version === D.META.version) ? g.plan : fusionar(g.plan);
     ST = Object.assign(ST, g, {plan:planG, version:D.META.version});
     try{ localStorage.setItem(LS, JSON.stringify(ST)); }catch(e){}
-    if(typeof ir==='function') ir(actual);
+    if(typeof ir==='function') refrescar();
   }
   await persistirDuro();
 })();
@@ -295,10 +295,11 @@ function pillCard(c){
   return 'p-blu'; }
 
 function tareasDe(fecha){
-  return ST.plan.filter(p=>p.fecha===fecha && p.estado!=='anulada')
-    .concat(ST.extras.filter(x=>x.fecha===fecha));
+  return vivas().filter(p=>p.fecha===fecha);
 }
+/* todas() incluye las anuladas (para buscarlas por id); vivas() es lo que se muestra */
 function todas(){ return ST.plan.concat(ST.extras); }
+function vivas(){ return todas().filter(p=>p.estado!=='anulada'); }
 
 /* ============================ NAV ============================ */
 const VISTAS=[['hoy','Hoy'],['semana','Semana'],['crono','Cronograma'],['estab','Establecimientos'],
@@ -306,11 +307,26 @@ const VISTAS=[['hoy','Hoy'],['semana','Semana'],['crono','Cronograma'],['estab',
 let actual='hoy';
 document.getElementById('nav').innerHTML = VISTAS.map(([k,t])=>
   `<button id="nb-${k}" onclick="ir('${k}')" aria-label="Ir a ${t}">${t}</button>`).join('');
-function ir(k){ actual=k;
+const RENDER={hoy:()=>vHoy(),semana:()=>vSemana(),crono:()=>vCrono(),estab:()=>vEstab(),bits:()=>vBits(),
+  buscar:()=>vBuscar(),pend:()=>vPend(),datacora:()=>vDatacora(),supers:()=>vSupers(),config:()=>vConfig()};
+/* Solo al cambiar de pestaña se sube al inicio. Cualquier botón dentro de la vista
+   vuelve a dibujarla con refrescar(), que deja la pantalla donde estaba. */
+function ir(k){ const cambia = k!==actual; actual=k;
   VISTAS.forEach(([v])=>{ document.getElementById('v-'+v).classList.toggle('on',v===k);
     document.getElementById('nb-'+v).classList.toggle('on',v===k); });
-  ({hoy:vHoy,semana:vSemana,crono:vCrono,estab:vEstab,bits:vBits,buscar:vBuscar,pend:vPend,datacora:vDatacora,supers:vSupers,config:vConfig})[k]();
-  window.scrollTo(0,0);
+  if(cambia){ RENDER[k](); window.scrollTo(0,0); } else refrescar();
+}
+function refrescar(fn){
+  const y = window.scrollY, x = window.scrollX;
+  const sec = document.getElementById('v-'+actual);
+  const inner = sec ? [...sec.querySelectorAll('.scroll,.board,.gantt')].map(el=>[el.scrollTop,el.scrollLeft]) : [];
+  /* fija la altura mientras se redibuja, así el navegador no salta arriba */
+  if(sec) sec.style.minHeight = sec.offsetHeight+'px';
+  (fn || RENDER[actual])();
+  if(sec){ [...sec.querySelectorAll('.scroll,.board,.gantt')].forEach((el,i)=>{
+      if(inner[i]){ el.scrollTop=inner[i][0]; el.scrollLeft=inner[i][1]; } }); }
+  window.scrollTo(x,y);
+  requestAnimationFrame(()=>{ window.scrollTo(x,y); if(sec) sec.style.minHeight=''; });
 }
 function toggleTema(){ const r=document.documentElement;
   const t=r.getAttribute('data-theme')==='dark'?'light':'dark'; r.setAttribute('data-theme',t);
@@ -381,11 +397,11 @@ function vHoy(){
   let h = barrasMeta();
   h += `<div class="card"><div class="row">
     <div><label class="f">Día de trabajo</label>
-      <input type="date" id="fhoy" value="${f}" onchange="fechaHoy=this.value;vHoy()" style="width:170px"></div>
+      <input type="date" id="fhoy" value="${f}" onchange="fechaHoy=this.value;refrescar()" style="width:170px"></div>
     <div><label class="f">&nbsp;</label>
-      <div class="row"><button class="btn ghost" onclick="fechaHoy=sigHabilAtras(fechaHoy);vHoy()">◀</button>
-      <button class="btn ghost" onclick="fechaHoy=sigHabil(fechaHoy);vHoy()">▶</button>
-      <button class="btn ghost" onclick="fechaHoy=hoyISO();vHoy()">Hoy</button></div></div>
+      <div class="row"><button class="btn ghost" onclick="fechaHoy=sigHabilAtras(fechaHoy);refrescar()">◀</button>
+      <button class="btn ghost" onclick="fechaHoy=sigHabil(fechaHoy);refrescar()">▶</button>
+      <button class="btn ghost" onclick="fechaHoy=hoyISO();refrescar()">Hoy</button></div></div>
     <div style="margin-left:auto;text-align:right">
       <div><b>${diaSem(f)} ${fmt(f)}</b></div>
       <div class="dim">${vie?'Viernes · jornada '+D.META.jornadaV+' · 2 bloques':'Jornada '+D.META.jornadaLJ+' · 3 bloques'}</div>
@@ -430,6 +446,10 @@ function cardTarea(p){
   const hecho = p.estado==='realizada';
   const pv = esPrev(p);
   const jard = e.inst && e.inst!=='Junaeb';
+  /* mismo establecimiento cargado también en otra tarjeta viva de cerca (±7 días) */
+  const dup = vivas().filter(x=>x.rbd===p.rbd && x.id!==p.id
+    && Math.abs(fISO(x.fecha)-fISO(p.fecha)) <= 7*864e5);
+  const dupHecha = dup.find(x=>x.estado==='realizada');
   return `<div class="task ${claseCard(p.clase)} ${hecho?'done':''}" draggable="true"
     ondragstart="dStart(event,'${p.id}')" >
     <div class="row" style="gap:8px;align-items:flex-start">
@@ -450,6 +470,9 @@ function cardTarea(p){
           <span class="score ${sc(p.pts||0)}">${p.pts||'–'}</span>
           <span class="pill ${pillCard(p.clase)}">${p.clase}</span>
           ${p.aplaz?`<span class="pill p-amb">aplazada ${p.aplaz}×</span>`:''}
+          ${dup.length?`<span class="pill ${dupHecha&&!hecho?'p-red':'p-amb'}" title="El mismo establecimiento está en otra tarjeta">${
+            dupHecha&&!hecho?'ya la hizo '+(dupHecha.tec==='RODRIGO'?'Rodrigo':'Camilo')+' '+fcorto(dupHecha.fecha)
+            :'repetida · '+dup.map(x=>(x.tec==='RODRIGO'?'Rodrigo':'Camilo')+' '+fcorto(x.fecha)).join(', ')}</span>`:''}
           ${e.sup?`<span class="mini">Sup: ${esc(e.sup)}</span>`:''}
           <span style="margin-left:auto;display:flex;gap:4px">
             <button class="tbtn" onclick="traspasar('${p.id}')" title="Pasar al otro técnico"
@@ -457,6 +480,8 @@ function cardTarea(p){
             <button class="tbtn" onclick="modalMover('${p.id}')" title="Cambiar fecha"
               aria-label="Cambiar fecha">📅</button>
             <button class="tbtn" onclick="fichaEstab(${p.rbd})" aria-label="Ver ficha">ficha</button>
+            <button class="tbtn" onclick="anularTrabajo('${p.id}')" title="Ya no corresponde: sacarla del plan"
+              aria-label="Ya no corresponde, anular">🗑</button>
             <button class="tbtn x" onclick="noEjecutada('${p.id}')"
               title="No se ejecutó: pasarla a otro día"
               aria-label="No se ejecutó, pasar a otro día">✕</button>
@@ -508,15 +533,69 @@ function aplicarNoEjec(id){
   ST.log.push({ts:new Date().toISOString(), id, rbd:p.rbd, aplaz:p.aplaz, nueva,
     motivo: mot + (nota?' — '+nota:'') + ' (venía del '+antes+')'});
   reordenarDia(nueva); reordenarDia(antes);
-  guardar(); cerrarModal(); ir(actual);
+  guardar(); cerrarModal(); refrescar();
+}
+/* ---- anular: ya no corresponde (o lo hizo el otro técnico) ----
+   Se pide confirmar dentro del mismo cuadro (no con confirm(), que el celular
+   puede bloquear) y antes se simula el cambio para mostrar si mueve las metas. */
+function impactoAnular(p){
+  const antes = avance(); const era = p.estado;
+  p.estado = 'anulada'; const desp = avance(); p.estado = era;
+  return {antes, desp, cambia: antes.hechoJ!==desp.hechoJ || antes.hechoG!==desp.hechoG
+          || antes.medias!==desp.medias};
+}
+function hermanas(p){
+  /* otras visitas del mismo establecimiento que siguen vivas */
+  return vivas().filter(x=>x.rbd===p.rbd && x.id!==p.id);
 }
 function anularTrabajo(id){
   const p = todas().find(x=>x.id===id); if(!p) return;
-  if(!confirm('¿Sacar este trabajo del plan? Deja de contar y no se reprograma.')) return;
+  const e = E[p.rbd]||{};
+  const hechas = hermanas(p).filter(x=>x.estado==='realizada').sort((a,b)=>a.fecha<b.fecha?1:-1).slice(0,3);
+  const cerca = hechas.filter(x=>Math.abs(fISO(x.fecha)-fISO(p.fecha)) <= 7*864e5);
+  const imp = impactoAnular(p);
+  const tn = t => (D.META.tecnicos[t]||{nombre:t||'—'}).nombre;
+  let aviso;
+  if(!imp.cambia){
+    aviso = `<div class="card" style="background:var(--greenSoft,#e7f4ec);margin-top:12px">
+      <b>No cambia las cuentas</b>
+      <div class="mini">Meta 1 JUNAEB: ${imp.antes.hechoJ} de ${imp.antes.junaeb} → ${imp.desp.hechoJ} ·
+        Meta 2 jardines: ${imp.antes.hechoG} de ${imp.antes.jard} → ${imp.desp.hechoG}</div>
+      ${hechas.length?`<div class="mini" style="margin-top:4px">Queda vigente la visita realizada:
+        ${hechas.map(h=>`${fmt(h.fecha)} · ${tn(h.tec)}${h.folio?' · folio '+h.folio:''}`).join(' / ')}</div>`:''}</div>`;
+  } else {
+    aviso = `<div class="card" style="background:var(--redSoft);margin-top:12px">
+      <b>Ojo: esto SÍ baja las cuentas</b>
+      <div class="mini">Meta 1 JUNAEB: ${imp.antes.hechoJ} → ${imp.desp.hechoJ} ·
+        Meta 2 jardines: ${imp.antes.hechoG} → ${imp.desp.hechoG}${imp.antes.medias!==imp.desp.medias?' · a medias: '+imp.antes.medias+' → '+imp.desp.medias:''}</div>
+      <div class="mini" style="margin-top:4px">${p.estado==='realizada'
+        ? 'Esta es la visita realizada que cuenta para el establecimiento. Si la hizo el otro técnico, anula la otra tarjeta, no esta.'
+        : 'Revisa antes de seguir.'}</div></div>`;
+  }
+  modal(`<h2>Ya no corresponde</h2>
+   <div class="dim">${p.rbd} · ${esc(e.nombre||p.nombre||'')} — ${fmt(p.fecha)} con ${tn(p.tec)}${p.estado==='realizada'?' · <b>marcada como realizada</b>':''}.</div>
+   ${aviso}
+   <div style="margin-top:10px"><label class="f" for="anMotivo">Motivo</label>
+     <select id="anMotivo">
+       ${cerca.length?`<option value="hecha">Ya la hizo ${cerca.map(h=>tn(h.tec).split(' ')[0]).filter((v,i,a)=>a.indexOf(v)===i).join(' / ')}</option>`:''}
+       <option>Ya no corresponde</option><option>Duplicada</option><option>La resolvió otra área</option>
+       <option>El establecimiento la canceló</option><option>Otro motivo</option></select></div>
+   <div class="row" style="margin-top:14px">
+     <button class="btn red" onclick="confirmarAnular('${id}')">${imp.cambia?'Anular igual':'Sí, sacarla del plan'}</button>
+     <button class="btn gray" onclick="cerrarModal()">Cancelar</button></div>`);
+}
+function confirmarAnular(id){
+  const p = todas().find(x=>x.id===id); if(!p) return;
+  const sel = document.getElementById('anMotivo');
+  let motivo = sel ? sel.options[sel.selectedIndex].text : 'Ya no corresponde';
+  const hecha = hermanas(p).filter(x=>x.estado==='realizada')
+    .sort((a,b)=>Math.abs(fISO(a.fecha)-fISO(p.fecha))-Math.abs(fISO(b.fecha)-fISO(p.fecha)))[0];
+  if(sel && sel.value==='hecha' && hecha) p.absorbidaPor = hecha.id;
   p.estado = 'anulada';
   ST.log.push({ts:new Date().toISOString(), id, rbd:p.rbd, aplaz:p.aplaz||0,
-    nueva:'—', motivo:'anulada: ya no corresponde'});
-  guardar(); cerrarModal(); ir(actual);
+    nueva:'—', motivo:'anulada: '+motivo.toLowerCase()});
+  reordenarDia(p.fecha);
+  guardar(); cerrarModal(); refrescar();
 }
 
 /* ---- qué fue la visita: preventiva o correctiva ---- */
@@ -531,12 +610,12 @@ function setTipo(id, tipo){
   if(p.estado!=='realizada') p.estado = 'realizada';
   if(era!==tipo) ST.log.push({ts:new Date().toISOString(), id, rbd:p.rbd, aplaz:p.aplaz||0,
     nueva:p.fecha, motivo:'tipo corregido: '+(era||'sin tipo')+' → '+tipo});
-  guardar(); ir(actual);
+  guardar(); refrescar();
 }
 function marcar(id,v){
   const p = todas().find(x=>x.id===id); if(!p) return;
   p.estado = v?'realizada':'programada';
-  guardar(); ir(actual);
+  guardar(); refrescar();
 }
 let dragId=null;
 function dStart(ev,id){ dragId=id; ev.dataTransfer.effectAllowed='move'; }
@@ -544,14 +623,14 @@ function dOver(ev){ ev.preventDefault(); ev.currentTarget.classList.add('over');
 function dDrop(ev,tec,b,fecha){
   ev.preventDefault(); ev.currentTarget.classList.remove('over');
   const p = todas().find(x=>x.id===dragId); if(!p) return;
-  p.tec=tec; p.bloque=b; p.fecha=fecha; guardar(); vHoy();
+  p.tec=tec; p.bloque=b; p.fecha=fecha; guardar(); refrescar();
 }
 
 /* ---- traspasar entre técnicos ---- */
 function traspasar(id){
   const p = todas().find(x=>x.id===id); if(!p) return;
   p.tec = p.tec==='RODRIGO' ? 'CAMILO' : 'RODRIGO';
-  reordenarDia(p.fecha); guardar(); ir(actual);
+  reordenarDia(p.fecha); guardar(); refrescar();
 }
 function reordenarDia(fecha){
   ['RODRIGO','CAMILO'].forEach(tk=>{
@@ -567,7 +646,7 @@ function reordenarDia(fecha){
 function modalMover(id){
   const p = todas().find(x=>x.id===id); if(!p) return;
   const e = E[p.rbd]||{};
-  const otras = todas().filter(x=>x.rbd===p.rbd && x.id!==id && x.estado!=='realizada');
+  const otras = vivas().filter(x=>x.rbd===p.rbd && x.id!==id && x.estado!=='realizada');
   modal(`<h2>Mover ${p.rbd} · ${esc(e.nombre||'')}</h2>
    <div class="dim">Hoy está para el ${fmt(p.fecha)} con ${D.META.tecnicos[p.tec].nombre}.</div>
    <div class="grid2" style="margin-top:12px">
@@ -595,16 +674,15 @@ function aplicarMover(id){
   const antes = p.fecha;
   p.fecha = nueva; p.tec = tec;
   if(abs && abs.checked){
-    const otras = todas().filter(x=>x.rbd===p.rbd && x.id!==id && x.estado!=='realizada');
+    const otras = vivas().filter(x=>x.rbd===p.rbd && x.id!==id && x.estado!=='realizada');
     const extra = otras.map(o=>o.detalle).filter(Boolean);
     otras.forEach(o=>{ o.estado='anulada'; o.absorbidaPor=id;
       ST.log.push({ts:new Date().toISOString(), id:o.id, rbd:o.rbd,
         motivo:'resuelta en la visita del '+nueva, aplaz:o.aplaz||0, nueva}); });
     if(extra.length) p.detalle = (p.detalle||'') + '  ||  ' + extra.join('  ||  ');
-    ST.extras = ST.extras.filter(x=>x.estado!=='anulada');
   }
   reordenarDia(nueva); if(antes!==nueva) reordenarDia(antes);
-  guardar(); cerrarModal(); ir(actual);
+  guardar(); cerrarModal(); refrescar();
 }
 
 /* ---- agregar emergencia (ilimitadas) ---- */
@@ -657,7 +735,7 @@ function agGuardar(){
     detalle:document.getElementById('agDet').value||'Emergencia',
     crit:document.getElementById('agCrit').value, quien:document.getElementById('agQuien').value,
     pts:(E[rbd]?E[rbd].pts:5), estado:'programada', aplaz:0, origen:'extra'});
-  guardar(); cerrarModal(); vHoy();
+  guardar(); cerrarModal(); refrescar();
 }
 
 /* ---- cierre del día: postergar lo no hecho ---- */
@@ -689,7 +767,7 @@ function aplicarCierre(){
     p.fecha=sigHabil(p.fecha); p.estado='programada';
     ST.log.push({ts:new Date().toISOString(), id, rbd:p.rbd, motivo, aplaz:p.aplaz, nueva:p.fecha});
   });
-  guardar(); cerrarModal(); vHoy();
+  guardar(); cerrarModal(); refrescar();
   if(dobles.length) setTimeout(()=>alert('Ojo: '+dobles.length+' trabajo(s) van en su segundo aplazamiento o más. Según la regla, eso lo autorizas tú y queda en el registro de Ajustes.'),150);
 }
 
@@ -721,9 +799,9 @@ let lunes = (function(){ const d=fISO(hoyISO()); const off=(d.getDay()+6)%7; ret
 function vSemana(){
   const dias=[0,1,2,3,4].map(i=>addDias(lunes,i));
   let h=`<div class="card"><div class="row">
-    <button class="btn ghost" onclick="lunes=addDias(lunes,-7);vSemana()">◀ semana</button>
+    <button class="btn ghost" onclick="lunes=addDias(lunes,-7);refrescar()">◀ semana</button>
     <b>${fmt(dias[0])} al ${fmt(dias[4])}</b>
-    <button class="btn ghost" onclick="lunes=addDias(lunes,7);vSemana()">semana ▶</button>
+    <button class="btn ghost" onclick="lunes=addDias(lunes,7);refrescar()">semana ▶</button>
     <span class="dim" style="margin-left:auto">${dias.reduce((n,f)=>n+tareasDe(f).length,0)} trabajos ·
     arrastra entre días y técnicos, o usa ⇄ para pasar al otro</span></div>
     <div class="dim" style="margin-top:6px">Las semanas anteriores al 30-sep muestran en gris las visitas
@@ -757,7 +835,7 @@ function vSemana(){
 }
 function dDropSem(ev,tec,fecha){ ev.preventDefault(); ev.currentTarget.classList.remove('over');
   const p=todas().find(x=>x.id===dragId); if(!p) return;
-  p.tec=tec; p.fecha=fecha; guardar(); vSemana(); }
+  p.tec=tec; p.fecha=fecha; guardar(); refrescar(); }
 
 /* ============================ CRONOGRAMA ============================ */
 let fG={desde:D.META.corteS2, hasta:D.META.fin, q:'', inst:'', sup:'', cob:'', soloAct:true};
@@ -806,26 +884,26 @@ function vCrono(){
    </div>
    <div class="row" style="margin-top:10px">
      <div><label class="f" for="gd">Desde</label><input type="date" id="gd" value="${fG.desde}"
-       onchange="fG.desde=this.value;vCrono()" style="width:155px"></div>
+       onchange="fG.desde=this.value;refrescar()" style="width:155px"></div>
      <div><label class="f" for="gh">Hasta</label><input type="date" id="gh" value="${fG.hasta}"
-       onchange="fG.hasta=this.value;vCrono()" style="width:155px"></div>
+       onchange="fG.hasta=this.value;refrescar()" style="width:155px"></div>
      <div style="flex:1;min-width:170px"><label class="f" for="gq">Buscar</label>
-       <input id="gq" value="${esc(fG.q)}" placeholder="RBD, nombre o comuna" oninput="fG.q=this.value;vCrono()"></div>
+       <input id="gq" value="${esc(fG.q)}" placeholder="RBD, nombre o comuna" oninput="fG.q=this.value;refrescar()"></div>
    </div>
    <div class="row" style="margin-top:8px">
-     <select onchange="fG.inst=this.value;vCrono()" style="width:auto" aria-label="Institución">
+     <select onchange="fG.inst=this.value;refrescar()" style="width:auto" aria-label="Institución">
        <option value="">Toda institución</option>
        ${['Junaeb','Junji','Integra'].map(i=>`<option ${fG.inst===i?'selected':''}>${i}</option>`).join('')}</select>
-     <select onchange="fG.sup=this.value;vCrono()" style="width:auto" aria-label="Supervisora">
+     <select onchange="fG.sup=this.value;refrescar()" style="width:auto" aria-label="Supervisora">
        <option value="">Toda supervisora</option>
        ${sups.map(i=>`<option ${fG.sup===i?'selected':''}>${esc(i)}</option>`).join('')}</select>
-     <select onchange="fG.cob=this.value;vCrono()" style="width:auto" aria-label="Cobertura">
+     <select onchange="fG.cob=this.value;refrescar()" style="width:auto" aria-label="Cobertura">
        <option value="">Toda cobertura</option>
        ${['SIN VISITA','SIN PREVENTIVA','CON PREVENTIVA'].map(i=>`<option ${fG.cob===i?'selected':''}>${i}</option>`).join('')}</select>
      <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:13px">
-       <input type="checkbox" class="chk" ${fG.soloAct?'checked':''} onchange="fG.soloAct=this.checked;vCrono()">
+       <input type="checkbox" class="chk" ${fG.soloAct?'checked':''} onchange="fG.soloAct=this.checked;refrescar()">
        Solo con actividad en el rango</label>
-     <button class="btn ghost" onclick="fG={desde:D.META.corteS2,hasta:D.META.fin,q:'',inst:'',sup:'',cob:'',soloAct:true};vCrono()">Limpiar</button>
+     <button class="btn ghost" onclick="fG={desde:D.META.corteS2,hasta:D.META.fin,q:'',inst:'',sup:'',cob:'',soloAct:true};refrescar()">Limpiar</button>
      <span class="dim" style="margin-left:auto"><b>${filas.length}</b> de ${D.ESTAB.length} · ${sem.length} semanas · ${act.length} visitas</span>
    </div>
    <div class="dim" style="margin-top:8px">V visita · P preventiva · M con correctivo · C correctivo urgente ·
@@ -869,18 +947,18 @@ function vEstab(){
   }).sort((a,b)=>b.pts-a.pts);
   let h=`<div class="card"><div class="row">
     <input placeholder="Buscar RBD, nombre, dirección o comuna…" value="${esc(fEstab.q)}"
-      oninput="fEstab.q=this.value;vEstab()" style="flex:1;min-width:200px">
-    <select onchange="fEstab.inst=this.value;vEstab()" style="width:auto">
+      oninput="fEstab.q=this.value;refrescar()" style="flex:1;min-width:200px">
+    <select onchange="fEstab.inst=this.value;refrescar()" style="width:auto">
       <option value="">Toda institución</option>
       ${['Junaeb','Junji','Integra'].map(i=>`<option ${fEstab.inst===i?'selected':''}>${i}</option>`).join('')}</select>
-    <select onchange="fEstab.cob=this.value;vEstab()" style="width:auto">
+    <select onchange="fEstab.cob=this.value;refrescar()" style="width:auto">
       <option value="">Toda cobertura</option>
       ${['SIN VISITA','SIN PREVENTIVA','CON PREVENTIVA'].map(i=>`<option ${fEstab.cob===i?'selected':''}>${i}</option>`).join('')}</select>
     <span class="dim">${l.length} de ${D.ESTAB.length}</span></div></div>
     <div class="card"><div class="scroll"><table><tr><th>Pts</th><th>RBD</th><th>Establecimiento</th>
     <th>Comuna</th><th>Inst.</th><th>Gas</th><th>Rac.</th><th>Preventiva 2°sem</th><th>Próxima</th></tr>`;
   l.forEach(e=>{
-    const pr=todas().filter(p=>p.rbd===e.rbd&&p.estado!=='realizada').sort((a,b)=>a.fecha<b.fecha?-1:1)[0];
+    const pr=vivas().filter(p=>p.rbd===e.rbd&&p.estado!=='realizada').sort((a,b)=>a.fecha<b.fecha?-1:1)[0];
     h+=`<tr style="cursor:pointer" onclick="fichaEstab(${e.rbd})">
       <td><span class="score ${sc(e.pts)}">${e.pts}</span></td><td><b>${e.rbd}</b></td>
       <td>${esc(e.nombre)}<div class="mini">${esc(e.dir)}</div></td>
@@ -908,7 +986,7 @@ function fichaEstab(rbd){
   const e=E[rbd]; if(!e) return;
   const hist=D.HIST.filter(x=>x.rbd===rbd).sort((a,b)=>b.fecha<a.fecha?-1:1);
   const bits=ST.bits.concat(D.BITS).filter(b=>b.rbd===rbd);
-  const plan=todas().filter(p=>p.rbd===rbd).sort((a,b)=>a.fecha<b.fecha?-1:1);
+  const plan=vivas().filter(p=>p.rbd===rbd).sort((a,b)=>a.fecha<b.fecha?-1:1);
   const men=D.MENC.filter(m=>m.rbd===rbd);
   const cor=D.CORR.find(c=>c.rbd===rbd);
   modal(`<div class="row"><h2 style="margin:0">${rbd} · ${esc(e.nombre)}</h2>
@@ -1126,7 +1204,7 @@ function guardarBit(){
     items, fuente:'PDF cargado'};
   ST.bits.push(b);
   // sumarla al cronograma en su fecha
-  const yaPlan = ST.plan.find(p=>p.rbd===b.rbd && p.fecha===b.fecha);
+  const yaPlan = ST.plan.find(p=>p.rbd===b.rbd && p.fecha===b.fecha && p.estado!=='anulada');
   if(yaPlan){ yaPlan.estado='realizada'; yaPlan.folio=b.folio; yaPlan.tipoReal=motivo; }
   else {
     ST.extras.push({id:'B'+Date.now(), fecha:b.fecha,
@@ -1139,7 +1217,7 @@ function guardarBit(){
       .sort((a,b2)=>a.fecha<b2.fecha?-1:1)[0];
     if(fut){ fut.estado='realizada'; fut.folio=b.folio; fut.tipoReal=motivo; }
   }
-  guardar(); cerrarModal(); vBits();
+  guardar(); cerrarModal(); refrescar();
 }
 
 /* ============================ BUSCADOR ============================ */
@@ -1150,8 +1228,8 @@ function vBuscar(){
     <input id="bigq" value="${esc(bq)}" placeholder="Busca un establecimiento, un RBD o un trabajo…"
       oninput="bq=this.value;pintarBusqueda()" autocomplete="off">
     <div class="chips">
-      <span class="chip ${bcat===''?'on':''}" onclick="bcat='';vBuscar()">Todas las categorías</span>
-      ${cats.map(c=>`<span class="chip ${bcat===c?'on':''}" onclick="bcat='${c}';vBuscar()">${c}</span>`).join('')}
+      <span class="chip ${bcat===''?'on':''}" onclick="bcat='';refrescar()">Todas las categorías</span>
+      ${cats.map(c=>`<span class="chip ${bcat===c?'on':''}" onclick="bcat='${c}';refrescar()">${c}</span>`).join('')}
     </div></div><div id="bres"></div>`;
   document.getElementById('v-buscar').innerHTML=h;
   pintarBusqueda();
@@ -1264,14 +1342,14 @@ function vDatacora(){
    </div></div>
    <div class="card"><div class="row">
      <input placeholder="Buscar folio, RBD, establecimiento, técnico u observación…"
-       value="${esc(fDC.q)}" oninput="fDC.q=this.value;vDatacora()" style="flex:1;min-width:200px">
-     <select onchange="fDC.tipo=this.value;vDatacora()" style="width:auto" aria-label="Tipo">
+       value="${esc(fDC.q)}" oninput="fDC.q=this.value;refrescar()" style="flex:1;min-width:200px">
+     <select onchange="fDC.tipo=this.value;refrescar()" style="width:auto" aria-label="Tipo">
        <option value="">Todo tipo</option>
        ${['Preventiva','Correctiva','Mutualidad','Acta'].map(t=>`<option ${fDC.tipo===t?'selected':''}>${t}</option>`).join('')}</select>
-     <select onchange="fDC.inst=this.value;vDatacora()" style="width:auto" aria-label="Institución">
+     <select onchange="fDC.inst=this.value;refrescar()" style="width:auto" aria-label="Institución">
        <option value="">Toda institución</option>
        ${['Junaeb','Junji','Integra'].map(t=>`<option ${fDC.inst===t?'selected':''}>${t}</option>`).join('')}</select>
-     <select onchange="fDC.cuenta=this.value;vDatacora()" style="width:auto" aria-label="Cuenta">
+     <select onchange="fDC.cuenta=this.value;refrescar()" style="width:auto" aria-label="Cuenta">
        <option value="">Cuenten o no</option>
        <option value="si" ${fDC.cuenta==='si'?'selected':''}>Solo las que cuentan</option>
        <option value="no" ${fDC.cuenta==='no'?'selected':''}>Solo las que no cuentan</option></select>
@@ -1293,7 +1371,7 @@ function vDatacora(){
    <div class="scroll" style="max-height:44vh;margin-top:10px"><table><tr><th>Pts</th><th>RBD</th>
    <th>Establecimiento</th><th>Comuna</th><th>Supervisora</th><th>Agendado</th><th>Técnico</th></tr>`;
   jun.filter(e=>!junOK.has(e.rbd)).sort((a,b)=>b.pts-a.pts).forEach(e=>{
-    const pr=todas().filter(p=>p.rbd===e.rbd&&p.estado!=='realizada'&&p.origen!=='historico')
+    const pr=vivas().filter(p=>p.rbd===e.rbd&&p.estado!=='realizada'&&p.origen!=='historico')
       .sort((a,b)=>a.fecha<b.fecha?-1:1)[0];
     h+=`<tr style="cursor:pointer" onclick="fichaEstab(${e.rbd})">
      <td><span class="score ${sc(e.pts)}">${e.pts}</span></td><td><b>${e.rbd}</b></td>
@@ -1401,8 +1479,8 @@ function exportarExcel(){
     {Indicador:'Meta 1 · JUNAEB visitados al 31-10',Valor:a.hechoJ+' / '+a.junaeb,Detalle:'Basta con visita registrada en Datácora, no exige preventiva'},
     {Indicador:'Meta 2 · Jardines con preventiva al 15-12',Valor:a.hechoG+' / '+a.jard,Detalle:'JUNJI e INTEGRA: preventiva obligatoria'},
     {Indicador:'Correctivos abiertos',Valor:D.CORR.length,Detalle:'Reportados por las supervisoras'},
-    {Indicador:'Visitas planificadas',Valor:todas().filter(p=>p.origen!=='historico').length,Detalle:'Del 30-09 al 24-11'},
-    {Indicador:'Visitas históricas registradas',Valor:todas().filter(p=>p.origen==='historico').length,Detalle:'Desde mayo 2026 (Excel + Datácora)'},
+    {Indicador:'Visitas planificadas',Valor:vivas().filter(p=>p.origen!=='historico').length,Detalle:'Del 30-09 al 24-11'},
+    {Indicador:'Visitas históricas registradas',Valor:vivas().filter(p=>p.origen==='historico').length,Detalle:'Desde mayo 2026 (Excel + Datácora)'},
     {Indicador:'Trabajos agregados a mano',Valor:ST.extras.length,Detalle:'Emergencias sumadas en el tablero'},
     {Indicador:'Bitácoras con detalle',Valor:ST.bits.concat(D.BITS).length,Detalle:'PDF cargados y leídos'},
     {Indicador:'Exportado',Valor:new Date().toLocaleString('es-CL'),Detalle:''}

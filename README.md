@@ -68,6 +68,14 @@ autoriza el encargado y queda en el registro de Ajustes con su motivo. Cada apla
 suma un punto, así el trabajo se empuja solo hacia arriba en la cola.
 **Una falla con olor o fuga de gas no se aplaza nunca.**
 
+## Anular (ya no corresponde)
+
+El 🗑 de cada tarjeta saca el trabajo del plan. Antes de confirmar, la página simula
+el cambio y muestra si mueve las metas: si el mismo establecimiento lo hizo el otro
+técnico, se anula la tarjeta pendiente y la realizada sigue contando. Si se intenta
+anular la visita que es la que cuenta, avisa en rojo. Las tarjetas repetidas del mismo
+establecimiento (±7 días) llevan una etiqueta *repetida* o *ya la hizo…*.
+
 ## Dónde se guardan los cambios
 
 En el `localStorage` del navegador: quedan en ese equipo. Para que queden en el repo,
