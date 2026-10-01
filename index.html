@@ -137,6 +137,16 @@ mark{background:var(--amberSoft);color:var(--ink);padding:0 2px;border-radius:3p
 .tbtn{border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:7px;
  padding:3px 8px;font-size:11px;font-weight:700;cursor:pointer;min-height:28px}
 .tbtn:hover{border-color:var(--green2);color:var(--green2)}
+.tbtn.x{color:var(--red);border-color:var(--line)}
+.tbtn.x:hover{border-color:var(--red);background:var(--redSoft);color:var(--red)}
+.seg{display:flex;gap:0;align-items:center;margin-top:7px;flex-wrap:wrap}
+.seg .sg{border:1px solid var(--line);background:var(--panel);color:var(--muted);
+ padding:4px 11px;font-size:11.5px;font-weight:700;cursor:pointer;min-height:30px}
+.seg .sg:first-of-type{border-radius:8px 0 0 8px}
+.seg .sg:nth-of-type(2){border-radius:0 8px 8px 0;border-left:0}
+.seg .sg:hover{color:var(--ink);border-color:var(--muted)}
+.seg .sg.on.prev{background:var(--green2);color:#fff;border-color:var(--green2)}
+.seg .sg.on.corr{background:var(--amber);color:#fff;border-color:var(--amber)}
 .wa{background:#e7f6ea;color:#0b2e16;border:1px solid #bfe3c9;border-radius:12px;padding:14px;
  white-space:pre-wrap;font:13px/1.55 -apple-system,"Segoe UI",Roboto,Arial,sans-serif}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .wa{background:#16281c;color:#dbeee1;border-color:#2c4735}}
@@ -414,17 +424,28 @@ function vHoy(){
 }
 function sigHabilAtras(s){ let x=addDias(s,-1),g=0; while(!esHabil(x)&&g++<40) x=addDias(x,-1); return x; }
 
+function esPrev(p){ return ES_PREV(p.tipoReal); }
 function cardTarea(p){
   const e=E[p.rbd]||{nombre:p.nombre||'(sin ficha)',dir:'',comuna:'',sup:'',gas:''};
   const hecho = p.estado==='realizada';
+  const pv = esPrev(p);
+  const jard = e.inst && e.inst!=='Junaeb';
   return `<div class="task ${claseCard(p.clase)} ${hecho?'done':''}" draggable="true"
     ondragstart="dStart(event,'${p.id}')" >
     <div class="row" style="gap:8px;align-items:flex-start">
-      <input type="checkbox" class="chk" ${hecho?'checked':''} onchange="marcar('${p.id}',this.checked)">
+      <input type="checkbox" class="chk" ${hecho?'checked':''} onchange="marcar('${p.id}',this.checked)"
+        aria-label="Marcar como realizada">
       <div style="flex:1;min-width:0">
         <div class="tt">${p.rbd} · ${esc(e.nombre)}</div>
         <div class="td">${esc(e.dir)} · ${esc(e.comuna)} · ${esc(e.gas)}</div>
         <div class="td">${esc(p.detalle||'')}</div>
+        <div class="seg" role="group" aria-label="Qué se hizo en la visita">
+          <button class="sg ${pv?'on prev':''}" onclick="setTipo('${p.id}','Preventiva')"
+            title="Se levantó como Plan Preventivo Mantención">Preventiva</button>
+          <button class="sg ${hecho&&!pv?'on corr':''}" onclick="setTipo('${p.id}','Correctiva')"
+            title="Fue emergencia o requerimiento">Correctiva</button>
+          ${jard?`<span class="mini" style="margin-left:6px">${pv?'suma a la meta de jardines':'no suma a la meta'}</span>`:''}
+        </div>
         <div class="tm">
           <span class="score ${sc(p.pts||0)}">${p.pts||'–'}</span>
           <span class="pill ${pillCard(p.clase)}">${p.clase}</span>
@@ -433,22 +454,89 @@ function cardTarea(p){
           <span style="margin-left:auto;display:flex;gap:4px">
             <button class="tbtn" onclick="traspasar('${p.id}')" title="Pasar al otro técnico"
               aria-label="Pasar al otro técnico">⇄ ${p.tec==='RODRIGO'?'Camilo':'Rodrigo'}</button>
-            <button class="tbtn" onclick="modalMover('${p.id}')" aria-label="Cambiar fecha">📅</button>
+            <button class="tbtn" onclick="modalMover('${p.id}')" title="Cambiar fecha"
+              aria-label="Cambiar fecha">📅</button>
             <button class="tbtn" onclick="fichaEstab(${p.rbd})" aria-label="Ver ficha">ficha</button>
+            <button class="tbtn x" onclick="noEjecutada('${p.id}')"
+              title="No se ejecutó: pasarla a otro día"
+              aria-label="No se ejecutó, pasar a otro día">✕</button>
           </span>
         </div>
       </div></div></div>`;
 }
+
+/* ---- la visita no se ejecutó: se traspasa a futuro ---- */
+function noEjecutada(id){
+  const p = todas().find(x=>x.id===id); if(!p) return;
+  const e = E[p.rbd]||{};
+  const prox = sigHabil(p.fecha);
+  const yaDos = (p.aplaz||0) >= 1;
+  modal(`<h2>No se ejecutó</h2>
+   <div class="dim">${p.rbd} · ${esc(e.nombre||'')} — estaba para el ${fmt(p.fecha)} con ${D.META.tecnicos[p.tec].nombre}.</div>
+   ${yaDos?`<div class="card" style="background:var(--redSoft);margin-top:12px">
+     <b>Ojo: ya se aplazó ${p.aplaz} vez${p.aplaz>1?'es':''}</b>
+     <div class="mini">Según la regla, el segundo aplazamiento lo autorizas tú y queda en el registro.</div></div>`:''}
+   <div class="grid2" style="margin-top:12px">
+     <div><label class="f" for="neFecha">Pasa al</label>
+       <input type="date" id="neFecha" value="${prox}"></div>
+     <div><label class="f" for="neTec">Técnico</label><select id="neTec">
+       <option value="RODRIGO" ${p.tec==='RODRIGO'?'selected':''}>Rodrigo Martínez</option>
+       <option value="CAMILO" ${p.tec==='CAMILO'?'selected':''}>Camilo Santis</option></select></div>
+   </div>
+   <div style="margin-top:10px"><label class="f" for="neMotivo">Por qué no se hizo</label>
+     <select id="neMotivo">
+       <option>Entraron emergencias</option><option>El establecimiento no dio acceso</option>
+       <option>Falta repuesto o material</option><option>No alcanzó el tiempo</option>
+       <option>Técnico ausente</option><option>Otro motivo</option></select></div>
+   <div style="margin-top:10px"><label class="f" for="neNota">Nota (opcional)</label>
+     <input id="neNota" placeholder="Detalle de lo que pasó…"></div>
+   <div class="row" style="margin-top:14px">
+     <button class="btn red" onclick="aplicarNoEjec('${id}')">Pasar a esa fecha</button>
+     <button class="btn ghost" onclick="anularTrabajo('${id}')">Ya no corresponde · anular</button>
+     <button class="btn gray" onclick="cerrarModal()">Cancelar</button></div>`);
+}
+function aplicarNoEjec(id){
+  const p = todas().find(x=>x.id===id); if(!p) return;
+  const nueva = document.getElementById('neFecha').value || sigHabil(p.fecha);
+  const tec = document.getElementById('neTec').value;
+  const mot = document.getElementById('neMotivo').value;
+  const nota = document.getElementById('neNota').value;
+  const antes = p.fecha;
+  p.aplaz = (p.aplaz||0) + 1;
+  p.pts = Math.min(20, (p.pts||0) + 1);
+  p.fecha = nueva; p.tec = tec; p.estado = 'programada';
+  ST.log.push({ts:new Date().toISOString(), id, rbd:p.rbd, aplaz:p.aplaz, nueva,
+    motivo: mot + (nota?' — '+nota:'') + ' (venía del '+antes+')'});
+  reordenarDia(nueva); reordenarDia(antes);
+  guardar(); cerrarModal(); ir(actual);
+}
+function anularTrabajo(id){
+  const p = todas().find(x=>x.id===id); if(!p) return;
+  if(!confirm('¿Sacar este trabajo del plan? Deja de contar y no se reprograma.')) return;
+  p.estado = 'anulada';
+  ST.log.push({ts:new Date().toISOString(), id, rbd:p.rbd, aplaz:p.aplaz||0,
+    nueva:'—', motivo:'anulada: ya no corresponde'});
+  guardar(); cerrarModal(); ir(actual);
+}
+
+/* ---- qué fue la visita: preventiva o correctiva ---- */
+function setTipo(id, tipo){
+  const p = todas().find(x=>x.id===id); if(!p) return;
+  const era = p.tipoReal;
+  p.tipoReal = tipo;
+  /* la etiqueta de la tarjeta sigue al tipo real */
+  const tieneCor = (p.clase||'').includes('CORRECTIVO');
+  if(tipo==='Preventiva') p.clase = tieneCor ? 'PREVENTIVA + CORRECTIVO' : 'PREVENTIVA';
+  else if(p.clase!=='EXTRA') p.clase = tieneCor ? 'CORRECTIVO URGENTE' : 'VISITA';
+  if(p.estado!=='realizada') p.estado = 'realizada';
+  if(era!==tipo) ST.log.push({ts:new Date().toISOString(), id, rbd:p.rbd, aplaz:p.aplaz||0,
+    nueva:p.fecha, motivo:'tipo corregido: '+(era||'sin tipo')+' → '+tipo});
+  guardar(); ir(actual);
+}
 function marcar(id,v){
   const p = todas().find(x=>x.id===id); if(!p) return;
   p.estado = v?'realizada':'programada';
-  const e = E[p.rbd]||{};
-  if(v && e.inst && e.inst!=='Junaeb' && !ES_PREV(p.tipoReal)){
-    p.tipoReal = confirm('¿Esta visita a '+e.nombre+' se levantó como PLAN PREVENTIVO MANTENCIÓN?\n\n'+
-      'Aceptar = sí, cuenta para la meta de jardines.\nCancelar = fue otro formulario (emergencia, DT…).')
-      ? 'Plan Preventivo' : 'Emergencia';
-  }
-  guardar(); vHoy();
+  guardar(); ir(actual);
 }
 let dragId=null;
 function dStart(ev,id){ dragId=id; ev.dataTransfer.effectAllowed='move'; }
