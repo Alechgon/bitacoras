@@ -1,0 +1,9 @@
+{
+  "grupo": "Coordinación Mantención San Pablo",
+  "ignorar": ["Manuel Echeverria"],
+  "repo": "Alechgon/bitacoras",
+  "rama": "main",
+  "archivo": "bot-datos.json",
+  "token": "ghp_PEGA_AQUI_TU_TOKEN",
+  "diasMemoria": 30
+}

@@ -1,0 +1,5 @@
+bot/config.json
+bot/sesion/
+bot/estado.json
+bot/node_modules/
+*.log
