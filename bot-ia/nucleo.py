@@ -18,8 +18,9 @@ MOVIBLES = ("VISITA", "PREVENTIVA")          # solo estas clases se pueden aplaz
 
 # ================================================================ config y datos
 def cfg():
-    with open(CFG_PATH, encoding="utf-8") as f:
-        return json.load(f)
+    """Configuración efectiva: general + perfil activo (ver ajustes.py)."""
+    import ajustes
+    return ajustes.efectiva()
 
 
 _cache = {"mtime": None, "datos": None}
@@ -118,7 +119,17 @@ def db():
         origen TEXT, autor TEXT, texto_original TEXT, respuesta TEXT, nota_interna TEXT DEFAULT '',
         rbd INTEGER, crit TEXT, estado TEXT DEFAULT 'pendiente', adjuntos TEXT DEFAULT '[]',
         tarjeta_id TEXT, hallazgo_id INTEGER);
+    CREATE TABLE IF NOT EXISTS bitacoras(folio TEXT PRIMARY KEY, rbd INTEGER, establecimiento TEXT,
+        fecha TEXT, hora TEXT, comuna TEXT, motivo TEXT, tecnico TEXT, archivo TEXT,
+        cargado TEXT DEFAULT (datetime('now','localtime')), n_items INTEGER);
+    CREATE TABLE IF NOT EXISTS bitacora_items(id INTEGER PRIMARY KEY AUTOINCREMENT, folio TEXT,
+        rbd INTEGER, categoria TEXT, item TEXT, ubicacion TEXT, cantidad TEXT, accion TEXT, observacion TEXT);
     """)
+    for alter in ("ALTER TABLE borradores ADD COLUMN recordado INTEGER DEFAULT 0",):
+        try:
+            con.execute(alter)            # migración: bases creadas con versiones anteriores
+        except sqlite3.OperationalError:
+            pass
     sincronizar_plan(con)
     return con
 

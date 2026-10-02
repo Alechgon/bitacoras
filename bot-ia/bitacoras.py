@@ -12,9 +12,11 @@ No ejecuta nada de Datácora: solo lee el PDF que le llega por WhatsApp.
 """
 import os, re, shutil, unicodedata
 from datetime import datetime
-from nucleo import BASE, a_fecha, buscar, datos, db, log, norm
+from nucleo import BASE, a_fecha, buscar, cfg, datos, db, log, norm
 
-ARCHIVO = os.path.join(BASE, "archivo")
+
+def carpeta_archivo():
+    return os.path.join(BASE, cfg().get("archivo_carpeta", "archivo"))
 CATEGORIAS = ["Calor", "Electricidad", "Frio", "Frío", "Vectores", "Agua", "Infraestructura"]
 UBIC = {"cocina", "bodega", "bano", "baño", "patio", "otro"}
 
@@ -104,7 +106,7 @@ def archivar(ruta_origen, nombre_texto="", fecha_texto=""):
     nombre = D["E"].get(rbd, {}).get("nombre") or cab["establecimiento"] or f"RBD_{rbd}"
     fecha = a_fecha(cab["fecha"]) or a_fecha(_fecha_cl(fecha_texto)) or datetime.now().date()
 
-    carpeta = os.path.join(ARCHIVO, f"{rbd or 'SR'}_{_slug(nombre)}")
+    carpeta = os.path.join(carpeta_archivo(), f"{rbd or 'SR'}_{_slug(nombre)}")
     os.makedirs(carpeta, exist_ok=True)
     folio = cab["folio"] or "SF"
     destino = os.path.join(carpeta, f"{fecha.isoformat()}_folio{folio}.pdf")

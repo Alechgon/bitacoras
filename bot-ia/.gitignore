@@ -7,3 +7,9 @@ logs/
 *.log
 archivo/
 descargas/
+estado.json
+respaldos/
+config.json.tmp
+estado.json.tmp
+__pycache__/
+*.pyc

@@ -1,25 +1,91 @@
 {
-  "_ayuda": "Configuración del bot IA. Todo lo que empieza con _ es comentario. Los datos de establecimientos, plan, técnicos, bloques, feriados y pesos se leen de datos.js (tu panel).",
-  "datos_js": "../datos.js",
-  "gemini_api_key": "PEGA_AQUI_TU_API_KEY_DE_AISTUDIO",
+  "_ayuda": "Configuración del bot. Las claves que empiezan con _ son comentarios. Todo se puede cambiar aquí o desde WhatsApp con !config (solo admin, en privado). Los datos de establecimientos, plan, técnicos, bloques, feriados y pesos vienen de datos.js (el panel).",
+  "_perfiles": "Instancias. perfil_activo elige cuál manda; lo que define un perfil pisa al valor general. Cambia con: !perfil produccion",
+  "perfil_activo": "prueba",
+  "perfiles": {
+    "prueba": {
+      "grupo_nombre": "Prueba",
+      "grupo_id": "",
+      "ignorar": [],
+      "agenda_matutina": {
+        "activa": false,
+        "hora": "07:30"
+      }
+    },
+    "produccion": {
+      "grupo_nombre": "Mantención - operaciones",
+      "grupo_id": "",
+      "ignorar": [
+        "Manuel Echeverria"
+      ],
+      "agenda_matutina": {
+        "activa": true,
+        "hora": "07:30"
+      }
+    }
+  },
+  "_llaves": "Secretos. Nunca se suben al repo (config.json está en .gitignore). !config los muestra tapados.",
+  "gemini_api_key": "PEGA_AQUI_TU_API_KEY",
+  "gemini_endpoint": "auto",
   "gemini_modelos": [
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite"
   ],
-  "_whatsapp": "Puedes poner el nombre del grupo (basta una parte) o su ID @g.us. El ID lo ves escribiendo !id en el grupo.",
-  "grupo_nombre": "Prueba",
-  "grupo_id": "",
-  "ignorar": [
-    "Manuel Echeverria"
-  ],
+  "github_token": "",
+  "_numeros": "Solo dígitos con 56. admins = quienes aprueban y usan comandos de encargado.",
   "admins": [
     "569XXXXXXXX"
   ],
-  "chat_reportes": "569XXXXXXXX@s.whatsapp.net",
+  "numero_bot": "",
+  "chat_reportes": "",
+  "_grupo": "Valores generales; el perfil activo los pisa.",
+  "datos_js": "../datos.js",
+  "grupo_nombre": "Prueba",
+  "grupo_id": "",
+  "ignorar": [],
+  "_aprobacion": "modo_borrador true = todo pasa por ti antes del grupo. Minutos en 0 desactivan esa función.",
+  "modo_borrador": true,
+  "borrador": {
+    "recordatorio_min": 30,
+    "auto_enviar_gas_min": 15,
+    "dias_duplicado": 7,
+    "max_hallazgos_por_mensaje": 6
+  },
+  "palabras_ok": [
+    "ok",
+    "okay",
+    "si",
+    "sí",
+    "dale",
+    "ya",
+    "listo",
+    "enviar",
+    "envialo",
+    "mandalo",
+    "👍",
+    "👌",
+    "✅"
+  ],
+  "palabras_no": [
+    "no",
+    "descartar",
+    "borrar",
+    "cancelar",
+    "nel",
+    "👎",
+    "❌"
+  ],
+  "_tiempos": "Segundos de espera antes de responder (al azar entre los dos), para no parecer robot.",
   "delay_respuesta_seg": [
     35,
     95
   ],
+  "delay_comando_seg": [
+    3,
+    8
+  ],
+  "_atrasados": "Si el bot estuvo apagado, procesa al volver los mensajes de hasta esta cantidad de minutos atrás (720 = 12 h).",
+  "procesar_atrasados_min": 720,
   "agenda_matutina": {
     "activa": true,
     "hora": "07:30"
@@ -28,12 +94,7 @@
     "activo": true,
     "hora": "17:40"
   },
-  "_github": "Opcional: para que el panel reciba los hallazgos (pestaña WhatsApp > Probar si hay datos del bot). Token fine-grained con Contents: Read and write solo sobre Alechgon/bitacoras.",
-  "github_token": "",
-  "github_repo": "Alechgon/bitacoras",
-  "github_rama": "main",
-  "github_archivo": "bot-datos.json",
-  "_plazos": "Días hábiles máximos para atender según tipo de falla. Nada pasa de 10 (regla de supervisoras). GAS nunca se aplaza.",
+  "_plazos": "Días hábiles máximos por tipo de falla (1 a 10). GAS nunca se aplaza.",
   "plazo_habiles": {
     "GAS": 1,
     "FRIO": 2,
@@ -44,12 +105,10 @@
   },
   "plazo_si_prioridad": 2,
   "gas_hoy_si_antes_de": "12:30",
-  "_tecnicos": "Quién va primero según la falla (Camilo es instalador de gas SEC). Si no tiene bloque libre, va el otro.",
   "preferencia_tecnico": {
     "GAS": "CAMILO",
     "ELEC": "RODRIGO"
   },
-  "_prioridad": "Palabras que cuentan como 'prioridad declarada' (+2 según pesos del panel).",
   "palabras_prioridad": [
     "prioridad",
     "urgente",
@@ -60,8 +119,22 @@
     "suspender",
     "peligro"
   ],
-  "_sobrecupo": "Si no hay bloque libre antes del plazo, se agrega igual como bloque extra (las emergencias no tienen límite) y te avisa.",
   "bloque_extra": 4,
-  "modo_borrador": true,
-  "_modo": "true = te mando el borrador a aprobar antes de que salga al grupo; cambialo en caliente con !modo"
+  "_identificacion": "Qué tan parecido debe ser un nombre (0-100) para dar por seguro el establecimiento, y desde cuánto ofrece opciones.",
+  "identificacion": {
+    "seguro": 82,
+    "duda": 60
+  },
+  "_mantencion": "Respaldo diario de la base y tamaño máximo de cada log antes de rotarlo.",
+  "respaldo": {
+    "activo": true,
+    "hora": "23:30",
+    "conservar_dias": 14
+  },
+  "logs_max_mb": 5,
+  "archivo_carpeta": "archivo",
+  "_github": "Opcional: sube los hallazgos a bot-datos.json para la pestaña WhatsApp del panel.",
+  "github_repo": "Alechgon/bitacoras",
+  "github_rama": "main",
+  "github_archivo": "bot-datos.json"
 }

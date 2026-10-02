@@ -15,9 +15,14 @@ import reportes
 from nucleo import (a_fecha, agenda, agendar, bonita, buscar, cfg, datos, db, en_texto, es_prioridad,
                     hora_bloque, hoy, log, metas, nombre_tec, sumar_habiles)
 
-LOCK = threading.Lock()
+LOCK = threading.RLock()   # reentrante: una función con el candado puede llamar a otra que también lo usa
 PUERTO = 8765
-SEGURO, DUDA = 82, 60
+
+
+def _umbrales():
+    u = cfg().get("identificacion", {})
+    return int(u.get("seguro", 82)), int(u.get("duda", 60))
+
 EMOJI = {"GAS": "🔥", "FRIO": "❄️", "AGUA": "💧", "ELEC": "⚡", "EQUIPO": "🍳", "OTRO": "🔧"}
 
 
@@ -25,6 +30,7 @@ EMOJI = {"GAS": "🔥", "FRIO": "❄️", "AGUA": "💧", "ELEC": "⚡", "EQUIPO
 def resolver(h, texto, excluir=()):
     """Devuelve (rbd, candidatos). rbd=None si hay que preguntar."""
     E = datos()["E"]
+    SEGURO, DUDA = _umbrales()
     r = h.get("rbd")
     try:
         r = int(r) if r not in (None, "", "null") else None
@@ -97,7 +103,8 @@ def _generar_respuestas(con, texto, autor, motor, analisis):
     """Agenda cada hallazgo y devuelve [(texto_respuesta, rbd, crit, hallazgo_id, tarjeta_id)]."""
     E = datos()["E"]
     salida, vistos = [], set()
-    for h in analisis["hallazgos"][:6]:
+    bcfg = cfg().get("borrador", {})
+    for h in analisis["hallazgos"][:int(bcfg.get("max_hallazgos_por_mensaje", 6))]:
         problema = (h.get("problema") or texto[:90]).strip()
         crit = h.get("tipo") if h.get("tipo") in ia.PAL or h.get("tipo") == "OTRO" else ia.tipo_por_palabras(texto)
         rbd, cands = resolver(h, texto, vistos)
@@ -107,7 +114,7 @@ def _generar_respuestas(con, texto, autor, motor, analisis):
             vistos.add(rbd)
             dup = con.execute("SELECT respuesta FROM hallazgos WHERE rbd=? AND crit=? AND estado='agendado' "
                               "AND recibido>=?", (rbd, crit,
-                              (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"))).fetchone()
+                              (datetime.now() - timedelta(days=int(bcfg.get("dias_duplicado", 7)))).strftime("%Y-%m-%d"))).fetchone()
             if dup:
                 salida.append((f"🔁 Ya estaba registrado:\n{dup['respuesta']}", rbd, crit, None, None))
                 continue
@@ -171,7 +178,7 @@ def entrada(origen, texto, autor, forzar_directo=False):
 # ================================================================ borradores (aprobación)
 def _texto_borrador(con, bid):
     b = con.execute("SELECT * FROM borradores WHERE id=?", (bid,)).fetchone()
-    orig = "supervisora" if b["origen"] == "grupo" else "tú"
+    orig = "supervisora" if b["origen"] == "grupo" else "ti"
     adj = json.loads(b["adjuntos"] or "[]")
     lin = [f"🆕 *Caso #{bid}* · de {orig} ({b['autor']})",
            f"💬 «{b['texto_original'][:160]}»", "",
@@ -201,7 +208,10 @@ def aprobar(decision, autor, bid=None):
             return out
         d = decision.strip()
         dl = d.lower()
-        if dl in ("ok", "si", "sí", "dale", "ya", "👍", "listo", "enviar"):
+        c = cfg()
+        si = [x.lower() for x in c.get("palabras_ok", ["ok"])]
+        no = [x.lower() for x in c.get("palabras_no", ["no"])]
+        if dl in si:
             resp = b["respuesta"]
             if b["nota_interna"]:
                 resp += f"\nℹ️ {b['nota_interna']}"
@@ -211,7 +221,7 @@ def aprobar(decision, autor, bid=None):
             out["grupo"].append(resp)
             out["enviar_borrador"] = b["id"]       # para que bot.mjs adjunte PDFs y cite el original
             out["admin"].append(f"✅ Enviado al grupo (caso #{b['id']}).")
-        elif dl in ("no", "descartar", "borrar", "cancelar", "👎"):
+        elif dl in no:
             if b["tarjeta_id"]:
                 con.execute("UPDATE tarjetas SET estado='anulada', modificada=1 WHERE id=?", (b["tarjeta_id"],))
             if b["hallazgo_id"]:
@@ -251,30 +261,34 @@ def adjuntos_de(bid):
 # ================================================================ comandos
 AYUDA = """🤖 *Comandos del bot*
 
-*Agenda*
-!hoy · !mañana · !semana — qué hay programado
-!agenda camilo / rodrigo — por técnico
+*📅 Agenda*
+!hoy · !mañana · !semana — lo programado
+!agenda camilo · !agenda rodrigo — por técnico
 !ficha RBD — puntaje, cobertura y próxima visita
 !metas — avance JUNAEB y jardines
 !pendientes — por confirmar y sin visita
 !hecho RBD — marcar visita realizada
+!es RBD — confirmar establecimiento dudoso
 
-*Bitácoras (archivo)*
-📎 Envía el PDF con el texto: Nombre, dd/mm/aaaa
-!consulta <texto> — ej: !consulta gas en silvia salas
-!historial RBD — todas las bitácoras de un establecimiento
-!buscar <palabra> — busca en todas las observaciones
+*📚 Bitácoras*
+📎 PDF con texto: Nombre, dd/mm/aaaa
+!consulta <texto> — ej: !consulta gas silvia salas
+!historial RBD — bitácoras de un establecimiento
+!buscar <palabra> — en todas las observaciones
 
-*Casos y aprobación* (en tu privado)
-Escríbeme un caso y te mando el borrador
-ok · no · o texto para sumar info
-!casos — borradores pendientes
-!caso N — ver un borrador
+*✅ Casos (tu privado)*
+Escríbeme un caso → te mando el borrador
+ok · no · +texto para sumar · PDF para adjuntar
+!casos — pendientes · !caso N — ver uno
 
-*Reportes y ajustes*
-!reporte — Excel completo
-!modo borrador / directo — con o sin tu aprobación (admin)
-_admin:_ !mover RBD dd-mm [bloque] · !anular RBD · !es RBD"""
+*⚙️ Encargado*
+!config — ver ajustes · !config clave valor — cambiar
+!perfil prueba|produccion — cambiar instancia
+!modo borrador|directo — con o sin tu ok
+!diagnostico — revisa WhatsApp, IA, base y disco
+!simular <texto> — prueba como si fuera supervisora
+!mover RBD dd-mm [bloque] · !anular RBD
+!reporte — Excel completo"""
 
 
 def texto_agenda(con, desde, hasta, tec=None, titulo="Agenda"):
@@ -295,13 +309,26 @@ def texto_agenda(con, desde, hasta, tec=None, titulo="Agenda"):
     return "\n".join(out)
 
 
-def procesar_comando(texto, autor, es_admin):
+def procesar_comando(texto, autor, es_admin, privado=False, wa=None):
     D = datos()
     E = D["E"]
     partes = texto.strip().split()
     cmd = partes[0].lower().replace("ñ", "n")
     args = partes[1:]
     tecs = {t.lower(): t for t in D["META"]["tecnicos"]}
+    # estos dos van FUERA del candado: llaman a internet o a entrada(), que maneja su propio candado
+    if cmd in ("!diagnostico", "!diag", "!simular"):
+        if not es_admin:
+            return {"texto": "Ese comando es solo para el encargado."}
+        if cmd == "!simular":
+            if not args:
+                return {"texto": "Uso: !simular <mensaje como si fuera una supervisora>"}
+            r = entrada("grupo", texto.split(None, 1)[1], "Simulación")
+            if not r["admin"] and not r["grupo"]:
+                return {"texto": "🧪 La simulación no detectó establecimiento ni falla."}
+            return {"texto": f"🧪 Simulación lista ({len(r['borradores'])} caso/s). Revisa el borrador.",
+                    "admin": r["admin"], "borradores": r["borradores"]}
+        return {"texto": diagnostico(wa or {})}
     with LOCK:
         con = db()
         try:
@@ -393,6 +420,56 @@ def procesar_comando(texto, autor, es_admin):
                                            hid=h["id"])
                 threading.Thread(target=subir_github, daemon=True).start()
                 return {"texto": resp}
+            # ---- encargado: configuración, instancias, diagnóstico, simulación
+            if cmd in ("!config", "!perfil", "!diagnostico", "!diag", "!simular") and not es_admin:
+                return {"texto": "Ese comando es solo para el encargado."}
+            if cmd == "!config":
+                if not privado:
+                    return {"texto": "🔒 !config solo funciona en tu chat privado con el bot."}
+                import ajustes
+                if not args:
+                    return {"texto": ajustes.resumen()}
+                if args[0].lower() == "ver" and len(args) > 1:
+                    try:
+                        v = ajustes.obtener(args[1])
+                        return {"texto": f"🔎 {args[1]} = {json.dumps(ajustes.tapar(args[1], v), ensure_ascii=False)}"}
+                    except KeyError:
+                        return {"texto": f"No existe la clave «{args[1]}»."}
+                if args[0].lower() in ("reset", "restablecer") and len(args) > 1:
+                    try:
+                        v = ajustes.restablecer(args[1])
+                        log(con, f"Config {args[1]} restablecida por {autor}")
+                        return {"texto": f"↩️ {args[1]} vuelve a {json.dumps(v, ensure_ascii=False)}"}
+                    except KeyError:
+                        return {"texto": f"No existe la clave «{args[1]}» en la plantilla."}
+                if len(args) >= 2:
+                    clave = args[0]
+                    valor = texto.strip().split(None, 2)[2] if len(texto.strip().split(None, 2)) > 2 else ""
+                    try:
+                        ant, nuevo_v, donde = ajustes.fijar(clave, valor)
+                        log(con, f"Config {clave}: {ajustes.tapar(clave, ant)} -> {ajustes.tapar(clave, nuevo_v)} por {autor}")
+                        return {"texto": f"✅ *{clave}*: {json.dumps(ajustes.tapar(clave, ant), ensure_ascii=False)} → "
+                                         f"{json.dumps(ajustes.tapar(clave, nuevo_v), ensure_ascii=False)} ({donde}). "
+                                         f"Ya está aplicado."}
+                    except KeyError:
+                        return {"texto": f"No existe la clave «{clave}». Escribe *!config* para ver las principales."}
+                    except (ValueError, json.JSONDecodeError) as e:
+                        return {"texto": f"❌ Valor inválido para {clave}: {e}"}
+                return {"texto": "Uso: !config · !config clave valor · !config ver clave · !config reset clave"}
+            if cmd == "!perfil":
+                import ajustes
+                raw = ajustes.leer()
+                if not args:
+                    return {"texto": f"🧭 Perfil activo: *{raw.get('perfil_activo')}*\nDisponibles: "
+                                     f"{', '.join(raw.get('perfiles', {}))}\nCambia con: !perfil produccion"}
+                try:
+                    ajustes.cambiar_perfil(args[0].lower())
+                    c2 = ajustes.efectiva()
+                    log(con, f"Perfil cambiado a {args[0]} por {autor}")
+                    return {"texto": f"🧭 Ahora en perfil *{args[0].lower()}* · grupo «{c2.get('grupo_id') or c2.get('grupo_nombre')}». "
+                                     f"El bot ya lee ese grupo."}
+                except KeyError:
+                    return {"texto": f"No existe el perfil «{args[0]}»."}
             # ---- solo admin
             if not es_admin:
                 return {"texto": "Ese comando es solo para el encargado."} if cmd in ("!mover", "!anular") else \
@@ -440,11 +517,113 @@ def _buscar_observaciones(con, palabra):
 
 
 def _set_modo(borrador):
-    import json as _j
+    import ajustes
+    ajustes.fijar("modo_borrador", "si" if borrador else "no")
+
+
+# ================================================================ diagnóstico
+def diagnostico(wa):
+    """Chequeo completo: WhatsApp, Gemini, datos, base, configuración, disco."""
+    import shutil
     c = cfg()
-    c["modo_borrador"] = borrador
-    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json"), "w", encoding="utf-8") as f:
-        _j.dump(c, f, ensure_ascii=False, indent=2)
+    D = datos()
+    con = db()
+    v = lambda ok: "✅" if ok else "❌"
+    lin = ["🩺 *Diagnóstico del bot*", ""]
+    # WhatsApp (lo informa bot.mjs)
+    lin.append(f"{v(wa.get('conectado'))} WhatsApp conectado como {wa.get('yo') or '—'}")
+    lin.append(f"{v(wa.get('grupo'))} Grupo detectado: {wa.get('grupo_nombre') or wa.get('grupo') or 'NO ENCONTRADO'}")
+    lin.append(f"{v(wa.get('admin_ok'))} Tu número verificado en WhatsApp: {wa.get('admin') or '—'}")
+    # Gemini
+    ok, det = ia.probar()
+    lin.append(f"{v(ok)} Gemini: {det}")
+    if not ok:
+        lin.append("   ↳ Sin IA el bot igual funciona con alias y palabras clave del panel.")
+    # datos y base
+    lin.append(f"✅ datos.js {D['META']['version']} · {len(D['ESTAB'])} establecimientos")
+    prog = con.execute("SELECT COUNT(*) FROM tarjetas WHERE estado='programada'").fetchone()[0]
+    pend = con.execute("SELECT COUNT(*) FROM borradores WHERE estado='pendiente'").fetchone()[0]
+    try:
+        bits = con.execute("SELECT COUNT(*) FROM bitacoras").fetchone()[0]
+    except Exception:
+        bits = 0
+    lin.append(f"✅ Agenda: {prog} visitas programadas · {pend} casos por aprobar · {bits} bitácoras archivadas")
+    # configuración clave
+    lin.append(f"✅ Perfil *{c.get('perfil_activo')}* · modo {'borrador' if c.get('modo_borrador') else 'directo'}")
+    ign = c.get("ignorar", [])
+    if c.get("perfil_activo") == "prueba" and ign:
+        lin.append("⚠️ En prueba estás ignorando a: " + ", ".join(ign) + " (tus mensajes de prueba no se procesarán)")
+    # disco
+    libre = shutil.disk_usage(os.path.dirname(os.path.abspath(__file__))).free / 1e9
+    lin.append(f"{v(libre > 0.5)} Espacio libre: {libre:.1f} GB")
+    # respaldo
+    rd = os.path.join(os.path.dirname(os.path.abspath(__file__)), "respaldos")
+    ult = sorted(os.listdir(rd))[-1] if os.path.isdir(rd) and os.listdir(rd) else None
+    lin.append(f"{v(bool(ult))} Último respaldo: {ult or 'todavía ninguno (se hace a las ' + c.get('respaldo', {}).get('hora', '23:30') + ')'}")
+    return "\n".join(lin)
+
+
+# ================================================================ tareas por minuto
+_tick_estado = {"respaldo": None}
+
+
+def tick():
+    """
+    Lo llama bot.mjs cada minuto. Devuelve lo que hay que enviar:
+      {'admin': [textos], 'envios_grupo': [{'borrador_id', 'textos'}]}
+    - Recordatorio de casos sin respuesta.
+    - Casos de GAS que salen solos si no respondes (configurable, 0 = nunca).
+    - Respaldo diario de la base.
+    """
+    c = cfg()
+    b = c.get("borrador", {})
+    rec = int(b.get("recordatorio_min", 0) or 0)
+    gas = int(b.get("auto_enviar_gas_min", 0) or 0)
+    out = {"admin": [], "envios_grupo": []}
+    ahora = datetime.now()
+    with LOCK:
+        con = db()
+        for br in con.execute("SELECT * FROM borradores WHERE estado='pendiente'").fetchall():
+            edad = (ahora - datetime.strptime(br["creado"], "%Y-%m-%d %H:%M:%S")).total_seconds() / 60
+            if gas and br["crit"] == "GAS" and edad >= gas:
+                resp = br["respuesta"] + (f"\nℹ️ {br['nota_interna']}" if br["nota_interna"] else "")
+                con.execute("UPDATE borradores SET estado='enviado' WHERE id=?", (br["id"],))
+                log(con, f"Borrador #{br['id']} (GAS) enviado solo tras {int(edad)} min sin respuesta")
+                out["envios_grupo"].append({"borrador_id": br["id"], "textos": [resp]})
+                out["admin"].append(f"⏱️ Caso #{br['id']} es de *gas* y llevaba {int(edad)} min sin respuesta: "
+                                    f"lo envié al grupo. Si no correspondía, escribe !anular {br['rbd']}.")
+            elif rec and edad >= rec and not br["recordado"]:
+                con.execute("UPDATE borradores SET recordado=1 WHERE id=?", (br["id"],))
+                out["admin"].append(f"⏰ El caso #{br['id']} lleva {int(edad)} min esperando tu ok.\n"
+                                    f"Responde *ok*, *no* o escribe *!caso {br['id']}* para verlo.")
+        con.commit()
+    # respaldo diario
+    r = c.get("respaldo", {})
+    hoy_s = ahora.strftime("%Y-%m-%d")
+    if r.get("activo") and ahora.strftime("%H:%M") >= r.get("hora", "23:30") and _tick_estado["respaldo"] != hoy_s:
+        _tick_estado["respaldo"] = hoy_s
+        try:
+            respaldar(int(r.get("conservar_dias", 14)))
+        except Exception as e:
+            out["admin"].append(f"⚠️ No pude hacer el respaldo diario: {e}")
+    return out
+
+
+def respaldar(conservar=14):
+    import shutil, sqlite3 as _sq
+    base = os.path.dirname(os.path.abspath(__file__))
+    rd = os.path.join(base, "respaldos")
+    os.makedirs(rd, exist_ok=True)
+    destino = os.path.join(rd, f"agenda_{datetime.now().strftime('%Y-%m-%d')}.db")
+    src = _sq.connect(os.path.join(base, "agenda.db"))
+    dst = _sq.connect(destino)
+    with dst:
+        src.backup(dst)          # copia consistente aunque la base esté en uso
+    src.close()
+    dst.close()
+    for f in sorted(os.listdir(rd))[:-conservar]:
+        os.remove(os.path.join(rd, f))
+    return destino
 
 
 def agenda_del_dia():
@@ -545,7 +724,10 @@ class H(BaseHTTPRequestHandler):
                 return self._json(200, {"archivos": adjuntos_de(data.get("borrador_id"))})
             if self.path == "/comando":
                 return self._json(200, procesar_comando(data.get("texto", ""), data.get("autor", ""),
-                                                        bool(data.get("es_admin"))))
+                                                        bool(data.get("es_admin")), bool(data.get("privado")),
+                                                        data.get("wa") or {}))
+            if self.path == "/tick":
+                return self._json(200, tick())
             self._json(404, {"error": "no existe"})
         except Exception as e:
             traceback.print_exc()
@@ -556,6 +738,10 @@ class H(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    import ajustes
+    nuevas = ajustes.migrar()
+    if nuevas:
+        print("⚙️ config.json actualizado con claves nuevas:", ", ".join(nuevas))
     con = db()
     n = con.execute("SELECT COUNT(*) FROM tarjetas WHERE estado='programada'").fetchone()[0]
     print(f"🧠 Servidor SOSER en http://127.0.0.1:{PUERTO} · datos.js {datos()['META']['version']} · "

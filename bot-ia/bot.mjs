@@ -1,36 +1,66 @@
-// bot.mjs — el "cartero": se conecta a WhatsApp (como WhatsApp Web), lee el
-// grupo de supervisoras, le pasa cada mensaje al servidor Python y responde
-// con un delay aleatorio para no parecer robot.
+// bot.mjs — el "cartero". Se conecta a WhatsApp como dispositivo vinculado,
+// escucha SOLO el grupo configurado y tu chat privado, y conversa con el
+// servidor Python (servidor.py) que tiene toda la lógica.
 //
-// Primera vez (el bot corre en el MISMO celu que tiene el WhatsApp del bot):
-//   node bot.mjs --codigo 56912345678      -> te da un código de 8 letras
-//   En WhatsApp: Dispositivos vinculados > Vincular > "con número de teléfono"
-// Si lo corres en otro equipo, basta con: node bot.mjs   (muestra un QR)
+// Vincular (una vez):  node bot.mjs --codigo 569XXXXXXXX   (número del BOT)
+// Correr:              bash iniciar.sh   (levanta servidor + bot y los revive)
 
-import makeWASocket, { Browsers, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion, downloadMediaMessage } from '@whiskeysockets/baileys'
+import makeWASocket, {
+  Browsers, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion, downloadMediaMessage
+} from '@whiskeysockets/baileys'
 import pino from 'pino'
 import qrcode from 'qrcode-terminal'
 import fs from 'fs'
 import path from 'path'
-
 import { fileURLToPath } from 'url'
+
 const DIR = path.dirname(fileURLToPath(import.meta.url))
 const API = 'http://127.0.0.1:8765'
-const cfg = () => JSON.parse(fs.readFileSync(path.join(DIR, 'config.json'), 'utf8'))
 const log = (...a) => console.log(new Date().toLocaleString('es-CL'), ...a)
 const esperar = ms => new Promise(r => setTimeout(r, ms))
 const azar = (a, b) => Math.floor(a + Math.random() * (b - a + 1))
+const normal = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+const soloDigitos = s => String(s || '').replace(/\D/g, '')
 
 const argCodigo = process.argv.indexOf('--codigo')
-const TELEFONO = argCodigo > -1 ? (process.argv[argCodigo + 1] || '').replace(/\D/g, '') : ''
+const TELEFONO = argCodigo > -1 ? soloDigitos(process.argv[argCodigo + 1]) : ''
+
+// ------------------------------------------------------------ configuración (general + perfil activo)
+function mezclar (base, encima) {
+  const out = { ...base }
+  for (const [k, v] of Object.entries(encima || {})) {
+    out[k] = (v && typeof v === 'object' && !Array.isArray(v) && out[k] && typeof out[k] === 'object' && !Array.isArray(out[k]))
+      ? mezclar(out[k], v) : v
+  }
+  return out
+}
+function cfg () {
+  const raw = JSON.parse(fs.readFileSync(path.join(DIR, 'config.json'), 'utf8'))
+  return mezclar(raw, raw.perfiles?.[raw.perfil_activo])
+}
+
+// ------------------------------------------------------------ estado que sobrevive reinicios
+const RUTA_ESTADO = path.join(DIR, 'estado.json')
+let estado = { casos: {}, admin_chat: null, grupo_jid: null }
+try { estado = { ...estado, ...JSON.parse(fs.readFileSync(RUTA_ESTADO, 'utf8')) } } catch {}
+function guardarEstado () {
+  try {
+    fs.writeFileSync(RUTA_ESTADO + '.tmp', JSON.stringify(estado))
+    fs.renameSync(RUTA_ESTADO + '.tmp', RUTA_ESTADO)
+  } catch (e) { log('⚠️ no pude guardar estado:', e.message) }
+}
+// mensaje mínimo para poder citar el original aunque el bot se haya reiniciado
+const citable = (m, texto) => m ? { key: m.key, message: { conversation: texto || ' ' } } : null
 
 let sock
+let conectado = false
 const procesados = new Set()
 
-// ------------------------------------------------------------ cola de envío con delay
+// ------------------------------------------------------------ cola de envío (una cosa a la vez, con pausas)
 const cola = []
 let enviando = false
 function encolar (jid, contenido, opciones = {}, delay = null) {
+  if (!jid) { log('⚠️ mensaje sin destino, descartado'); return }
   cola.push({ jid, contenido, opciones, delay })
   if (!enviando) vaciarCola()
 }
@@ -39,49 +69,71 @@ async function vaciarCola () {
   while (cola.length) {
     const { jid, contenido, opciones, delay } = cola.shift()
     const [min, max] = cfg().delay_respuesta_seg || [35, 95]
-    const ms = delay ?? azar(min, max) * 1000
-    await esperar(ms)
-    try {
-      if (contenido.text) {
-        await sock.sendPresenceUpdate('composing', jid)
-        await esperar(Math.min(8000, 1500 + contenido.text.length * 40)) // "escribiendo..."
-        await sock.sendPresenceUpdate('paused', jid)
+    await esperar(delay ?? azar(min, max) * 1000)
+    for (let intento = 1; intento <= 3; intento++) {
+      try {
+        if (!conectado) await esperar(5000)
+        if (contenido.text) {
+          await sock.sendPresenceUpdate('composing', jid)
+          await esperar(Math.min(8000, 1500 + contenido.text.length * 40))
+          await sock.sendPresenceUpdate('paused', jid)
+        }
+        await sock.sendMessage(jid, contenido, opciones)
+        log('📤 enviado a', jid)
+        break
+      } catch (e) {
+        log(`❌ error enviando (intento ${intento}/3):`, e.message)
+        await esperar(4000 * intento)
       }
-      await sock.sendMessage(jid, contenido, opciones)
-      log('📤 enviado a', jid)
-    } catch (e) {
-      log('❌ error enviando:', e.message)
     }
   }
   enviando = false
 }
 
-// ------------------------------------------------------------ hablar con Python
-async function api (ruta, datos) {
-  const r = await fetch(API + ruta, datos
-    ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) }
-    : {})
-  return r.json()
+// ------------------------------------------------------------ hablar con el servidor Python
+async function api (ruta, datos, timeoutMs = 120000) {
+  for (let intento = 1; intento <= 3; intento++) {
+    const ctrl = new AbortController()
+    const t = setTimeout(() => ctrl.abort(), timeoutMs)
+    try {
+      const r = await fetch(API + ruta, datos
+        ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos), signal: ctrl.signal }
+        : { signal: ctrl.signal })
+      return await r.json()
+    } catch (e) {
+      if (intento === 3) throw e
+      await esperar(3000)            // servidor reiniciándose: espera y reintenta
+    } finally { clearTimeout(t) }
+  }
 }
 
-function textoDe (m) {
+// ------------------------------------------------------------ lectura de mensajes
+function interior (m) {
   const msg = m.message || {}
-  const inner = msg.ephemeralMessage?.message || msg.viewOnceMessage?.message || msg
-  return inner.conversation || inner.extendedTextMessage?.text ||
-    inner.imageMessage?.caption || inner.videoMessage?.caption || inner.documentMessage?.caption || ''
+  return msg.ephemeralMessage?.message || msg.viewOnceMessage?.message ||
+         msg.documentWithCaptionMessage?.message || msg
+}
+function textoDe (m) {
+  const i = interior(m)
+  return i.conversation || i.extendedTextMessage?.text || i.imageMessage?.caption ||
+         i.videoMessage?.caption || i.documentMessage?.caption || ''
+}
+const docDe = m => interior(m).documentMessage || null
+const ctxDe = m => {
+  const i = interior(m)
+  return i.extendedTextMessage?.contextInfo || i.documentMessage?.contextInfo || null
 }
 
 function esAdmin (m) {
-  const admins = (cfg().admins || []).map(n => String(n).replace(/\D/g, ''))
+  const admins = (cfg().admins || []).map(soloDigitos).filter(Boolean)
   const k = m.key
   const ids = [k.participant, k.participantAlt, k.participantPn, k.remoteJid, k.remoteJidAlt]
     .filter(Boolean).map(j => j.split('@')[0].split(':')[0])
-  return ids.some(id => admins.includes(id))
+  return ids.some(id => admins.includes(id)) || (estado.admin_chat && k.remoteJid === estado.admin_chat)
 }
 
-const normal = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+// ------------------------------------------------------------ grupo y destinos
 const nombresGrupo = {}
-let grupoActivo = ''
 async function esGrupoSupervisoras (jid) {
   if (!jid?.endsWith('@g.us')) return false
   const c = cfg()
@@ -91,160 +143,172 @@ async function esGrupoSupervisoras (jid) {
     try { nombresGrupo[jid] = (await sock.groupMetadata(jid)).subject } catch { nombresGrupo[jid] = '' }
   }
   const ok = normal(nombresGrupo[jid]).includes(normal(c.grupo_nombre))
-  if (ok) grupoActivo = jid
+  if (ok && estado.grupo_jid !== jid) { estado.grupo_jid = jid; guardarEstado() }
   return ok
 }
-const grupoDestino = () => cfg().grupo_id || grupoActivo
-
-// jid de tu número personal (adonde llegan los borradores)
-const adminJid = () => {
+function grupoDestino () {
   const c = cfg()
-  if (c.chat_reportes) return c.chat_reportes.includes('@') ? c.chat_reportes : c.chat_reportes.replace(/\D/g, '') + '@s.whatsapp.net'
-  const n = (c.admins || [])[0]
-  return n ? String(n).replace(/\D/g, '') + '@s.whatsapp.net' : null
+  if (c.grupo_id) return c.grupo_id
+  // el grupo recordado solo vale si sigue calzando con el nombre del perfil activo
+  const j = estado.grupo_jid
+  return j && normal(nombresGrupo[j] || '').includes(normal(c.grupo_nombre)) ? j : null
+}
+function adminJid () {
+  if (estado.admin_chat) return estado.admin_chat            // el chat real donde me hablas
+  const c = cfg()
+  if (c.chat_reportes) return c.chat_reportes.includes('@') ? c.chat_reportes : soloDigitos(c.chat_reportes) + '@s.whatsapp.net'
+  const n = soloDigitos((c.admins || [])[0])
+  return n ? n + '@s.whatsapp.net' : null
 }
 
-// recordar el mensaje original de cada caso, para citarlo al aprobar
+// ------------------------------------------------------------ casos (borradores)
 const DL = path.join(DIR, 'descargas')
 fs.mkdirSync(DL, { recursive: true })
-const casos = {}                               // borradorId -> mensaje original del grupo
-const OK = ['ok', 'okay', 'oka', 'si', 'sí', 'dale', 'ya', 'listo', 'enviar', 'envialo', 'mandalo', '👍', '👌', '✅']
-const NO = ['no', 'descartar', 'borrar', 'cancelar', 'nel', '👎', '❌']
-
-function docDe (m) {
-  const msg = m.message || {}
-  const inner = msg.ephemeralMessage?.message || msg.viewOnceMessage?.message || msg
-  return inner.documentMessage || inner.documentWithCaptionMessage?.message?.documentMessage || null
-}
 
 async function descargar (m, nombreSugerido) {
   const buf = await downloadMediaMessage(m, 'buffer', {})
-  const safe = (nombreSugerido || 'archivo.pdf').replace(/[^\w.\- ]+/g, '_')
+  const safe = (nombreSugerido || 'archivo.pdf').replace(/[^\w.\- ]+/g, '_').slice(-80)
   const ruta = path.join(DL, `${Date.now()}_${safe}`)
   fs.writeFileSync(ruta, buf)
   return ruta
 }
 
-// qué borrador estoy citando (si cité uno)
 function borradorCitado (m) {
-  const ctx = (m.message?.extendedTextMessage?.contextInfo) ||
-              (m.message?.documentMessage?.contextInfo)
-  const quoted = ctx?.quotedMessage
-  const t = quoted?.conversation || quoted?.extendedTextMessage?.text || ''
+  const q = ctxDe(m)?.quotedMessage
+  const t = q?.conversation || q?.extendedTextMessage?.text || ''
   const mm = t.match(/Caso #(\d+)/)
   return mm ? Number(mm[1]) : null
 }
 
-async function enviarBorradorAprobado (bid, textos) {
+function registrarCasos (ids, mOriginal, texto) {
+  for (const bid of ids || []) estado.casos[bid] = citable(mOriginal, texto)
+  guardarEstado()
+}
+
+async function enviarAlGrupo (bid, textos) {
   const g = grupoDestino()
-  if (!g) { log('⚠️ sin grupo destino'); return }
-  const orig = casos[bid]
-  for (const t of textos) encolar(g, { text: t }, orig ? { quoted: orig } : {})
+  if (!g) { log('⚠️ sin grupo destino; revisa el perfil'); encolar(adminJid(), { text: '⚠️ No encuentro el grupo del perfil activo. Revisa con !diagnostico.' }, {}, 1500); return }
+  const orig = estado.casos[bid] || null
+  const op = orig ? { quoted: orig } : {}
+  for (const t of textos) encolar(g, { text: t }, op)
   try {
     const { archivos } = await api('/adjuntos', { borrador_id: bid })
     for (const a of (archivos || [])) {
-      if (fs.existsSync(a)) encolar(g, {
-        document: fs.readFileSync(a), fileName: path.basename(a), mimetype: 'application/pdf'
-      }, orig ? { quoted: orig } : {})
+      if (fs.existsSync(a)) encolar(g, { document: fs.readFileSync(a), fileName: path.basename(a).replace(/^\d+_/, ''), mimetype: 'application/pdf' }, op, 2500)
     }
   } catch {}
-  delete casos[bid]
+  delete estado.casos[bid]
+  guardarEstado()
 }
 
+function infoWA () {
+  const g = grupoDestino()
+  return {
+    conectado, yo: sock?.user?.id?.split(':')[0] || null,
+    grupo: g, grupo_nombre: g ? nombresGrupo[g] : null,
+    admin: adminJid(), admin_ok: Boolean(estado.admin_verificado)
+  }
+}
+
+// ------------------------------------------------------------ el corazón: qué hacer con cada mensaje
 async function manejar (m) {
   if (!m.message || m.key.fromMe) return
-  const id = m.key.id
-  if (procesados.has(id)) return
-  procesados.add(id)
+  if (procesados.has(m.key.id)) return
+  procesados.add(m.key.id)
   if (procesados.size > 5000) procesados.clear()
+
+  const c = cfg()
+  const ts = Number(m.messageTimestamp || 0) * 1000
+  if (ts && Date.now() - ts > (c.procesar_atrasados_min ?? 720) * 60000) return   // demasiado viejo
 
   const jid = m.key.remoteJid
   const texto = textoDe(m).trim()
   const doc = docDe(m)
-  const c = cfg()
   const enGrupo = await esGrupoSupervisoras(jid)
   const admin = esAdmin(m)
   const privadoAdmin = admin && !jid.endsWith('@g.us')
 
-  // !id funciona en cualquier chat
-  if (texto.toLowerCase() === '!id') {
-    encolar(jid, { text: `🆔 ${jid}` }, { quoted: m }, 2000)
+  // de cualquier otro chat de la cuenta (clientes, otros grupos) no se hace NADA
+  if (!enGrupo && !privadoAdmin) {
+    if (admin && texto.toLowerCase() === '!id') encolar(jid, { text: `🆔 ${jid}` }, { quoted: m }, 1500)
     return
   }
+  if (privadoAdmin && estado.admin_chat !== jid) { estado.admin_chat = jid; guardarEstado() }
 
-  // comandos
-  if (texto.startsWith('!') && (enGrupo || admin)) {
+  // ---------------- comandos
+  if (texto.startsWith('!')) {
+    if (texto.toLowerCase() === '!id') { encolar(jid, { text: `🆔 ${jid}` }, { quoted: m }, 1500); return }
     try {
-      const r = await api('/comando', { texto, autor: m.pushName || '', es_admin: admin })
-      if (r.texto) encolar(jid, { text: r.texto }, { quoted: m }, azar(3, 8) * 1000)
-      if (r.archivo) encolar(jid, {
-        document: fs.readFileSync(r.archivo), fileName: path.basename(r.archivo),
-        mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      }, {}, 3000)
+      const r = await api('/comando', { texto, autor: m.pushName || '', es_admin: admin, privado: privadoAdmin, wa: infoWA() })
+      const [dmin, dmax] = c.delay_comando_seg || [3, 8]
+      if (r.texto) encolar(jid, { text: r.texto }, { quoted: m }, azar(dmin, dmax) * 1000)
+      if (r.archivo) encolar(jid, { document: fs.readFileSync(r.archivo), fileName: path.basename(r.archivo), mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }, {}, 3000)
+      if (r.borradores?.length) registrarCasos(r.borradores, null, '')        // !simular
+      for (const t of (r.admin || [])) encolar(adminJid(), { text: t }, {}, 2000)
     } catch (e) { log('❌ comando:', e.message) }
     return
   }
 
-  // -------- PDF (bitácora o adjunto a un caso) --------
+  // ---------------- PDF
   if (doc) {
     const esPDF = /pdf/i.test(doc.mimetype || '') || /\.pdf$/i.test(doc.fileName || '')
-    const cap = texto
+    const conFormato = /^(.*?),\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})/.exec(texto)
     const bidCit = borradorCitado(m)
+    if (enGrupo && !(esPDF && conFormato)) return           // en el grupo solo bitácoras con "Nombre, fecha"
     try {
-      const ruta = await descargar(m, doc.fileName || 'bitacora.pdf')
-      // si cita un caso o manda el PDF en su privado con un caso pendiente y sin pinta de bitácora -> adjuntar
-      const pareceBitacora = esPDF && (/,\s*\d{1,2}[/.-]\d{1,2}/.test(cap) || /bit|folio|rbd/i.test(doc.fileName || '') || !cap)
-      if (privadoAdmin && (bidCit || !pareceBitacora)) {
+      const ruta = await descargar(m, doc.fileName || 'archivo.pdf')
+      if (privadoAdmin && (bidCit || (!conFormato && !/bit|folio/i.test(doc.fileName || '')))) {
         const r = await api('/adjuntar', { ruta, autor: m.pushName || '', borrador_id: bidCit })
         for (const t of (r.admin || [])) encolar(jid, { text: t }, {}, 1500)
-        if (!r.admin?.length) encolar(jid, { text: '📎 Guardado.' }, {}, 1500)
       } else {
-        const m2 = cap.match(/^(.*?),\s*([\d/.-]{6,10})/)
-        const r = await api('/bitacora', { ruta, nombre: m2 ? m2[1].trim() : '', fecha: m2 ? m2[2] : '' })
-        encolar(jid, { text: r.texto || '📥 Recibido.' }, { quoted: m }, 1500)
+        const r = await api('/bitacora', { ruta, nombre: conFormato ? conFormato[1].trim() : '', fecha: conFormato ? conFormato[2] : '' })
+        const malo = (r.texto || '').startsWith('❌')
+        if (enGrupo && malo) encolar(adminJid(), { text: `${r.texto}\n(lo mandó ${m.pushName || '?'} al grupo)` }, {}, 1500)
+        else encolar(jid, { text: r.texto || '📥 Recibido.' }, { quoted: m }, 1500)
       }
-    } catch (e) { log('❌ pdf:', e.message); encolar(jid, { text: '❌ No pude procesar el archivo.' }, {}, 1500) }
+    } catch (e) {
+      log('❌ pdf:', e.message)
+      encolar(privadoAdmin ? jid : adminJid(), { text: '❌ No pude procesar el archivo: ' + e.message }, {}, 1500)
+    }
     return
   }
 
   if (!texto) return
 
-  // -------- tu privado: aprobar / sumar / nuevo caso --------
+  // ---------------- tu privado: aprobar, sumar o subir un caso
   if (privadoAdmin) {
-    const low = texto.toLowerCase()
+    const low = normal(texto)
     const bidCit = borradorCitado(m)
-    const esDecision = OK.includes(low) || NO.includes(low) || bidCit || low.startsWith('+')
+    const OK = (c.palabras_ok || ['ok']).map(normal)
+    const NO = (c.palabras_no || ['no']).map(normal)
+    const esDecision = OK.includes(low) || NO.includes(low) || bidCit || texto.startsWith('+')
     try {
       if (esDecision) {
-        const decision = low.startsWith('+') ? texto.slice(1).trim() : texto
+        const decision = texto.startsWith('+') ? texto.slice(1).trim() : texto
         const r = await api('/aprobar', { decision, autor: m.pushName || 'Manuel', borrador_id: bidCit })
         for (const t of (r.admin || [])) encolar(jid, { text: t }, {}, 1500)
-        if (r.enviar_borrador) await enviarBorradorAprobado(r.enviar_borrador, r.grupo || [])
+        if (r.enviar_borrador) await enviarAlGrupo(r.enviar_borrador, r.grupo || [])
       } else {
-        // caso nuevo que tú subes
         const r = await api('/entrada', { origen: 'admin', texto, autor: m.pushName || 'Manuel' })
-        r.borradores?.forEach((bid, i) => { casos[bid] = null })
+        registrarCasos(r.borradores, null, '')
         for (const t of (r.admin || [])) encolar(jid, { text: t }, {}, 1500)
-        if (!r.admin?.length) encolar(jid, { text: 'No detecté un establecimiento/falla. Dime nombre o RBD.' }, {}, 1500)
+        if (r.grupo?.length) for (const t of r.grupo) encolar(grupoDestino(), { text: t })   // modo directo
+        if (!r.admin?.length && !r.grupo?.length) encolar(jid, { text: '🤷 No detecté establecimiento ni falla. Dime el nombre o RBD y qué pasa. (*!ayuda* para comandos)' }, {}, 1500)
       }
-    } catch (e) { log('❌ admin:', e.message) }
+    } catch (e) { log('❌ privado:', e.message); encolar(jid, { text: '❌ El servidor no respondió. Revisa con !diagnostico.' }, {}, 1500) }
     return
   }
 
-  // -------- grupo de supervisoras --------
-  if (!enGrupo) return
+  // ---------------- grupo de supervisoras
   log(`📥 ${m.pushName || '?'}: ${texto.slice(0, 80)}`)
   try {
     const r = await api('/entrada', { origen: 'grupo', texto, autor: m.pushName || 'supervisora' })
     if (r.error) { log('❌ servidor:', r.error); return }
-    // modo borrador: el grupo no recibe nada; te llega a ti
-    if (r.borradores?.length) {
-      r.borradores.forEach((bid, i) => { casos[bid] = m })        // recordar original para citar al aprobar
-      const aj = adminJid()
-      for (const t of (r.admin || [])) encolar(aj, { text: t }, {}, azar(2, 6) * 1000)
+    if (r.borradores?.length) {                                  // modo borrador: te llega a ti
+      registrarCasos(r.borradores, m, texto)
+      for (const t of (r.admin || [])) encolar(adminJid(), { text: t }, {}, azar(2, 6) * 1000)
     }
-    // modo directo: respuesta inmediata al grupo
-    if (r.grupo?.length) encolar(jid, { text: r.grupo.join('\n\n') }, { quoted: m })
+    if (r.grupo?.length) encolar(jid, { text: r.grupo.join('\n\n') }, { quoted: m })   // modo directo
   } catch (e) {
     log('❌ ¿está corriendo servidor.py?', e.message)
   }
@@ -253,32 +317,32 @@ async function manejar (m) {
 // ------------------------------------------------------------ tareas programadas
 const hecho = {}
 setInterval(async () => {
-  if (!sock?.user) return
+  if (!conectado || TELEFONO) return
   const c = cfg()
   const ahora = new Date()
   const hhmm = ahora.toTimeString().slice(0, 5)
-  const dia = ahora.toISOString().slice(0, 10) + ahora.getDay()
+  const dia = ahora.toDateString()
   const habil = ahora.getDay() >= 1 && ahora.getDay() <= 5
   try {
-    if (habil && c.agenda_matutina?.activa && grupoDestino() && hhmm === c.agenda_matutina.hora &&
-        hecho.agenda !== dia) {
+    // cada minuto: recordatorios, gas automático, respaldo
+    if (hecho.tick !== hhmm) {
+      hecho.tick = hhmm
+      const r = await api('/tick', {})
+      for (const t of (r.admin || [])) encolar(adminJid(), { text: t }, {}, 1500)
+      for (const e of (r.envios_grupo || [])) await enviarAlGrupo(e.borrador_id, e.textos)
+    }
+    if (habil && c.agenda_matutina?.activa && grupoDestino() && hhmm === c.agenda_matutina.hora && hecho.agenda !== dia) {
       hecho.agenda = dia
       const r = await api('/agenda_dia')
       encolar(grupoDestino(), { text: r.texto }, {}, azar(5, 40) * 1000)
     }
-    if (habil && c.reporte_diario?.activo && c.chat_reportes && hhmm === c.reporte_diario.hora &&
-        hecho.reporte !== dia) {
+    if (habil && c.reporte_diario?.activo && adminJid() && hhmm === c.reporte_diario.hora && hecho.reporte !== dia) {
       hecho.reporte = dia
       const r = await api('/reporte')
-      encolar(c.chat_reportes, {
-        document: fs.readFileSync(r.archivo),
-        fileName: path.basename(r.archivo),
-        mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        caption: '📊 Reporte diario de mantención'
-      }, {}, 2000)
+      encolar(adminJid(), { document: fs.readFileSync(r.archivo), fileName: path.basename(r.archivo), mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', caption: '📊 Reporte diario de mantención' }, {}, 2000)
     }
   } catch (e) { log('❌ tarea programada:', e.message) }
-}, 20000)
+}, 15000)
 
 // ------------------------------------------------------------ conexión
 async function conectar () {
@@ -298,14 +362,13 @@ async function conectar () {
     await esperar(3000)
     const crudo = String(await sock.requestPairingCode(TELEFONO)).replace(/[^A-Za-z0-9]/g, '').toUpperCase()
     const codigo = crudo.length === 8 ? `${crudo.slice(0, 4)}-${crudo.slice(4)}` : crudo
-    // en su propia línea, sin fecha delante, para que Termux no lo corte
     console.log('\n\n==============================')
     console.log('   CÓDIGO:  ' + codigo)
     console.log('==============================')
     console.log(`(son 8 caracteres: ${crudo.split('').join(' ')})`)
-    console.log('WhatsApp del bot > ⋮ > Dispositivos vinculados > Vincular dispositivo')
+    console.log('WhatsApp del BOT > ⋮ > Dispositivos vinculados > Vincular dispositivo')
     console.log('> "Vincular con número de teléfono" y escribe las 8 letras/números.')
-    console.log('El código vence en ~1 minuto. Si vence, presiona Ctrl+C y corre de nuevo:')
+    console.log('El código vence en ~1 minuto. Si vence: Ctrl+C y corre de nuevo')
     console.log(`   node bot.mjs --codigo ${TELEFONO}\n`)
   }
 
@@ -315,6 +378,7 @@ async function conectar () {
       qrcode.generate(qr, { small: true })
     }
     if (connection === 'open') {
+      conectado = true
       log('✅ Conectado a WhatsApp como', sock.user?.id)
       try {
         const grupos = await sock.groupFetchAllParticipating()
@@ -324,15 +388,25 @@ async function conectar () {
           const marca = await esGrupoSupervisoras(g.id) ? '  ✅ ESTE ES EL GRUPO QUE LEO' : ''
           log(`   ${g.subject}  ->  ${g.id}${marca}`)
         }
-        if (!grupoDestino()) log('⚠️  No encontré el grupo: revisa grupo_nombre o grupo_id en config.json')
+        if (!grupoDestino()) log('⚠️  No encontré el grupo del perfil activo: revisa grupo_nombre (o usa !perfil)')
       } catch {}
-      if (TELEFONO) {   // modo vinculación: dejar la sesión guardada y salir
+      try {
+        const n = soloDigitos((cfg().admins || [])[0])
+        if (n) {
+          const [r] = await sock.onWhatsApp(n)
+          estado.admin_verificado = Boolean(r?.exists)
+          guardarEstado()
+          log(r?.exists ? `👤 Admin ${n} verificado en WhatsApp` : `⚠️ El admin ${n} no aparece en WhatsApp`)
+        }
+      } catch {}
+      if (TELEFONO) {
         log('🔗 Vinculación lista. La sesión quedó guardada en auth/.')
         await esperar(4000)
         process.exit(0)
       }
     }
     if (connection === 'close') {
+      conectado = false
       const code = lastDisconnect?.error?.output?.statusCode
       if (code === DisconnectReason.loggedOut) {
         log('🚪 Sesión cerrada desde el teléfono. Borra la carpeta auth/ y vuelve a vincular.')
@@ -349,4 +423,5 @@ async function conectar () {
   })
 }
 
+process.on('unhandledRejection', e => log('⚠️ promesa sin manejar:', e?.message || e))
 conectar()
