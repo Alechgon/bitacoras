@@ -373,7 +373,7 @@ async function conectar () {
       console.log((intentosVinculo ? '   CÓDIGO NUEVO:  ' : '   CÓDIGO:  ') + codigo)
       console.log('==============================')
       console.log(`(son 8 caracteres: ${crudo.split('').join(' ')})`)
-      execFile('termux-clipboard-set', [crudo], err => {
+      execFile('termux-clipboard-set', [crudo], { timeout: 4000 }, err => {
         console.log(err ? '(no pude copiarlo al portapapeles: instala la app Termux:API para eso)'
                         : '📋 YA ESTÁ COPIADO: cambia a WhatsApp y pégalo (mantén apretado el primer casillero > Pegar)')
       })
