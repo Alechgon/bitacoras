@@ -34,9 +34,10 @@ La primera vez Google pide autorizar el acceso a Drive y Sheets. Va a aparecer
 
 En la página, pestaña **Ajustes → Respaldo en Google**:
 
-- **Probar conexión** — verifica que el `/exec` responde antes de mandar nada.
-- **Respaldar en Google** — sube todo. Devuelve cuántas filas quedaron.
+- **Respaldar en Google** — sube todo. Devuelve las filas y el avance de las dos metas.
+- **Traer de Google** — lo inverso: recupera lo respaldado. Para cuando cambias de equipo.
 - **Abrir el tablero** — abre el `/exec` en otra pestaña.
+- **Probar conexión** — verifica que el `/exec` responde antes de mandar nada.
 - **Respaldar solo al cerrar el día** — cada vez que cierres el día, sube solo.
 
 La planilla se crea sola en tu Drive con el primer respaldo, llamada
@@ -44,16 +45,22 @@ La planilla se crea sola en tu Drive con el primer respaldo, llamada
 
 ## Lo que queda en la planilla
 
+Nueve hojas, con cabecera fija, filtros, bandas y formato condicional.
+
 | Hoja | Qué trae |
 |---|---|
-| Resumen | Avance de las dos metas, conteos y fecha del último respaldo |
+| Panel | Las dos metas con su plazo, ritmo exigido y % · ritmo real, cumplimiento y requerimientos por criticidad y supervisora |
+| Histórico | **Una fila por respaldo**, acumulativa. De aquí sale la tendencia y las chispas del tablero |
 | Programa | Cada visita: fecha, bloque, técnico, establecimiento, estado, folio, trabajo |
-| Establecimientos | Los 93 con dirección, gas, raciones, puntaje y estado de preventiva |
-| Correctivos | Lo que piden las supervisoras, con días abiertos y fecha agendada |
-| Bitácoras detalle | Un ítem por fila: categoría, cantidad, acción y observación |
+| Establecimientos | Los 93 con dirección, gas, raciones, puntaje con escala de color y estado de preventiva |
+| Correctivos | Lo que piden las supervisoras; los que pasan 10 días salen en rojo |
+| Bitácoras | Un ítem revisado por fila: categoría, cantidad, acción y observación |
 | Datácora | El export, marcando cuáles cuentan para el conteo |
-| Aplazamientos | Qué se movió, cuántas veces y por qué |
+| Movimientos | Qué se aplazó, cuántas veces y por qué; dos o más sale en rojo |
 | Reportes supervisoras | Las menciones del grupo de WhatsApp |
+
+El **Histórico** es la única hoja que no se reescribe: cada respaldo agrega una fila
+con el avance de las dos metas, el ritmo y el cumplimiento de ese momento.
 
 ## Direcciones útiles
 
@@ -61,11 +68,13 @@ La planilla se crea sola en tu Drive con el primer respaldo, llamada
 |---|---|
 | Tablero | `/exec` |
 | Todo el estado en JSON | `/exec?modo=json` |
-| Solo los KPI | `/exec?modo=resumen` |
+| Los indicadores calculados | `/exec?modo=kpi` |
+| El histórico de respaldos | `/exec?modo=historico` |
 | Ver si está vivo | `/exec?modo=ping` |
 
-El `?modo=resumen` sirve para enganchar el bot de WhatsApp o lo que quieras:
-devuelve el avance de las dos metas y cuántos correctivos hay abiertos.
+El `?modo=kpi` sirve para enganchar el bot de WhatsApp o lo que quieras: devuelve el
+avance de las dos metas, el ritmo exigido contra el real, el cumplimiento y los
+requerimientos por criticidad y por supervisora.
 
 ## Si algo falla
 
@@ -78,8 +87,8 @@ devuelve el avance de las dos metas y cuántos correctivos hay abiertos.
 
 ## Un par de cosas que conviene saber
 
-El respaldo **pisa** lo anterior: siempre queda la última foto, no un historial.
-Si quieres guardar un corte de un día, duplica la planilla a mano.
+Las hojas de datos **se reescriben** en cada respaldo: siempre queda la última foto.
+La excepción es **Histórico**, que acumula una fila por respaldo — ahí está la tendencia.
 
 El tablero es **de solo lectura**. Lo que se edita sigue siendo la página; esto es
 para mirar desde el teléfono, mandarle el link a alguien o revisar sin abrir nada.
