@@ -769,6 +769,7 @@ function aplicarCierre(){
     ST.log.push({ts:new Date().toISOString(), id, rbd:p.rbd, motivo, aplaz:p.aplaz, nueva:p.fecha});
   });
   guardar(); cerrarModal(); refrescar();
+  if(ST.cfg.gsAuto) respaldarGoogle(true);
   if(dobles.length) setTimeout(()=>alert('Ojo: '+dobles.length+' trabajo(s) van en su segundo aplazamiento o más. Según la regla, eso lo autorizas tú y queda en el registro de Ajustes.'),150);
 }
 
@@ -1709,6 +1710,21 @@ function vConfig(){
        <input type="file" accept="application/json" style="display:none" onchange="importar(this.files[0])"></label>
      <button class="btn red" onclick="if(confirm('Esto borra todos tus cambios locales y vuelve al plan original. ¿Seguro?')){localStorage.removeItem(LS);cargar();ir('hoy')}">Volver al plan original</button>
    </div></div>
+   <div class="card"><h2>Respaldo en Google</h2>
+   <div class="dim">Manda todo a tu Apps Script: arma una planilla con ocho hojas y deja un tablero
+   que se abre desde cualquier parte, sin instalar nada. La URL se guarda en este navegador.</div>
+   <div style="margin-top:10px"><label class="f" for="gsUrl">URL del Apps Script (/exec)</label>
+     <input id="gsUrl" value="${esc(ST.cfg.gsUrl||GS_DEF)}" placeholder="https://script.google.com/macros/s/.../exec"></div>
+   <div class="row" style="margin-top:10px">
+     <button class="btn" id="btnGs" onclick="respaldarGoogle()">Respaldar en Google</button>
+     <button class="btn ghost" onclick="abrirTablero()">Abrir el tablero</button>
+     <button class="btn ghost" onclick="probarGs()">Probar conexión</button>
+     <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:13px">
+       <input type="checkbox" class="chk" id="gsAuto" ${ST.cfg.gsAuto?'checked':''}
+         onchange="ST.cfg.gsAuto=this.checked;guardar()"> Respaldar solo al cerrar el día</label>
+   </div>
+   <div id="gsEstado" class="mini" style="margin-top:8px">${ST.cfg.gsUltimo?'Último respaldo: '+esc(ST.cfg.gsUltimo):''}</div>
+   </div>
    <div class="card"><h2>Avisos del día</h2>
    <div class="dim">Los avisos del navegador solo suenan con la pestaña abierta. Para que te lleguen al celular
    estando cerrada la página, hay que conectarlo al bot de Telegram.</div>
@@ -1752,6 +1768,67 @@ function pedirPermiso(){
     document.getElementById('permstat').textContent = p==='granted'
       ? 'Avisos activados. Funcionan mientras esta pestaña esté abierta.'
       : 'Permiso denegado: los avisos saldrán solo dentro de la página.'; });
+}
+
+/* ============================ RESPALDO EN GOOGLE ============================ */
+const GS_DEF = 'https://script.google.com/macros/s/AKfycbx8mlrYEMlU0gXkvwInPM0tgFG3Oo6PQCU_YhupEhBLvX4vwP_JYngAZG8Kwfwf7pPw/exec';
+function gsUrl(){
+  const i = document.getElementById('gsUrl');
+  const u = (i ? i.value : '') || ST.cfg.gsUrl || GS_DEF;
+  return u.trim();
+}
+function paquete(){
+  return {origen:'web', enviado:new Date().toISOString(), estado:{
+    META:D.META, ESTAB:D.ESTAB, CORR:D.CORR, MENC:D.MENC, DC:D.DC||[], CATS:D.CATS,
+    PLAN: todas().map(p=>({...p})), BITS: ST.bits.concat(D.BITS), LOG: ST.log
+  }};
+}
+async function postGs(cuerpo){
+  const u = gsUrl();
+  if(!u || !/^https:\/\/script\.google\.com\/macros\//.test(u))
+    throw new Error('la URL no parece un Apps Script publicado');
+  ST.cfg.gsUrl = u; guardar();
+  /* text/plain evita el preflight: Apps Script no responde OPTIONS */
+  const r = await fetch(u, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+                           body: JSON.stringify(cuerpo), redirect:'follow'});
+  const t = await r.text();
+  let j; try{ j = JSON.parse(t); }catch(e){ throw new Error('respuesta inesperada: '+t.slice(0,120)); }
+  if(!j.ok) throw new Error(j.error || 'el script devolvió un error');
+  return j;
+}
+async function respaldarGoogle(silencioso){
+  const b = document.getElementById('btnGs');
+  const el = document.getElementById('gsEstado');
+  if(b){ b.disabled = true; b.textContent = 'Subiendo…'; }
+  try{
+    const j = await postGs(paquete());
+    ST.cfg.gsUltimo = j.guardado; ST.cfg.gsHoja = j.hoja; guardar();
+    const msg = 'Listo: '+j.filas.programa+' visitas, '+j.filas.establecimientos
+      +' establecimientos, '+j.filas.correctivos+' correctivos · '+j.guardado;
+    if(el) el.textContent = msg;
+    if(!silencioso) avisoGs('Respaldado en Google', msg);
+  }catch(e){
+    if(el) el.textContent = 'No se pudo respaldar: '+e.message;
+    if(!silencioso) avisoGs('No se pudo respaldar', e.message);
+  }finally{
+    if(b){ b.disabled = false; b.textContent = 'Respaldar en Google'; }
+  }
+}
+async function probarGs(){
+  const el = document.getElementById('gsEstado');
+  el.textContent = 'Probando…';
+  try{ const j = await postGs({accion:'ping'});
+    el.textContent = 'Conexión OK · el script respondió a las '+j.pong; }
+  catch(e){ el.textContent = 'Sin conexión: '+e.message
+    +' — revisa que la implementación esté como «Cualquier usuario».'; }
+}
+function abrirTablero(){ const u = gsUrl(); if(u) window.open(u, '_blank'); }
+function avisoGs(titulo, texto){
+  const a = document.getElementById('aviso');
+  a.innerHTML = '<b>'+esc(titulo)+'</b><div style="margin-top:5px;font-size:13px">'+esc(texto)+'</div>'
+    +'<button class="btn ghost" style="color:#fff;border-color:#fff;margin-top:9px;padding:4px 10px" '
+    +'onclick="document.getElementById(\'aviso\').classList.remove(\'on\')">ok</button>';
+  a.classList.add('on'); setTimeout(()=>a.classList.remove('on'), 7000);
 }
 
 /* ============================ AVISOS ============================ */
