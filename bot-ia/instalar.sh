@@ -55,6 +55,14 @@ else
   BOTN=${BOTN:-$(python -c "import ajustes;print(ajustes.leer().get('numero_bot',''))")}
   rm -rf auth          # una vinculación a medias impide vincular de nuevo
   bash detener.sh >/dev/null 2>&1 || true
+  termux-wake-lock 2>/dev/null || true   # que Android no duerma Termux mientras escribes el código
+  echo ""
+  echo "   ⚠️  ANTES de seguir: Ajustes de Android > Apps > Termux > Batería > Sin restricciones."
+  echo "      Si no, Android corta la conexión cuando cambias a WhatsApp a escribir el código."
+  echo ""
+  echo "   Tip: abre WhatsApp en pantalla dividida o ventana flotante junto a Termux."
+  echo ""
+  read -r -p "   Presiona Enter cuando estés listo... " _ < /dev/tty
   echo "   Aparecerá un CÓDIGO de 8 caracteres."
   echo "   En el WhatsApp del número del BOT: ⋮ > Dispositivos vinculados > Vincular dispositivo"
   echo "   > 'Vincular con número de teléfono' y escribe el código."

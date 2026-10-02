@@ -345,6 +345,7 @@ setInterval(async () => {
 }, 15000)
 
 // ------------------------------------------------------------ conexión
+let intentosVinculo = 0
 async function conectar () {
   const { state, saveCreds } = await useMultiFileAuthState(path.join(DIR, 'auth'))
   const { version } = await fetchLatestBaileysVersion().catch(() => ({ version: undefined }))
@@ -354,7 +355,9 @@ async function conectar () {
     logger: pino({ level: 'warn' }),
     browser: Browsers.ubuntu('Chrome'),
     markOnlineOnConnect: false,
-    syncFullHistory: false
+    syncFullHistory: false,
+    connectTimeoutMs: 60000,
+    keepAliveIntervalMs: 20000
   })
   sock.ev.on('creds.update', saveCreds)
 
@@ -366,7 +369,7 @@ async function conectar () {
       const crudo = String(await sock.requestPairingCode(TELEFONO)).replace(/[^A-Za-z0-9]/g, '').toUpperCase()
       const codigo = crudo.length === 8 ? `${crudo.slice(0, 4)}-${crudo.slice(4)}` : crudo
       console.log('\n\n==============================')
-      console.log('   CÓDIGO:  ' + codigo)
+      console.log((intentosVinculo ? '   CÓDIGO NUEVO:  ' : '   CÓDIGO:  ') + codigo)
       console.log('==============================')
       console.log(`(son 8 caracteres: ${crudo.split('').join(' ')})`)
       console.log('En el WhatsApp del BOT: ⋮ > Dispositivos vinculados > Vincular dispositivo')
@@ -415,6 +418,26 @@ async function conectar () {
     if (connection === 'close') {
       conectado = false
       const code = lastDisconnect?.error?.output?.statusCode
+      // ---- modo vinculación: nunca abandonar, pedir código nuevo
+      if (TELEFONO) {
+        if (code === DisconnectReason.restartRequired) {
+          log('✅ Código aceptado, terminando de vincular...')
+          setTimeout(conectar, 1500)
+          return
+        }
+        intentosVinculo++
+        if (intentosVinculo > 8) {
+          log('❌ No se pudo vincular después de varios intentos. Revisa la batería de Termux (Sin restricciones) y corre de nuevo el comando.')
+          process.exit(1)
+        }
+        if (code === DisconnectReason.loggedOut) {
+          fs.rmSync(path.join(DIR, 'auth'), { recursive: true, force: true })   // vinculación rechazada: partir limpio
+        }
+        console.log(`\n⚠️  Se cortó la conexión (código ${code}). EL CÓDIGO ANTERIOR YA NO SIRVE.`)
+        console.log('    Pidiendo uno nuevo... (no cierres Termux)\n')
+        setTimeout(conectar, 3000)
+        return
+      }
       if (code === DisconnectReason.loggedOut) {
         log('🚪 Sesión cerrada desde el teléfono. Borra la carpeta auth/ y vuelve a vincular.')
         process.exit(1)
