@@ -5,10 +5,11 @@ y devuelve la respuesta para el grupo. Corre en http://127.0.0.1:8765.
 
 Uso: python servidor.py
 """
-import base64, json, threading, traceback, urllib.request
+import base64, json, os, threading, traceback, urllib.request
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import bitacoras
 import ia
 import reportes
 from nucleo import (a_fecha, agenda, agendar, bonita, buscar, cfg, datos, db, en_texto, es_prioridad,
@@ -87,62 +88,193 @@ def registrar_y_agendar(con, rbd, problema, crit, texto, autor, motor, hid=None)
 
 
 def procesar_mensaje(texto, autor):
-    if any(i.lower() in autor.lower() for i in cfg().get("ignorar", []) if i):
-        return []
+    """Compatibilidad: modo directo (sin borrador). Devuelve lista de respuestas al grupo."""
+    r = entrada("grupo", texto, autor, forzar_directo=True)
+    return r["grupo"]
+
+
+def _generar_respuestas(con, texto, autor, motor, analisis):
+    """Agenda cada hallazgo y devuelve [(texto_respuesta, rbd, crit, hallazgo_id, tarjeta_id)]."""
+    E = datos()["E"]
+    salida, vistos = [], set()
+    for h in analisis["hallazgos"][:6]:
+        problema = (h.get("problema") or texto[:90]).strip()
+        crit = h.get("tipo") if h.get("tipo") in ia.PAL or h.get("tipo") == "OTRO" else ia.tipo_por_palabras(texto)
+        rbd, cands = resolver(h, texto, vistos)
+        if rbd:
+            if rbd in vistos:
+                continue
+            vistos.add(rbd)
+            dup = con.execute("SELECT respuesta FROM hallazgos WHERE rbd=? AND crit=? AND estado='agendado' "
+                              "AND recibido>=?", (rbd, crit,
+                              (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"))).fetchone()
+            if dup:
+                salida.append((f"🔁 Ya estaba registrado:\n{dup['respuesta']}", rbd, crit, None, None))
+                continue
+            hid = con.execute("INSERT INTO hallazgos(recibido,autor,texto,rbd,problema,crit,prio,estado,motor) "
+                              "VALUES(?,?,?,?,?,?,?,'agendado',?)",
+                              (datetime.now().strftime("%Y-%m-%d %H:%M"), autor, texto, rbd, problema, crit,
+                               int(es_prioridad(texto)), motor)).lastrowid
+            e = E[rbd]
+            res = agendar(con, rbd, crit, problema, es_prioridad(texto), autor, hid)
+            resp = texto_respuesta(e, problema, crit, res)
+            con.execute("UPDATE hallazgos SET pts=?, tarjeta_id=?, respuesta=? WHERE id=?",
+                        (res["pts"], res["tarjeta"], resp, hid))
+            log(con, f"Hallazgo {hid} {e['nombre']} {crit} {res['pts']}pts -> {res['tec']} {res['fecha']} [{res['modo']}]")
+            salida.append((resp, rbd, crit, hid, res["tarjeta"]))
+        else:
+            con.execute("INSERT INTO hallazgos(recibido,autor,texto,problema,crit,prio,estado,candidatos,motor) "
+                        "VALUES(?,?,?,?,?,?,'por_confirmar',?,?)",
+                        (datetime.now().strftime("%Y-%m-%d %H:%M"), autor, texto, problema, crit,
+                         int(es_prioridad(texto)), json.dumps(cands), motor))
+            nom = h.get("nombre_mencionado") or "el establecimiento"
+            if cands:
+                ops = "\n".join(f"  • {E[r]['nombre']} ({E[r]['comuna']}) → *!es {r}*" for r in cands)
+                salida.append((f"🤔 «{nom}»: ¿cuál es?\n{ops}\n{EMOJI.get(crit, '🔧')} {problema}", None, crit, None, None))
+            else:
+                salida.append((f"❓ No ubico «{nom}» en los 93 establecimientos.\n{EMOJI.get(crit, '🔧')} "
+                               f"{problema}\nRespondan *!es RBD* para agendarlo.", None, crit, None, None))
+    return salida
+
+
+def entrada(origen, texto, autor, forzar_directo=False):
+    """
+    Punto de entrada de un mensaje. origen: 'grupo' (supervisora) o 'admin' (Manuel sube un caso).
+    Devuelve {'grupo':[...], 'admin':[...], 'borradores':[ids]}.
+    En modo borrador (config.modo_borrador), el grupo no recibe nada hasta que Manuel aprueba.
+    """
+    c = cfg()
+    vacio = {"grupo": [], "admin": [], "borradores": []}
+    if origen == "grupo" and any(i.lower() in autor.lower() for i in c.get("ignorar", []) if i):
+        return vacio
     analisis, motor = ia.analizar(texto, autor)
     if not analisis.get("es_reporte") or not analisis.get("hallazgos"):
-        return []
-    E = datos()["E"]
-    salida = []
+        return vacio
+    modo_borrador = c.get("modo_borrador", True) and not forzar_directo
+    out = {"grupo": [], "admin": [], "borradores": []}
     with LOCK:
         con = db()
-        vistos = set()
-        for h in analisis["hallazgos"][:6]:
-            problema = (h.get("problema") or texto[:90]).strip()
-            crit = h.get("tipo") if h.get("tipo") in ia.PAL or h.get("tipo") == "OTRO" else ia.tipo_por_palabras(texto)
-            rbd, cands = resolver(h, texto, vistos)
-            if rbd:
-                if rbd in vistos:
-                    continue
-                vistos.add(rbd)
-                # ¿ya lo tenemos registrado esta semana con la misma falla? no duplicar
-                dup = con.execute("SELECT respuesta FROM hallazgos WHERE rbd=? AND crit=? AND estado='agendado' "
-                                  "AND recibido>=?", (rbd, crit,
-                                                      (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"))).fetchone()
-                if dup:
-                    salida.append(f"🔁 Ya estaba registrado:\n{dup['respuesta']}")
-                    continue
-                salida.append(registrar_y_agendar(con, rbd, problema, crit, texto, autor, motor))
+        for resp, rbd, crit, hid, tid in _generar_respuestas(con, texto, autor, motor, analisis):
+            if modo_borrador:
+                bid = con.execute("INSERT INTO borradores(origen,autor,texto_original,respuesta,rbd,crit,"
+                                  "hallazgo_id,tarjeta_id,estado) VALUES(?,?,?,?,?,?,?,?,'pendiente')",
+                                  (origen, autor, texto, resp, rbd, crit, hid, tid)).lastrowid
+                out["borradores"].append(bid)
+                out["admin"].append(_texto_borrador(con, bid))
             else:
-                con.execute("INSERT INTO hallazgos(recibido,autor,texto,problema,crit,prio,estado,candidatos,motor) "
-                            "VALUES(?,?,?,?,?,?,'por_confirmar',?,?)",
-                            (datetime.now().strftime("%Y-%m-%d %H:%M"), autor, texto, problema, crit,
-                             int(es_prioridad(texto)), json.dumps(cands), motor))
-                nom = h.get("nombre_mencionado") or "el establecimiento"
-                if cands:
-                    ops = "\n".join(f"  • {E[r]['nombre']} ({E[r]['comuna']}) → *!es {r}*" for r in cands)
-                    salida.append(f"🤔 «{nom}»: ¿cuál es?\n{ops}\n{EMOJI.get(crit, '🔧')} {problema}")
-                else:
-                    salida.append(f"❓ No ubico «{nom}» en los 93 establecimientos.\n{EMOJI.get(crit, '🔧')} "
-                                  f"{problema}\nRespondan *!es RBD* para agendarlo.")
+                out["grupo"].append(resp)
         con.commit()
     threading.Thread(target=subir_github, daemon=True).start()
-    return salida
+    return out
+
+
+# ================================================================ borradores (aprobación)
+def _texto_borrador(con, bid):
+    b = con.execute("SELECT * FROM borradores WHERE id=?", (bid,)).fetchone()
+    orig = "supervisora" if b["origen"] == "grupo" else "tú"
+    adj = json.loads(b["adjuntos"] or "[]")
+    lin = [f"🆕 *Caso #{bid}* · de {orig} ({b['autor']})",
+           f"💬 «{b['texto_original'][:160]}»", "",
+           "📝 *Borrador para el grupo:*", b["respuesta"]]
+    if b["nota_interna"]:
+        lin += ["", f"➕ Agregado: {b['nota_interna']}"]
+    if adj:
+        lin.append(f"📎 Adjuntos: {', '.join(os.path.basename(a) for a in adj)}")
+    lin += ["", "Responde *ok* para enviar · *no* para descartar · escribe texto para sumar · o envía un PDF"]
+    return "\n".join(lin)
+
+
+def _borrador_pendiente(con, bid=None):
+    if bid:
+        return con.execute("SELECT * FROM borradores WHERE id=? AND estado='pendiente'", (bid,)).fetchone()
+    return con.execute("SELECT * FROM borradores WHERE estado='pendiente' ORDER BY id DESC LIMIT 1").fetchone()
+
+
+def aprobar(decision, autor, bid=None):
+    """decision: 'ok', 'no' o texto para sumar. Devuelve {'grupo':[], 'admin':[], 'enviar_borrador':id}."""
+    out = {"grupo": [], "admin": [], "enviar_borrador": None}
+    with LOCK:
+        con = db()
+        b = _borrador_pendiente(con, bid)
+        if not b:
+            out["admin"].append("No hay ningún caso pendiente de aprobar.")
+            return out
+        d = decision.strip()
+        dl = d.lower()
+        if dl in ("ok", "si", "sí", "dale", "ya", "👍", "listo", "enviar"):
+            resp = b["respuesta"]
+            if b["nota_interna"]:
+                resp += f"\nℹ️ {b['nota_interna']}"
+            con.execute("UPDATE borradores SET estado='enviado' WHERE id=?", (b["id"],))
+            log(con, f"Borrador #{b['id']} aprobado por {autor} -> grupo")
+            con.commit()
+            out["grupo"].append(resp)
+            out["enviar_borrador"] = b["id"]       # para que bot.mjs adjunte PDFs y cite el original
+            out["admin"].append(f"✅ Enviado al grupo (caso #{b['id']}).")
+        elif dl in ("no", "descartar", "borrar", "cancelar", "👎"):
+            if b["tarjeta_id"]:
+                con.execute("UPDATE tarjetas SET estado='anulada', modificada=1 WHERE id=?", (b["tarjeta_id"],))
+            if b["hallazgo_id"]:
+                con.execute("UPDATE hallazgos SET estado='descartado' WHERE id=?", (b["hallazgo_id"],))
+            con.execute("UPDATE borradores SET estado='descartado' WHERE id=?", (b["id"],))
+            log(con, f"Borrador #{b['id']} descartado por {autor}")
+            con.commit()
+            out["admin"].append(f"🗑️ Caso #{b['id']} descartado, liberé el bloque.")
+        else:
+            nota = (b["nota_interna"] + " | " if b["nota_interna"] else "") + d
+            con.execute("UPDATE borradores SET nota_interna=? WHERE id=?", (nota, b["id"]))
+            con.commit()
+            out["admin"].append(_texto_borrador(con, b["id"]))
+    return out
+
+
+def adjuntar_a_borrador(ruta, autor, bid=None):
+    with LOCK:
+        con = db()
+        b = _borrador_pendiente(con, bid)
+        if not b:
+            return {"admin": ["No hay caso pendiente al cual adjuntar el archivo."]}
+        adj = json.loads(b["adjuntos"] or "[]")
+        adj.append(ruta)
+        con.execute("UPDATE borradores SET adjuntos=? WHERE id=?", (json.dumps(adj), b["id"]))
+        con.commit()
+        return {"admin": [f"📎 Adjunté {os.path.basename(ruta)} al caso #{b['id']}.", _texto_borrador(con, b["id"])]}
+
+
+def adjuntos_de(bid):
+    con = db()
+    b = con.execute("SELECT adjuntos FROM borradores WHERE id=?", (bid,)).fetchone()
+    return json.loads(b["adjuntos"] or "[]") if b else []
+
 
 
 # ================================================================ comandos
 AYUDA = """🤖 *Comandos del bot*
-!hoy — agenda de hoy
-!mañana — agenda de mañana
-!semana — próximos 5 días hábiles
-!agenda camilo / !agenda rodrigo
-!pendientes — hallazgos por confirmar o sin visita
+
+*Agenda*
+!hoy · !mañana · !semana — qué hay programado
+!agenda camilo / rodrigo — por técnico
+!ficha RBD — puntaje, cobertura y próxima visita
 !metas — avance JUNAEB y jardines
+!pendientes — por confirmar y sin visita
 !hecho RBD — marcar visita realizada
-!es RBD — confirmar el establecimiento del último mensaje dudoso
-!ficha RBD — puntaje y próxima visita
+
+*Bitácoras (archivo)*
+📎 Envía el PDF con el texto: Nombre, dd/mm/aaaa
+!consulta <texto> — ej: !consulta gas en silvia salas
+!historial RBD — todas las bitácoras de un establecimiento
+!buscar <palabra> — busca en todas las observaciones
+
+*Casos y aprobación* (en tu privado)
+Escríbeme un caso y te mando el borrador
+ok · no · o texto para sumar info
+!casos — borradores pendientes
+!caso N — ver un borrador
+
+*Reportes y ajustes*
 !reporte — Excel completo
-_admin:_ !mover RBD dd-mm [bloque] · !anular RBD"""
+!modo borrador / directo — con o sin tu aprobación (admin)
+_admin:_ !mover RBD dd-mm [bloque] · !anular RBD · !es RBD"""
 
 
 def texto_agenda(con, desde, hasta, tec=None, titulo="Agenda"):
@@ -221,6 +353,23 @@ def procesar_comando(texto, autor, es_admin):
                                  f"📊 {e['cobertura']} · última visita {e['ultima'] or '—'}\n{pv}"}
             if cmd == "!reporte":
                 return {"texto": "📊 Reporte actualizado", "archivo": reportes.generar()}
+            # ---- bitácoras
+            if cmd in ("!consulta", "!consultar") and args:
+                return {"texto": bitacoras.consultar(" ".join(args))}
+            if cmd == "!historial" and args and args[0].isdigit():
+                return {"texto": bitacoras.historial(int(args[0]))}
+            if cmd == "!buscar" and args:
+                return {"texto": _buscar_observaciones(con, " ".join(args))}
+            # ---- casos / borradores
+            if cmd == "!casos":
+                ps = con.execute("SELECT id,autor,rbd,texto_original FROM borradores WHERE estado='pendiente' "
+                                 "ORDER BY id").fetchall()
+                if not ps:
+                    return {"texto": "✅ No hay casos pendientes."}
+                return {"texto": "📋 *Casos pendientes*\n" + "\n".join(
+                    f"#{b['id']} · {E.get(b['rbd'], {}).get('nombre', '¿?')} · «{b['texto_original'][:50]}»" for b in ps)}
+            if cmd == "!caso" and args and args[0].isdigit():
+                return {"texto": _texto_borrador(con, int(args[0]))}
             if cmd == "!hecho" and args and args[0].isdigit():
                 t = con.execute("SELECT * FROM tarjetas WHERE rbd=? AND estado='programada' ORDER BY fecha LIMIT 1",
                                 (int(args[0]),)).fetchone()
@@ -263,9 +412,39 @@ def procesar_comando(texto, autor, es_admin):
                 n = con.execute("UPDATE tarjetas SET estado='anulada', modificada=1 WHERE id=(SELECT id FROM tarjetas "
                                 "WHERE rbd=? AND estado='programada' ORDER BY fecha LIMIT 1)", (int(args[0]),)).rowcount
                 return {"texto": "🗑️ Anulada." if n else "No encontré esa visita."}
+            if cmd == "!modo" and args:
+                m = args[0].lower()
+                if m in ("borrador", "directo"):
+                    _set_modo(m == "borrador")
+                    return {"texto": f"⚙️ Modo *{m}*: " + ("te mando el borrador a aprobar antes del grupo."
+                            if m == "borrador" else "responde directo al grupo, sin tu aprobación.")}
+                return {"texto": "Usa !modo borrador  o  !modo directo"}
             return {"texto": "No entendí. Escribe !ayuda"}
         finally:
             con.commit()
+
+
+def _buscar_observaciones(con, palabra):
+    filas = con.execute("SELECT b.rbd, bi.item, bi.observacion, b.folio, b.fecha FROM bitacora_items bi "
+                        "JOIN bitacoras b ON b.folio=bi.folio WHERE bi.observacion REGEXP ? OR bi.item REGEXP ? "
+                        "ORDER BY b.fecha DESC LIMIT 15", (palabra, palabra)).fetchall()
+    if not filas:
+        return f"🔎 Nada con «{palabra}» en las bitácoras."
+    E = datos()["E"]
+    out = [f"🔎 *«{palabra}»* en bitácoras:"]
+    for f in filas:
+        obs = (f["observacion"] or "").replace("\n", " ")
+        out.append(f"• {E.get(f['rbd'], {}).get('nombre', f['rbd'])} ({f['fecha']}, folio {f['folio']}): "
+                   f"{f['item']} — {obs[:70]}")
+    return "\n".join(out)
+
+
+def _set_modo(borrador):
+    import json as _j
+    c = cfg()
+    c["modo_borrador"] = borrador
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json"), "w", encoding="utf-8") as f:
+        _j.dump(c, f, ensure_ascii=False, indent=2)
 
 
 def agenda_del_dia():
@@ -339,9 +518,31 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             data = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
-            if self.path == "/mensaje":
+            if self.path == "/mensaje":        # compatibilidad modo directo
                 return self._json(200, {"respuestas": procesar_mensaje(data.get("texto", ""),
                                                                         data.get("autor", "supervisora"))})
+            if self.path == "/entrada":        # mensaje del grupo o caso del admin
+                return self._json(200, entrada(data.get("origen", "grupo"), data.get("texto", ""),
+                                               data.get("autor", "supervisora")))
+            if self.path == "/aprobar":        # ok / no / texto sobre un borrador
+                return self._json(200, aprobar(data.get("decision", ""), data.get("autor", ""),
+                                               data.get("borrador_id")))
+            if self.path == "/adjuntar":       # PDF u otro archivo para el borrador pendiente
+                return self._json(200, adjuntar_a_borrador(data.get("ruta", ""), data.get("autor", ""),
+                                                           data.get("borrador_id")))
+            if self.path == "/bitacora":       # archivar un PDF de bitácora
+                try:
+                    r = bitacoras.archivar(data.get("ruta", ""), data.get("nombre", ""), data.get("fecha", ""))
+                    txt = (f"📥 Bitácora archivada\n🏫 {r['nombre']} · RBD {r['rbd']}\n"
+                           f"📄 Folio {r['folio']} · {bonita(r['fecha'])} · {r['tecnico'] or 's/téc'}\n"
+                           f"🔧 {r['n_items']} ítems con trabajo")
+                    if r["avisos"]:
+                        txt += "\n⚠️ " + "\n⚠️ ".join(r["avisos"])
+                    return self._json(200, {"texto": txt})
+                except Exception as e:
+                    return self._json(200, {"texto": f"❌ No pude leer el PDF como bitácora: {e}"})
+            if self.path == "/adjuntos":       # bot.mjs pide los PDFs de un borrador aprobado
+                return self._json(200, {"archivos": adjuntos_de(data.get("borrador_id"))})
             if self.path == "/comando":
                 return self._json(200, procesar_comando(data.get("texto", ""), data.get("autor", ""),
                                                         bool(data.get("es_admin"))))

@@ -5,3 +5,5 @@ reportes/
 node_modules/
 logs/
 *.log
+archivo/
+descargas/

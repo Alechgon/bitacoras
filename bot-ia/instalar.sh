@@ -14,7 +14,7 @@ pkg upgrade -y -o Dpkg::Options::="--force-confnew" || true
 pkg install -y nodejs-lts python git termux-api
 
 echo "🐍 2/5 Librería de Excel para Python..."
-pip install --upgrade openpyxl
+pip install --upgrade openpyxl pdfplumber
 
 echo "🟢 3/5 Librerías de WhatsApp..."
 npm install --omit=optional --no-audit --no-fund

@@ -100,6 +100,7 @@ def nombre_tec(t):
 def db():
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
+    con.create_function("REGEXP", 2, lambda p, v: 1 if (v and re.search(p, v, re.I)) else 0)
     con.executescript("""
     CREATE TABLE IF NOT EXISTS tarjetas(
         id TEXT PRIMARY KEY, fecha TEXT, tec TEXT, bloque INTEGER, rbd INTEGER, clase TEXT,
@@ -112,6 +113,11 @@ def db():
     CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT);
     CREATE TABLE IF NOT EXISTS historial(id INTEGER PRIMARY KEY AUTOINCREMENT,
         cuando TEXT DEFAULT (datetime('now','localtime')), evento TEXT);
+    CREATE TABLE IF NOT EXISTS borradores(
+        id INTEGER PRIMARY KEY AUTOINCREMENT, creado TEXT DEFAULT (datetime('now','localtime')),
+        origen TEXT, autor TEXT, texto_original TEXT, respuesta TEXT, nota_interna TEXT DEFAULT '',
+        rbd INTEGER, crit TEXT, estado TEXT DEFAULT 'pendiente', adjuntos TEXT DEFAULT '[]',
+        tarjeta_id TEXT, hallazgo_id INTEGER);
     """)
     sincronizar_plan(con)
     return con

@@ -7,7 +7,7 @@
 //   En WhatsApp: Dispositivos vinculados > Vincular > "con número de teléfono"
 // Si lo corres en otro equipo, basta con: node bot.mjs   (muestra un QR)
 
-import makeWASocket, { Browsers, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } from '@whiskeysockets/baileys'
+import makeWASocket, { Browsers, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion, downloadMediaMessage } from '@whiskeysockets/baileys'
 import pino from 'pino'
 import qrcode from 'qrcode-terminal'
 import fs from 'fs'
@@ -96,6 +96,61 @@ async function esGrupoSupervisoras (jid) {
 }
 const grupoDestino = () => cfg().grupo_id || grupoActivo
 
+// jid de tu número personal (adonde llegan los borradores)
+const adminJid = () => {
+  const c = cfg()
+  if (c.chat_reportes) return c.chat_reportes.includes('@') ? c.chat_reportes : c.chat_reportes.replace(/\D/g, '') + '@s.whatsapp.net'
+  const n = (c.admins || [])[0]
+  return n ? String(n).replace(/\D/g, '') + '@s.whatsapp.net' : null
+}
+
+// recordar el mensaje original de cada caso, para citarlo al aprobar
+const DL = path.join(DIR, 'descargas')
+fs.mkdirSync(DL, { recursive: true })
+const casos = {}                               // borradorId -> mensaje original del grupo
+const OK = ['ok', 'okay', 'oka', 'si', 'sí', 'dale', 'ya', 'listo', 'enviar', 'envialo', 'mandalo', '👍', '👌', '✅']
+const NO = ['no', 'descartar', 'borrar', 'cancelar', 'nel', '👎', '❌']
+
+function docDe (m) {
+  const msg = m.message || {}
+  const inner = msg.ephemeralMessage?.message || msg.viewOnceMessage?.message || msg
+  return inner.documentMessage || inner.documentWithCaptionMessage?.message?.documentMessage || null
+}
+
+async function descargar (m, nombreSugerido) {
+  const buf = await downloadMediaMessage(m, 'buffer', {})
+  const safe = (nombreSugerido || 'archivo.pdf').replace(/[^\w.\- ]+/g, '_')
+  const ruta = path.join(DL, `${Date.now()}_${safe}`)
+  fs.writeFileSync(ruta, buf)
+  return ruta
+}
+
+// qué borrador estoy citando (si cité uno)
+function borradorCitado (m) {
+  const ctx = (m.message?.extendedTextMessage?.contextInfo) ||
+              (m.message?.documentMessage?.contextInfo)
+  const quoted = ctx?.quotedMessage
+  const t = quoted?.conversation || quoted?.extendedTextMessage?.text || ''
+  const mm = t.match(/Caso #(\d+)/)
+  return mm ? Number(mm[1]) : null
+}
+
+async function enviarBorradorAprobado (bid, textos) {
+  const g = grupoDestino()
+  if (!g) { log('⚠️ sin grupo destino'); return }
+  const orig = casos[bid]
+  for (const t of textos) encolar(g, { text: t }, orig ? { quoted: orig } : {})
+  try {
+    const { archivos } = await api('/adjuntos', { borrador_id: bid })
+    for (const a of (archivos || [])) {
+      if (fs.existsSync(a)) encolar(g, {
+        document: fs.readFileSync(a), fileName: path.basename(a), mimetype: 'application/pdf'
+      }, orig ? { quoted: orig } : {})
+    }
+  } catch {}
+  delete casos[bid]
+}
+
 async function manejar (m) {
   if (!m.message || m.key.fromMe) return
   const id = m.key.id
@@ -105,39 +160,91 @@ async function manejar (m) {
 
   const jid = m.key.remoteJid
   const texto = textoDe(m).trim()
-  if (!texto) return
+  const doc = docDe(m)
   const c = cfg()
   const enGrupo = await esGrupoSupervisoras(jid)
   const admin = esAdmin(m)
+  const privadoAdmin = admin && !jid.endsWith('@g.us')
 
-  // !id funciona en cualquier chat para descubrir el ID del grupo
+  // !id funciona en cualquier chat
   if (texto.toLowerCase() === '!id') {
-    log('🆔 ID de este chat:', jid)
     encolar(jid, { text: `🆔 ${jid}` }, { quoted: m }, 2000)
     return
   }
 
+  // comandos
   if (texto.startsWith('!') && (enGrupo || admin)) {
     try {
       const r = await api('/comando', { texto, autor: m.pushName || '', es_admin: admin })
       if (r.texto) encolar(jid, { text: r.texto }, { quoted: m }, azar(3, 8) * 1000)
-      if (r.archivo) {
-        encolar(jid, {
-          document: fs.readFileSync(r.archivo),
-          fileName: path.basename(r.archivo),
-          mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        }, {}, 3000)
-      }
+      if (r.archivo) encolar(jid, {
+        document: fs.readFileSync(r.archivo), fileName: path.basename(r.archivo),
+        mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      }, {}, 3000)
     } catch (e) { log('❌ comando:', e.message) }
     return
   }
 
+  // -------- PDF (bitácora o adjunto a un caso) --------
+  if (doc) {
+    const esPDF = /pdf/i.test(doc.mimetype || '') || /\.pdf$/i.test(doc.fileName || '')
+    const cap = texto
+    const bidCit = borradorCitado(m)
+    try {
+      const ruta = await descargar(m, doc.fileName || 'bitacora.pdf')
+      // si cita un caso o manda el PDF en su privado con un caso pendiente y sin pinta de bitácora -> adjuntar
+      const pareceBitacora = esPDF && (/,\s*\d{1,2}[/.-]\d{1,2}/.test(cap) || /bit|folio|rbd/i.test(doc.fileName || '') || !cap)
+      if (privadoAdmin && (bidCit || !pareceBitacora)) {
+        const r = await api('/adjuntar', { ruta, autor: m.pushName || '', borrador_id: bidCit })
+        for (const t of (r.admin || [])) encolar(jid, { text: t }, {}, 1500)
+        if (!r.admin?.length) encolar(jid, { text: '📎 Guardado.' }, {}, 1500)
+      } else {
+        const m2 = cap.match(/^(.*?),\s*([\d/.-]{6,10})/)
+        const r = await api('/bitacora', { ruta, nombre: m2 ? m2[1].trim() : '', fecha: m2 ? m2[2] : '' })
+        encolar(jid, { text: r.texto || '📥 Recibido.' }, { quoted: m }, 1500)
+      }
+    } catch (e) { log('❌ pdf:', e.message); encolar(jid, { text: '❌ No pude procesar el archivo.' }, {}, 1500) }
+    return
+  }
+
+  if (!texto) return
+
+  // -------- tu privado: aprobar / sumar / nuevo caso --------
+  if (privadoAdmin) {
+    const low = texto.toLowerCase()
+    const bidCit = borradorCitado(m)
+    const esDecision = OK.includes(low) || NO.includes(low) || bidCit || low.startsWith('+')
+    try {
+      if (esDecision) {
+        const decision = low.startsWith('+') ? texto.slice(1).trim() : texto
+        const r = await api('/aprobar', { decision, autor: m.pushName || 'Manuel', borrador_id: bidCit })
+        for (const t of (r.admin || [])) encolar(jid, { text: t }, {}, 1500)
+        if (r.enviar_borrador) await enviarBorradorAprobado(r.enviar_borrador, r.grupo || [])
+      } else {
+        // caso nuevo que tú subes
+        const r = await api('/entrada', { origen: 'admin', texto, autor: m.pushName || 'Manuel' })
+        r.borradores?.forEach((bid, i) => { casos[bid] = null })
+        for (const t of (r.admin || [])) encolar(jid, { text: t }, {}, 1500)
+        if (!r.admin?.length) encolar(jid, { text: 'No detecté un establecimiento/falla. Dime nombre o RBD.' }, {}, 1500)
+      }
+    } catch (e) { log('❌ admin:', e.message) }
+    return
+  }
+
+  // -------- grupo de supervisoras --------
   if (!enGrupo) return
   log(`📥 ${m.pushName || '?'}: ${texto.slice(0, 80)}`)
   try {
-    const r = await api('/mensaje', { texto, autor: m.pushName || 'supervisora' })
-    if (r.respuestas?.length) encolar(jid, { text: r.respuestas.join('\n\n') }, { quoted: m })
-    if (r.error) log('❌ servidor:', r.error)
+    const r = await api('/entrada', { origen: 'grupo', texto, autor: m.pushName || 'supervisora' })
+    if (r.error) { log('❌ servidor:', r.error); return }
+    // modo borrador: el grupo no recibe nada; te llega a ti
+    if (r.borradores?.length) {
+      r.borradores.forEach((bid, i) => { casos[bid] = m })        // recordar original para citar al aprobar
+      const aj = adminJid()
+      for (const t of (r.admin || [])) encolar(aj, { text: t }, {}, azar(2, 6) * 1000)
+    }
+    // modo directo: respuesta inmediata al grupo
+    if (r.grupo?.length) encolar(jid, { text: r.grupo.join('\n\n') }, { quoted: m })
   } catch (e) {
     log('❌ ¿está corriendo servidor.py?', e.message)
   }
