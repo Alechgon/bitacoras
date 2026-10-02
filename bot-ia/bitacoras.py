@@ -28,7 +28,10 @@ def _slug(s):
 
 def leer_pdf(ruta):
     """Devuelve dict con cabecera + lista de items. Lanza ValueError si no es una bitácora."""
-    import pdfplumber
+    try:
+        import pdfplumber
+    except ImportError:
+        raise ValueError("falta el lector de PDF; corre de nuevo bot-ia/instalar.sh")
     cab, items = {}, []
     with pdfplumber.open(ruta) as pdf:
         texto_total = []
