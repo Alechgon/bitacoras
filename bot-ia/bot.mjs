@@ -353,7 +353,7 @@ async function conectar () {
   sock = makeWASocket({
     version,
     auth: state,
-    logger: pino({ level: 'warn' }),
+    logger: pino({ level: 'error' }),
     browser: Browsers.ubuntu('Chrome'),
     markOnlineOnConnect: false,
     syncFullHistory: false,
