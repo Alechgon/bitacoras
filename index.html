@@ -24,6 +24,8 @@
   --blue:#1f5fb4; --blueSoft:#e4edfa;
   --violet:#5b4a9c; --violetSoft:#ece8f7;
   --ok:#2e7d32;
+  /* series de gráfico — validadas con el verificador de paleta (CVD y contraste) */
+  --s1:#1e6b3a; --s2:#1f5fb4; --grid:#e7ecea; --eje:#9aa8a1;
   --r:5px; --sh:0 1px 2px rgba(16,33,26,.05);
   --sans:'IBM Plex Sans',ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --mono:'IBM Plex Mono',ui-monospace,"SF Mono",Menlo,monospace;
@@ -34,6 +36,7 @@
   --green:#1e6b3a; --green2:#3d9a5c; --greenSoft:#1b3022;
   --redSoft:#3a1f1c; --amberSoft:#33290f; --blueSoft:#172a42; --violetSoft:#241e3a;
   --red:#e89a93; --amber:#e4bd6a; --blue:#86b2ea; --ok:#8fd3a3;
+  --s1:#4ea86f; --s2:#5c97d8; --grid:#222d27; --eje:#6c7d74;
   --sh:0 1px 2px rgba(0,0,0,.35);
 }}
 :root[data-theme="dark"]{
@@ -42,6 +45,7 @@
   --green:#1e6b3a; --green2:#3d9a5c; --greenSoft:#1b3022;
   --redSoft:#3a1f1c; --amberSoft:#33290f; --blueSoft:#172a42; --violetSoft:#241e3a;
   --red:#e89a93; --amber:#e4bd6a; --blue:#86b2ea; --ok:#8fd3a3;
+  --s1:#4ea86f; --s2:#5c97d8; --grid:#222d27; --eje:#6c7d74;
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
@@ -234,6 +238,32 @@ details .in{padding:11px 12px}
   padding:14px;white-space:pre-wrap;font:13px/1.55 var(--sans)}
 mark{background:var(--amberSoft);color:var(--ink);padding:0 2px;border-radius:2px}
 .spark{display:block;margin-top:6px}
+.chart{width:100%;height:auto;display:block;overflow:visible}
+.chart .gr{stroke:var(--grid);stroke-width:1}
+.chart .ax{fill:var(--muted);font:500 10.5px var(--mono)}
+.chart .lb{fill:var(--muted);font:500 10px var(--sans)}
+.chart .vl{fill:var(--ink);font:600 10.5px var(--mono)}
+.chart .sg{transition:opacity .12s}
+.chart g.col:hover .sg{opacity:.78}
+.chart .hit{fill:transparent;cursor:pointer}
+@media(max-width:760px){ .chart .lb-alt{display:none} }
+.chart .meta-l{stroke:var(--red);stroke-width:1.5;stroke-dasharray:4 3}
+.leyenda{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 10px;font-size:12px;color:var(--muted)}
+.leyenda i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;
+  vertical-align:-1px}
+.delta{font-family:var(--mono);font-weight:600;font-size:12px}
+.delta.up{color:var(--ok)} .delta.down{color:var(--red)} .delta.flat{color:var(--muted)}
+.tt-chart{position:fixed;z-index:200;background:var(--ink);color:var(--papel);
+  padding:7px 10px;border-radius:4px;font:12px/1.45 var(--sans);pointer-events:none;
+  box-shadow:0 4px 14px rgba(0,0,0,.25);display:none;max-width:230px}
+.tt-chart.on{display:block}
+.tt-chart b{font-family:var(--mono)}
+.segw{display:flex;margin-left:auto}
+.segw button{border:1px solid var(--line);background:var(--panel);color:var(--muted);
+  padding:4px 12px;font:600 11.5px var(--sans);cursor:pointer;min-height:29px}
+.segw button:first-child{border-radius:3px 0 0 3px}
+.segw button:last-child{border-radius:0 3px 3px 0;border-left:0}
+.segw button.on{background:var(--green2);color:#fff;border-color:var(--green2)}
 
 @media(max-width:620px){
   main{padding:11px}.card{padding:13px}
@@ -358,7 +388,15 @@ cargar();
 const MES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 const DIA=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
 function d2(n){return String(n).padStart(2,'0')}
-function hoyISO(){ return D.META.hoy }
+/* El día real del equipo, no la fecha congelada del archivo: si no, "Hoy" se queda
+   pegado el día que se generaron los datos. Se acota a la ventana del plan. */
+function hoyISO(){
+  const n = new Date();
+  const real = n.getFullYear()+'-'+d2(n.getMonth()+1)+'-'+d2(n.getDate());
+  if(real < D.META.inicio) return D.META.inicio;
+  if(real > D.META.fin)    return D.META.fin;
+  return real;
+}
 function fISO(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
 function fmt(s){ if(!s) return '—'; const d=fISO(s); return d2(d.getDate())+'-'+MES[d.getMonth()]+'-'+d.getFullYear(); }
 function fcorto(s){ const d=fISO(s); return d2(d.getDate())+'-'+MES[d.getMonth()]; }
@@ -456,6 +494,220 @@ function avance(){
           faltanJ:junaeb.filter(e=>!okJ.has(e.rbd)), faltanG:jard.filter(e=>!okG.has(e.rbd)),
           partes};
 }
+/* ==================== SERIES SEMANALES Y MENSUALES ==================== */
+let periodo = 'semana';   // 'semana' | 'mes'
+
+function lunesDe(iso){ const d=fISO(iso); const off=(d.getDay()+6)%7; return addDias(iso,-off); }
+function etiquetaPeriodo(iso){
+  return periodo==='mes' ? MES[fISO(iso).getMonth()] : fcorto(iso);
+}
+function clavePeriodo(iso){
+  return periodo==='mes' ? iso.slice(0,7)+'-01' : lunesDe(iso);
+}
+
+/** Agrupa las visitas realizadas por semana o mes, separando preventiva de correctiva. */
+function serie(desde){
+  const cubos = {};
+  todas().filter(p=>p.estado==='realizada' && p.fecha>=desde).forEach(p=>{
+    const k = clavePeriodo(p.fecha);
+    const c = cubos[k] = cubos[k] || {k, prev:0, corr:0, total:0, rbds:new Set()};
+    if(ES_PREV(p.tipoReal)) c.prev++; else c.corr++;
+    c.total++; c.rbds.add(p.rbd);
+  });
+  // rellenar los períodos sin actividad para que la serie no mienta
+  const out = [];
+  let cur = clavePeriodo(desde), fin = clavePeriodo(hoyISO()), g=0;
+  while(cur <= fin && g++ < 80){
+    out.push(cubos[cur] || {k:cur, prev:0, corr:0, total:0, rbds:new Set()});
+    cur = periodo==='mes'
+      ? (()=>{ const d=fISO(cur); d.setMonth(d.getMonth()+1);
+               return d.getFullYear()+'-'+d2(d.getMonth()+1)+'-01'; })()
+      : addDias(cur,7);
+  }
+  return out;
+}
+
+/** Acumulado de establecimientos que cumplen cada meta, período a período. */
+function acumulado(inst){
+  const jard = inst !== 'Junaeb';
+  const base = D.ESTAB.filter(e => jard ? e.inst!=='Junaeb' : e.inst==='Junaeb');
+  const total = base.length;
+  const partes = {};           // rbd -> Set de partes con preventiva
+  const vistos = new Set();    // rbd con visita (JUNAEB)
+  const eventos = [];
+  todas().filter(p=>p.estado==='realizada').forEach(p=>{
+    const e = E[p.rbd]; if(!e) return;
+    if(jard && e.inst==='Junaeb') return;
+    if(!jard && e.inst!=='Junaeb') return;
+    eventos.push(p);
+  });
+  (D.DC||[]).forEach(d=>{
+    const e = E[d.rbd]; if(!e) return;
+    if(jard && e.inst==='Junaeb') return;
+    if(!jard && e.inst!=='Junaeb') return;
+    eventos.push({rbd:d.rbd, fecha:d.fecha, tipoReal:d.tipo, parte:'JI', _dc:true, cuenta:d.cuenta});
+  });
+  eventos.sort((a,b)=> a.fecha<b.fecha ? -1 : 1);
+
+  /* Las dos curvas arrancan con el 2° semestre. En JUNAEB lo del plan solo suma
+     después del export de Datácora: antes de esa fecha ya viene contado ahí. */
+  const corte = D.META.corteS2;
+  const porPeriodo = {};
+  let previo = 0;              // lo que ya estaba cumplido antes del corte
+  eventos.forEach(p=>{
+    if(jard){
+      if(!ES_PREV(p.tipoReal)) return;
+      (partes[p.rbd] = partes[p.rbd] || new Set()).add(p.parte || 'JI');
+    } else {
+      if(p._dc){ if(!p.cuenta) return; }
+      else if(p.fecha < D.META.datacoraCorte) return;
+      vistos.add(p.rbd);
+    }
+    const cuantos = jard
+      ? base.filter(e=>{ const h=partes[e.rbd]; if(!h) return false;
+          return e.nbit===2 ? (h.has('JI')&&h.has('SC')) : true; }).length
+      : base.filter(e=>vistos.has(e.rbd)).length;
+    if(p.fecha < corte) previo = cuantos;
+    else porPeriodo[clavePeriodo(p.fecha)] = cuantos;
+  });
+
+  const ser = serie(corte);
+  let ult = previo;
+  const pts = ser.map(c=>{
+    if(porPeriodo[c.k] != null) ult = porPeriodo[c.k];
+    return {k:c.k, v:ult};
+  });
+  /* En JUNAEB lo cargado en Datácora empieza recién en agosto: los períodos en cero
+     del principio no dicen nada y achatan la curva. Se deja uno como base. */
+  let i = 0; while(i < pts.length-2 && pts[i+1].v === 0) i++;
+  return {total, puntos: pts.slice(i)};
+}
+
+/* ==================== GRÁFICOS EN SVG ==================== */
+
+function ttChart(){
+  let el = document.getElementById('ttc');
+  if(!el){ el=document.createElement('div'); el.id='ttc'; el.className='tt-chart';
+    document.body.appendChild(el); }
+  return el;
+}
+function mostrarTT(ev, html){
+  const t = ttChart(); t.innerHTML = html; t.classList.add('on');
+  const r = t.getBoundingClientRect();
+  let x = ev.clientX + 14, y = ev.clientY - r.height - 10;
+  if(x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14;
+  if(y < 8) y = ev.clientY + 16;
+  t.style.left = x+'px'; t.style.top = y+'px';
+}
+function ocultarTT(){ const t=document.getElementById('ttc'); if(t) t.classList.remove('on'); }
+
+/** Rectángulo con las dos esquinas de arriba redondeadas (4px, como manda la guía). */
+function topeRedondo(x, y, w, h, color){
+  const r = Math.max(0, Math.min(4, w/2, h));
+  const d = `M${x} ${y+h} L${x} ${y+r} Q${x} ${y} ${x+r} ${y}`
+          + ` L${x+w-r} ${y} Q${x+w} ${y} ${x+w} ${y+r} L${x+w} ${y+h} Z`;
+  return `<path class="sg" d="${d}" fill="${color}"/>`;
+}
+
+/** Barras apiladas: preventiva y correctiva por período. */
+function barrasPeriodo(ser){
+  const W=760, H=190, mL=30, mR=8, mT=14, mB=26;
+  const n = ser.length || 1;
+  const max = Math.max(4, ...ser.map(c=>c.total));
+  const paso = (W-mL-mR)/n;
+  const anchoB = Math.min(34, paso*0.62);
+  const esc = v => (H-mT-mB) * (v/max);
+  const ticks = [0, Math.round(max/2), max];
+
+  let g = '';
+  ticks.forEach(t=>{
+    const y = H-mB-esc(t);
+    g += `<line class="gr" x1="${mL}" y1="${y}" x2="${W-mR}" y2="${y}"/>`
+       + `<text class="ax" x="${mL-6}" y="${y+3.5}" text-anchor="end">${t}</text>`;
+  });
+
+  ser.forEach((c,i)=>{
+    const x = mL + i*paso + (paso-anchoB)/2;
+    const hC = esc(c.corr), hP = esc(c.prev);
+    const yC = H-mB-hC;
+    const yP = yC - hP - (hC&&hP ? 2 : 0);   // 2px de aire entre segmentos
+    const det = `<b>${etiquetaPeriodo(c.k)}</b><br>${c.prev} preventiva${c.prev===1?'':'s'}`
+      + `<br>${c.corr} correctiva${c.corr===1?'':'s'}<br>${c.rbds.size} establecimiento(s)`;
+    g += `<g class="col" onmousemove="mostrarTT(event,'${det.replace(/'/g,"&#39;")}')"
+            onmouseleave="ocultarTT()" ontouchstart="mostrarTT(event,'${det.replace(/'/g,"&#39;")}')">`;
+    /* el segmento de arriba lleva las dos esquinas redondeadas; el de abajo nace en el eje */
+    const tope = (yy,hh,col)=> topeRedondo(x, yy, anchoB, hh, col);
+    if(hC) g += hP ? `<rect class="sg" x="${x}" y="${yC}" width="${anchoB}" height="${hC}" fill="var(--s2)"/>`
+                   : tope(yC, hC, 'var(--s2)');
+    if(hP) g += tope(yP, hP, 'var(--s1)');
+    if(c.total) g += `<text class="vl" x="${x+anchoB/2}" y="${yP-5}" text-anchor="middle">${c.total}</text>`;
+    g += `<rect class="hit" x="${mL+i*paso}" y="${mT}" width="${paso}" height="${H-mT-mB}"/></g>`;
+    if(n<=16 || i%2===0)
+      g += `<text class="lb${n>7 && i%2===1 ? ' lb-alt':''}" x="${mL+i*paso+paso/2}" y="${H-8}"
+              text-anchor="middle">${etiquetaPeriodo(c.k)}</text>`;
+  });
+  g += `<line class="gr" x1="${mL}" y1="${H-mB}" x2="${W-mR}" y2="${H-mB}" stroke="var(--eje)"/>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img"
+    aria-label="Visitas realizadas por ${periodo}, separadas en preventivas y correctivas">${g}</svg>`;
+}
+
+/** Línea escalonada del acumulado, con la meta como referencia. */
+function lineaAcumulada(ac, color, nombre, plazo){
+  const W=620, H=210, mL=30, mR=48, mT=16, mB=28;
+  const pts = ac.puntos;
+  if(pts.length < 2) return '<p class="dim" style="padding:14px">Todavía no hay suficiente historia para la curva.</p>';
+  const max = ac.total;
+  const paso = (W-mL-mR)/Math.max(1,(pts.length-1));
+  const y = v => H-mB-(H-mT-mB)*(v/max);
+  const cada = Math.ceil(pts.length/6);   // deja respirar las fechas del eje
+
+  let g='';
+  [0, Math.round(max/2), max].forEach(t=>{
+    g += `<line class="gr" x1="${mL}" y1="${y(t)}" x2="${W-mR}" y2="${y(t)}"/>`
+       + `<text class="ax" x="${mL-6}" y="${y(t)+3.5}" text-anchor="end">${t}</text>`;
+  });
+  // meta
+  g += `<line class="meta-l" x1="${mL}" y1="${y(max)}" x2="${W-mR}" y2="${y(max)}"/>`
+     + `<text class="ax" x="${W-mR+5}" y="${y(max)+3.5}" fill="var(--red)">meta ${max}</text>`;
+
+  let d = '', area = '';
+  pts.forEach((p,i)=>{
+    const x = mL + i*paso;
+    if(i===0){ d = `M${x} ${y(p.v)}`; area = `M${x} ${H-mB} L${x} ${y(p.v)}`; }
+    else { const xp = mL+(i-1)*paso;
+      d += ` L${x} ${y(pts[i-1].v)} L${x} ${y(p.v)}`;
+      area += ` L${x} ${y(pts[i-1].v)} L${x} ${y(p.v)}`; }
+  });
+  area += ` L${mL+(pts.length-1)*paso} ${H-mB} Z`;
+  g += `<path d="${area}" fill="${color}" opacity=".10"/>`
+     + `<path d="${d}" fill="none" stroke="${color}" stroke-width="2"
+          stroke-linejoin="round" stroke-linecap="round"/>`;
+  pts.forEach((p,i)=>{
+    const x = mL+i*paso;
+    const det = `<b>${etiquetaPeriodo(p.k)}</b><br>${p.v} de ${max} · ${Math.round(100*p.v/max)}%`;
+    if(i===pts.length-1){
+      g += `<circle cx="${x}" cy="${y(p.v)}" r="4.5" fill="${color}" stroke="var(--panel)" stroke-width="2"/>`
+         + `<text class="vl" x="${x-8}" y="${y(p.v)-9}" text-anchor="end">${p.v}</text>`;
+    }
+    g += `<rect class="hit" x="${x-paso/2}" y="${mT}" width="${paso}" height="${H-mT-mB}"
+            onmousemove="mostrarTT(event,'${det.replace(/'/g,"&#39;")}')" onmouseleave="ocultarTT()"/>`;
+    const ultMarcado = Math.floor((pts.length-1)/cada)*cada;
+    if(i%cada===0 ? true : (i===pts.length-1 && i-ultMarcado>=cada-1))
+      g += `<text class="lb" x="${x}" y="${H-9}" text-anchor="middle">${etiquetaPeriodo(p.k)}</text>`;
+  });
+  g += `<line class="gr" x1="${mL}" y1="${H-mB}" x2="${W-mR}" y2="${H-mB}" stroke="var(--eje)"/>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img"
+    aria-label="Avance acumulado de ${nombre} hacia la meta de ${max} al ${plazo}">${g}</svg>`;
+}
+
+function flecha(act, ant){
+  if(ant === act) return `<span class="delta flat">= igual que el período anterior</span>`;
+  const d = act - ant;
+  const pc = ant ? Math.round(100*d/ant) : null;
+  return `<span class="delta ${d>0?'up':'down'}">${d>0?'▲':'▼'} ${Math.abs(d)}`
+    + (pc!==null ? ` (${d>0?'+':''}${pc}%)` : '') + ` vs ${periodo==='mes'?'el mes':'la semana'} anterior</span>`;
+}
+
 /* ---------- indicadores de contrato ---------- */
 function habilesEntre(a,b){
   if(!a||!b||a>b) return 0;
@@ -463,26 +715,51 @@ function habilesEntre(a,b){
   while(d<=b && g++<400){ if(esHabil(d)) n++; d=addDias(d,1); }
   return n;
 }
+/** Cuánto subió una meta en la semana que corre y en la anterior. */
+function ganSemanal(inst){
+  const antes = periodo; periodo = 'semana';
+  const p = acumulado(inst).puntos;
+  periodo = antes;
+  const v = i => (p[p.length-i] || {v:0}).v;
+  return {act: p.length>1 ? v(1)-v(2) : 0, ant: p.length>2 ? v(2)-v(3) : 0};
+}
+
+/** Cuántos establecimientos pasaron a cumplir la meta por día hábil, en las últimas 6 semanas.
+    Se mide siempre en semanas, aunque el tablero esté puesto en meses. */
+function ritmoMeta(inst){
+  const antes = periodo; periodo = 'semana';
+  const p = acumulado(inst).puntos;
+  periodo = antes;
+  if(p.length < 2) return 0;
+  const n = Math.min(6, p.length-1);
+  const ini = p[p.length-1-n];
+  const gan = p[p.length-1].v - ini.v;
+  const hab = Math.max(1, habilesEntre(ini.k, hoyISO()));
+  return gan>0 ? gan/hab : 0;
+}
+
 function kpis(){
   const a=avance(), hoy=hoyISO();
   const hab1=habilesEntre(hoy,D.META.metaJunaeb), hab2=habilesEntre(hoy,D.META.metaJardines);
   const f1=a.junaeb-a.hechoJ, f2=a.jard-a.hechoG;
   const req1=hab1?f1/hab1:f1, req2=hab2?f2/hab2:f2;
-  // ritmo real: realizadas en los últimos 14 días corridos
+  // ritmo real: todo lo realizado en los últimos 14 días corridos, venga de donde venga
   const desde=addDias(hoy,-14);
-  const hechas=todas().filter(p=>p.estado==='realizada'&&p.origen!=='historico'
-    &&p.fecha>=desde&&p.fecha<=hoy).length;
+  const hechas=todas().filter(p=>p.estado==='realizada'&&p.fecha>=desde&&p.fecha<=hoy).length;
   const habR=Math.max(1,habilesEntre(desde,hoy));
   const ritmo=hechas/habR;
+  // ritmo por meta: establecimientos que efectivamente pasaron a cumplir, por día hábil
+  const ritmo1=ritmoMeta('Junaeb'), ritmo2=ritmoMeta('Jardines');
   // cumplimiento de lo ya vencido
-  const venc=todas().filter(p=>p.origen!=='historico'&&p.estado!=='anulada'&&p.fecha<=hoy);
-  const cum=venc.length?venc.filter(p=>p.estado==='realizada').length/venc.length:1;
+  /* cumplimiento de días ya cerrados: el día de hoy todavía está corriendo */
+  const venc=todas().filter(p=>p.origen!=='historico'&&p.estado!=='anulada'&&p.fecha<hoy);
+  const cum=venc.length?venc.filter(p=>p.estado==='realizada').length/venc.length:null;
   const dias=D.CORR.map(c=>c.dias||0);
   const prom=dias.length?dias.reduce((x,y)=>x+y,0)/dias.length:0;
   const porCrit={}, porSup={};
   D.CORR.forEach(c=>{ porCrit[c.crit]=(porCrit[c.crit]||0)+1;
     const sp=(E[c.rbd]||{}).sup||'Sin supervisora'; porSup[sp]=(porSup[sp]||0)+1; });
-  return {a, hab1, hab2, f1, f2, req1, req2, ritmo, cum,
+  return {a, hab1, hab2, f1, f2, req1, req2, ritmo, ritmo1, ritmo2, cum,
     prom, sobre10:D.CORR.filter(c=>(c.dias||0)>10).length, porCrit, porSup,
     dobles: todas().filter(p=>(p.aplaz||0)>=2).length,
     realizadas: todas().filter(p=>p.estado==='realizada').length,
@@ -510,6 +787,86 @@ function tarjetaMeta(nom, sub, hecho, total, falta, hab, req, ritmo, color, plaz
       <div><dt>Terminarías</dt><dd class="${al?'ok':'alerta'}" style="font-size:13px">${proy}</dd></div>
     </dl></article>`;
 }
+/** Lo que subió cada meta esta semana contra lo que la semana tendría que dar. */
+function barraSemanaMeta(){
+  const k = kpis();
+  const fila = (nom, inst, reqDia, color, plazo)=>{
+    const g = ganSemanal(inst);
+    const exig = Math.max(0, reqDia*5);          // cinco días hábiles por semana
+    const pc = exig ? Math.min(100, 100*g.act/exig) : (g.act?100:0);
+    const al = g.act >= exig && exig>0;
+    return `<div style="margin-bottom:12px">
+      <div class="row" style="align-items:baseline;gap:8px">
+        <b style="font-size:13px">${nom}</b>
+        <span class="dim" style="font-size:12px">al ${fmt(plazo)}</span>
+        <span style="margin-left:auto;font-family:var(--mono);font-size:13px">
+          <b style="color:${al?'var(--ok)':'var(--red)'}">+${g.act}</b>
+          <span class="dim"> de ${exig.toFixed(1)} que exige la semana</span></span>
+      </div>
+      <div class="bar"><i style="width:${pc}%;background:${color}"></i></div>
+      <div class="dim" style="font-size:11.5px;margin-top:5px">La semana anterior sumó
+        ${g.ant}${g.act!==g.ant ? (g.act>g.ant?' · vamos mejor':' · vamos más lento') : ' · mismo ritmo'}</div>
+    </div>`;
+  };
+  return `<div class="card" style="margin-bottom:14px">
+    <h3>Avance de metas esta semana</h3>
+    <p class="dim" style="margin:0 0 14px">Establecimientos que pasaron a cumplir, contra el ritmo
+      que exige el plazo. No cuenta el trabajo que no mueve la meta.</p>
+    ${fila('JUNAEB en Datácora','Junaeb',k.req1,'var(--s1)',D.META.metaJunaeb)}
+    ${fila('Preventiva en jardines','Jardines',k.req2,'var(--s2)',D.META.metaJardines)}
+  </div>`;
+}
+
+function bloqueCadencia(){
+  /* se parte en lunes: si no, la primera barra sale cortada y miente hacia abajo */
+  const corte = periodo==='mes' ? '2026-07-01' : lunesDe(addDias(hoyISO(), -77));
+  const ser = serie(corte);
+  const ult = ser[ser.length-1] || {total:0,prev:0,corr:0};
+  const ant = ser[ser.length-2] || {total:0,prev:0,corr:0};
+  const prom = ser.length ? ser.reduce((a,c)=>a+c.total,0)/ser.length : 0;
+  const mejor = ser.reduce((a,c)=>c.total>a.total?c:a, {total:0,k:''});
+  const ac1 = acumulado('Junaeb'), ac2 = acumulado('Jardines');
+  const lbl = periodo==='mes' ? 'este mes' : 'esta semana';
+  return `<section style="margin-bottom:24px">
+    <div class="row" style="margin-bottom:10px">
+      <p class="rot" style="margin:0;border:0;padding:0">Cadencia de trabajo</p>
+      <div class="segw">
+        <button class="${periodo==='semana'?'on':''}" onclick="periodo='semana';refrescar()">Semanas</button>
+        <button class="${periodo==='mes'?'on':''}" onclick="periodo='mes';refrescar()">Meses</button>
+      </div>
+    </div>
+    <div class="tira" style="margin-bottom:14px">
+      <div class="k"><b>${ult.total}</b><span>visitas ${lbl}</span>
+        <div style="margin-top:4px">${flecha(ult.total, ant.total)}</div></div>
+      <div class="k"><b>${ult.prev}</b><span>preventivas ${lbl}</span>
+        <div style="margin-top:4px">${flecha(ult.prev, ant.prev)}</div></div>
+      <div class="k"><b>${ult.corr}</b><span>correctivas ${lbl}</span>
+        <div style="margin-top:4px">${flecha(ult.corr, ant.corr)}</div></div>
+      <div class="k"><b>${prom.toFixed(1)}</b><span>promedio por ${periodo}</span></div>
+      <div class="k"><b>${mejor.total}</b><span>mejor ${periodo} · ${mejor.k?etiquetaPeriodo(mejor.k):'—'}</span></div>
+    </div>
+    ${barraSemanaMeta()}
+    <div class="card" style="margin-bottom:14px">
+      <h3>Visitas realizadas por ${periodo}</h3>
+      <div class="leyenda"><span><i style="background:var(--s1)"></i>Preventiva</span>
+        <span><i style="background:var(--s2)"></i>Correctiva</span></div>
+      ${barrasPeriodo(ser)}
+    </div>
+    <div class="grid2">
+      <div class="card" style="margin:0">
+        <h3>JUNAEB acumulado hacia la meta</h3>
+        <p class="dim" style="margin:0 0 10px">Establecimientos con visita cargada · plazo ${fmt(D.META.metaJunaeb)}</p>
+        ${lineaAcumulada(ac1,'var(--s1)','JUNAEB',fmt(D.META.metaJunaeb))}
+      </div>
+      <div class="card" style="margin:0">
+        <h3>Jardines acumulado hacia la meta</h3>
+        <p class="dim" style="margin:0 0 10px">Con preventiva completa · plazo ${fmt(D.META.metaJardines)}</p>
+        ${lineaAcumulada(ac2,'var(--s2)','jardines',fmt(D.META.metaJardines))}
+      </div>
+    </div>
+  </section>`;
+}
+
 function vPanel(){
   const k=kpis(), a=k.a;
   const corr=[...D.CORR].sort((x,y)=>y.pts-x.pts).slice(0,10);
@@ -519,15 +876,18 @@ function vPanel(){
     <p class="rot">Metas de contrato</p>
     <div class="grid2">
       ${tarjetaMeta('JUNAEB en Datácora','Basta con la visita cargada; no exige preventiva',
-        a.hechoJ,a.junaeb,k.f1,k.hab1,k.req1,k.ritmo,'var(--green2)',D.META.metaJunaeb)}
+        a.hechoJ,a.junaeb,k.f1,k.hab1,k.req1,k.ritmo1,'var(--green2)',D.META.metaJunaeb)}
       ${tarjetaMeta('Preventiva en jardines','Solo cuenta Plan Preventivo; con sala cuna, las dos bitácoras',
-        a.hechoG,a.jard,k.f2,k.hab2,k.req2,k.ritmo,'var(--blue)',D.META.metaJardines)}
+        a.hechoG,a.jard,k.f2,k.hab2,k.req2,k.ritmo2,'var(--blue)',D.META.metaJardines)}
     </div></section>
+
+    ${bloqueCadencia()}
 
     <section style="margin-bottom:24px"><p class="rot">Ritmo y cumplimiento</p>
     <div class="tira">
       <div class="k"><b>${k.ritmo.toFixed(1)}</b><span>visitas por día hábil</span></div>
-      <div class="k"><b>${Math.round(100*k.cum)}%</b><span>de lo programado, ejecutado</span></div>
+      <div class="k"><b>${k.cum==null?'—':Math.round(100*k.cum)+'%'}</b>
+        <span>de lo programado, ejecutado${k.cum==null?' · aún sin días cerrados':''}</span></div>
       <div class="k ${k.sobre10?'alerta':''}"><b>${D.CORR.length}</b><span>requerimientos abiertos</span></div>
       <div class="k"><b>${k.prom.toFixed(0)}</b><span>días promedio abiertos</span></div>
       <div class="k ${k.sobre10?'alerta':''}"><b>${k.sobre10}</b><span>sobre los 10 días</span></div>
@@ -585,9 +945,9 @@ function barrasMeta(){
   const a=avance(), k=kpis();
   return `<div class="grid2" style="margin-bottom:16px">
    ${tarjetaMeta('JUNAEB en Datácora','Basta con la visita cargada; no exige preventiva',
-     a.hechoJ,a.junaeb,k.f1,k.hab1,k.req1,k.ritmo,'var(--green2)',D.META.metaJunaeb)}
+     a.hechoJ,a.junaeb,k.f1,k.hab1,k.req1,k.ritmo1,'var(--green2)',D.META.metaJunaeb)}
    ${tarjetaMeta('Preventiva en jardines','Solo Plan Preventivo; con sala cuna, las dos bitácoras',
-     a.hechoG,a.jard,k.f2,k.hab2,k.req2,k.ritmo,'var(--blue)',D.META.metaJardines)}
+     a.hechoG,a.jard,k.f2,k.hab2,k.req2,k.ritmo2,'var(--blue)',D.META.metaJardines)}
   </div>`;
 }
 

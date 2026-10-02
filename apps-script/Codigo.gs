@@ -97,6 +97,44 @@ function habilesEntre(desde, hasta, feriados) {
   return n;
 }
 
+/** Lunes de la semana a la que pertenece una fecha ISO. */
+function lunesDe(iso) {
+  var p = String(iso).split('-');
+  var d = new Date(+p[0], +p[1] - 1, +p[2]);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return Utilities.formatDate(d, TZ, 'yyyy-MM-dd');
+}
+function masDias(iso, n) {
+  var p = String(iso).split('-');
+  var d = new Date(+p[0], +p[1] - 1, +p[2]);
+  d.setDate(d.getDate() + n);
+  return Utilities.formatDate(d, TZ, 'yyyy-MM-dd');
+}
+
+/** Visitas realizadas por semana, desde el corte del 2° semestre hasta hoy. */
+function porSemana(st) {
+  var P = st.PLAN || [], m = st.META || {};
+  var desde = lunesDe(m.corteS2 || '2026-07-01'), hoy = hoyISO();
+  var cubos = {};
+  P.forEach(function (p) {
+    if (p.estado !== 'realizada' || !p.fecha || p.fecha < desde) return;
+    var k = lunesDe(p.fecha);
+    var c = cubos[k] = cubos[k] || { semana: k, total: 0, preventivas: 0, correctivas: 0, rbds: {} };
+    if (esPrev(p.tipoReal)) c.preventivas++; else c.correctivas++;
+    c.total++; c.rbds[p.rbd] = 1;
+  });
+  var out = [], cur = desde, fin = lunesDe(hoy), g = 0;
+  while (cur <= fin && g++ < 80) {
+    var c = cubos[cur] || { semana: cur, total: 0, preventivas: 0, correctivas: 0, rbds: {} };
+    out.push({
+      semana: c.semana, total: c.total, preventivas: c.preventivas,
+      correctivas: c.correctivas, establecimientos: Object.keys(c.rbds).length
+    });
+    cur = masDias(cur, 7);
+  }
+  return out;
+}
+
 function kpis(st) {
   var E = st.ESTAB || [], P = st.PLAN || [], DC = st.DC || [], CO = st.CORR || [], m = st.META || {};
   var hoy = hoyISO();
@@ -147,10 +185,17 @@ function kpis(st) {
 
   // --- cumplimiento: realizadas sobre programadas hasta hoy
   var vencidas = P.filter(function (p) {
-    return p.origen !== 'historico' && p.estado !== 'anulada' && p.fecha <= hoy;
+    return p.origen !== 'historico' && p.estado !== 'anulada' && p.fecha < hoy;
   });
   var cumplidas = vencidas.filter(function (p) { return p.estado === 'realizada'; }).length;
-  var cumplimiento = vencidas.length ? cumplidas / vencidas.length : 1;
+  var cumplimiento = vencidas.length ? cumplidas / vencidas.length : null;
+
+  // --- cadencia semanal: la semana que corre contra la anterior
+  var sem = porSemana(st);
+  var sAct = sem[sem.length - 1] || { total: 0, preventivas: 0, correctivas: 0 };
+  var sAnt = sem[sem.length - 2] || { total: 0, preventivas: 0, correctivas: 0 };
+  var promSem = sem.length
+    ? sem.reduce(function (a, c) { return a + c.total; }, 0) / sem.length : 0;
 
   // --- correctivos
   var dias = CO.map(function (c) { return c.dias || 0; });
@@ -183,7 +228,16 @@ function kpis(st) {
       habiles: habG, ritmoRequerido: r2(ritmoReqG), alcanza: ritmoReal >= ritmoReqG
     },
     ritmoReal: r2(ritmoReal),
-    cumplimiento: r2(cumplimiento),
+    cumplimiento: cumplimiento == null ? null : r2(cumplimiento),
+    cadencia: {
+      semanas: sem,
+      estaSemana: sAct.total, semanaAnterior: sAnt.total,
+      delta: sAct.total - sAnt.total,
+      preventivasSemana: sAct.preventivas, correctivasSemana: sAct.correctivas,
+      promedioSemanal: r2(promSem),
+      mejorSemana: sem.reduce(function (a, c) { return c.total > a.total ? c : a; },
+                              { total: 0, semana: '' })
+    },
     correctivos: {
       abiertos: CO.length, diasPromedio: r2(prom), sobre10dias: fuera,
       porCriticidad: porCrit, porSupervisora: porSup
@@ -283,6 +337,25 @@ function escribirHojas(st, k) {
   var tec = function (t) { return ((m.tecnicos || {})[t] || {}).nombre || t; };
 
   panel(ss, st, k);
+
+  // ---------- Semanas ----------
+  var sem = (k.cadencia || {}).semanas || [];
+  var hSem = tabla(ss, 'Semanas', [
+    { t: 'Semana del', w: 110, fmt: 'dd-mmm-yyyy', al: 'center' },
+    { t: 'Visitas', w: 80, al: 'center', mono: true },
+    { t: 'Preventivas', w: 100, al: 'center', mono: true },
+    { t: 'Correctivas', w: 100, al: 'center', mono: true },
+    { t: 'Establecimientos', w: 130, al: 'center', mono: true },
+    { t: 'Diferencia', w: 100, al: 'center', mono: true }
+  ], sem.map(function (s, i) {
+    var ant = i ? sem[i - 1].total : null;
+    return [fecha(s.semana), s.total, s.preventivas, s.correctivas, s.establecimientos,
+            ant === null ? '' : (s.total - ant)];
+  }), { congelarCol: 1 });
+  if (sem.length) {
+    reglaMayor(hSem, 6, 0, '#e4f1e8', '#1e6b3a');
+    hSem.getRange(4, 6, sem.length, 1).setNumberFormat('+0;-0;0');
+  }
 
   // ---------- Programa ----------
   tabla(ss, 'Programa', [
@@ -517,8 +590,12 @@ function panel(ss, st, k) {
     ['Indicador', 'Valor', 'Lectura', '', '', '', '', ''],
     ['Visitas por día hábil (últimas 2 semanas)', k.ritmoReal,
       k.ritmoReal >= k.meta1.ritmoRequerido ? 'Alcanza para la meta de octubre' : 'Por debajo de lo que exige octubre', '', '', '', '', ''],
-    ['Cumplimiento de lo programado', k.cumplimiento,
-      k.cumplimiento >= 0.9 ? 'Al día' : 'Hay programación sin ejecutar', '', '', '', '', ''],
+    ['Cumplimiento de lo programado', k.cumplimiento == null ? '' : k.cumplimiento,
+      k.cumplimiento == null ? 'Todavía no hay días cerrados'
+        : (k.cumplimiento >= 0.9 ? 'Al día' : 'Hay programación sin ejecutar'), '', '', '', '', ''],
+    ['Visitas esta semana', (k.cadencia || {}).estaSemana || 0,
+      'La semana anterior ' + ((k.cadencia || {}).semanaAnterior || 0) +
+      ' · promedio ' + ((k.cadencia || {}).promedioSemanal || 0), '', '', '', '', ''],
     ['Jardines con preventiva a medias', k.meta2.aMedias, 'Tienen el jardín pero falta la sala cuna', '', '', '', '', ''],
     ['', '', '', '', '', '', '', ''],
     ['REQUERIMIENTOS DE LAS SUPERVISORAS', '', '', '', '', '', '', ''],
@@ -564,7 +641,12 @@ function panel(ss, st, k) {
   }
   h.getRange(6, 5, 2, 1).setNumberFormat('0.0%');
   h.getRange(6, 8, 2, 1).setNumberFormat('0.00');
-  h.getRange(13, 2, 1, 1).setNumberFormat('0.0%');
+  // el cumplimiento es el único porcentaje de esta columna: se busca por su etiqueta
+  for (var j = 0; j < filas.length; j++) {
+    if (filas[j][0] === 'Cumplimiento de lo programado') {
+      h.getRange(3 + j, 2, 1, 1).setNumberFormat('0.0%'); break;
+    }
+  }
   h.getRange(6, 2, 2, 1).setNumberFormat('dd-mmm-yyyy');
 
   [230, 110, 90, 80, 100, 80, 100, 160].forEach(function (w, i) { h.setColumnWidth(i + 1, w); });
@@ -621,6 +703,67 @@ function esc(s) {
 /* ================================================================
    TABLERO WEB
    ================================================================ */
+
+/** Barras semanales con la misma lectura que la página: preventiva sobre correctiva. */
+function cadenciaHtml(k) {
+  var c = k.cadencia || {}, sem = (c.semanas || []).slice(-12);
+  if (!sem.length) return '';
+  var W = 760, H = 180, mL = 28, mR = 8, mT = 14, mB = 24;
+  var max = Math.max.apply(null, [4].concat(sem.map(function (s) { return s.total; })));
+  var paso = (W - mL - mR) / sem.length;
+  var ancho = Math.min(34, paso * 0.62);
+  var esc = function (v) { return (H - mT - mB) * (v / max); };
+  var g = '';
+  [0, Math.round(max / 2), max].forEach(function (t) {
+    var y = H - mB - esc(t);
+    g += '<line x1="' + mL + '" y1="' + y + '" x2="' + (W - mR) + '" y2="' + y +
+         '" stroke="#e3e6e4"/><text x="' + (mL - 6) + '" y="' + (y + 3.5) +
+         '" text-anchor="end" font-size="10.5" fill="#6b7571" font-family="monospace">' + t + '</text>';
+  });
+  sem.forEach(function (s, i) {
+    var x = mL + i * paso + (paso - ancho) / 2;
+    var hC = esc(s.correctivas), hP = esc(s.preventivas);
+    var yC = H - mB - hC, yP = yC - hP - (hC && hP ? 2 : 0);
+    if (hC) g += '<rect x="' + x + '" y="' + yC + '" width="' + ancho + '" height="' + hC +
+                 '" fill="#1f5fb4"/>';
+    if (hP) g += '<rect x="' + x + '" y="' + yP + '" width="' + ancho + '" height="' + hP +
+                 '" fill="#1e6b3a" rx="3"/>';
+    if (s.total) g += '<text x="' + (x + ancho / 2) + '" y="' + (yP - 5) +
+      '" text-anchor="middle" font-size="10.5" font-weight="600" fill="#1b211e" ' +
+      'font-family="monospace">' + s.total + '</text>';
+    g += '<text x="' + (mL + i * paso + paso / 2) + '" y="' + (H - 7) +
+      '" text-anchor="middle" font-size="10" fill="#6b7571">' + fechaCorta(s.semana) + '</text>';
+  });
+  g += '<line x1="' + mL + '" y1="' + (H - mB) + '" x2="' + (W - mR) + '" y2="' + (H - mB) +
+       '" stroke="#c6ccc8"/>';
+  var d = c.delta || 0;
+  var flecha = d === 0 ? '<span style="color:#6b7571">= igual que la semana anterior</span>'
+    : '<span style="color:' + (d > 0 ? '#1e6b3a' : '#b3261e') + '">' + (d > 0 ? '▲' : '▼') + ' ' +
+      Math.abs(d) + ' vs la semana anterior</span>';
+  return '<section><h2>Cadencia semanal</h2><div class="tira">' +
+    '<div><b>' + c.estaSemana + '</b><span>visitas esta semana<br>' + flecha + '</span></div>' +
+    '<div><b>' + c.preventivasSemana + '</b><span>preventivas esta semana</span></div>' +
+    '<div><b>' + c.correctivasSemana + '</b><span>correctivas esta semana</span></div>' +
+    '<div><b>' + c.promedioSemanal.toFixed(1) + '</b><span>promedio por semana</span></div>' +
+    '<div><b>' + (c.mejorSemana || {}).total + '</b><span>mejor semana · ' +
+      fechaCorta((c.mejorSemana || {}).semana) + '</span></div>' +
+    '</div><div class="caja" style="padding:16px">' +
+    '<p style="margin:0 0 10px;font-size:12px;color:#6b7571">' +
+    '<span style="display:inline-block;width:10px;height:10px;background:#1e6b3a;' +
+    'border-radius:2px;margin-right:6px"></span>Preventiva' +
+    '<span style="display:inline-block;width:10px;height:10px;background:#1f5fb4;' +
+    'border-radius:2px;margin:0 6px 0 16px"></span>Correctiva</p>' +
+    '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block" ' +
+    'role="img" aria-label="Visitas realizadas por semana">' + g + '</svg>' +
+    '</div></section>';
+}
+
+function fechaCorta(iso) {
+  if (!iso) return '—';
+  var MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  var p = String(iso).split('-');
+  return p[2] + '-' + MES[+p[1] - 1];
+}
 
 function tablero() {
   var st = leerJson();
@@ -743,9 +886,12 @@ function tablero() {
     '<section><h2>Metas de contrato</h2><div class="duo">' +
     meta(k.meta1, C.marca2) + meta(k.meta2, C.azul) + '</div></section>' +
 
+    cadenciaHtml(k) +
+
     '<section><h2>Ritmo y requerimientos</h2><div class="tira">' +
     '<div><b>' + k.ritmoReal.toFixed(1) + '</b><span>visitas por día hábil</span>' + chispa('ritmo') + '</div>' +
-    '<div><b>' + pct(k.cumplimiento) + '%</b><span>de lo programado, ejecutado</span></div>' +
+    '<div><b>' + (k.cumplimiento == null ? '—' : pct(k.cumplimiento) + '%') +
+      '</b><span>de lo programado, ejecutado</span></div>' +
     '<div><b>' + k.correctivos.abiertos + '</b><span>requerimientos abiertos</span>' + chispa('correctivos') + '</div>' +
     '<div><b>' + k.correctivos.diasPromedio.toFixed(0) + '</b><span>días promedio abiertos</span></div>' +
     '<div><b>' + k.correctivos.sobre10dias + '</b><span>sobre los 10 días</span></div>' +

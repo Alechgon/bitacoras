@@ -1,7 +1,7 @@
 // SOSER San Pablo — datos generados el 30-09-2026. No editar a mano.
 window.SOSER = {
  "META": {
-  "version": "2026-10-01-r9",
+  "version": "2026-10-02-r13",
   "corteS2": "2026-07-01",
   "hoy": "2026-09-30",
   "inicio": "2026-09-30",

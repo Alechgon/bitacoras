@@ -45,11 +45,12 @@ La planilla se crea sola en tu Drive con el primer respaldo, llamada
 
 ## Lo que queda en la planilla
 
-Nueve hojas, con cabecera fija, filtros, bandas y formato condicional.
+Diez hojas, con cabecera fija, filtros, bandas y formato condicional.
 
 | Hoja | Qué trae |
 |---|---|
-| Panel | Las dos metas con su plazo, ritmo exigido y % · ritmo real, cumplimiento y requerimientos por criticidad y supervisora |
+| Panel | Las dos metas con su plazo, ritmo exigido y % · ritmo real, cumplimiento, visitas de la semana y requerimientos por criticidad y supervisora |
+| Semanas | **Una fila por semana** desde el 1 de julio: visitas, preventivas, correctivas, establecimientos tocados y la diferencia contra la semana anterior |
 | Histórico | **Una fila por respaldo**, acumulativa. De aquí sale la tendencia y las chispas del tablero |
 | Programa | Cada visita: fecha, bloque, técnico, establecimiento, estado, folio, trabajo |
 | Establecimientos | Los 93 con dirección, gas, raciones, puntaje con escala de color y estado de preventiva |
@@ -73,8 +74,9 @@ con el avance de las dos metas, el ritmo y el cumplimiento de ese momento.
 | Ver si está vivo | `/exec?modo=ping` |
 
 El `?modo=kpi` sirve para enganchar el bot de WhatsApp o lo que quieras: devuelve el
-avance de las dos metas, el ritmo exigido contra el real, el cumplimiento y los
-requerimientos por criticidad y por supervisora.
+avance de las dos metas, el ritmo exigido contra el real, el cumplimiento, los
+requerimientos por criticidad y por supervisora, y en `cadencia` la serie semana a
+semana con lo de esta semana contra la anterior.
 
 ## Si algo falla
 
