@@ -109,3 +109,10 @@ cantidad, acción y observación:
 - **Vectores** (3) · mallas mosquiteras, puertas-ventanas, vidrios
 - **Agua** (5) · grifería, filtraciones, evacuación, cámara desgrasadora, sifón
 - **Infraestructura** (16) · mesones, muebles, estantería, lavafondos, ducto de ventilación, extintor, campana, dispensador, botiquín, anclajes, señalética, carro, basureros, pintura
+
+## Bot IA (WhatsApp + Gemini)
+
+En `bot-ia/` está el bot que lee el grupo de supervisoras, entiende el mensaje con
+Gemini, le pone puntaje con los pesos de este panel, agenda la visita en un bloque de
+Rodrigo o Camilo y responde en el grupo para qué día quedó. Reemplaza a `bot/`.
+Instalación en Termux con un solo comando: ver `bot-ia/README.md`.

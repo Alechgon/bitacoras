@@ -1,0 +1,38 @@
+{
+  "_ayuda": "Configuración del bot IA. Todo lo que empieza con _ es comentario. Los datos de establecimientos, plan, técnicos, bloques, feriados y pesos se leen de datos.js (tu panel).",
+
+  "datos_js": "../datos.js",
+
+  "gemini_api_key": "PEGA_AQUI_TU_API_KEY_DE_AISTUDIO",
+  "gemini_modelos": ["gemini-2.5-flash", "gemini-2.5-flash-lite"],
+
+  "_whatsapp": "Puedes poner el nombre del grupo (basta una parte) o su ID @g.us. El ID lo ves escribiendo !id en el grupo.",
+  "grupo_nombre": "Coordinación Mantención San Pablo",
+  "grupo_id": "",
+  "ignorar": ["Manuel Echeverria"],
+  "admins": ["569XXXXXXXX"],
+  "chat_reportes": "569XXXXXXXX@s.whatsapp.net",
+  "delay_respuesta_seg": [35, 95],
+  "agenda_matutina": { "activa": true, "hora": "07:30" },
+  "reporte_diario": { "activo": true, "hora": "17:40" },
+
+  "_github": "Opcional: para que el panel reciba los hallazgos (pestaña WhatsApp > Probar si hay datos del bot). Token fine-grained con Contents: Read and write solo sobre Alechgon/bitacoras.",
+  "github_token": "",
+  "github_repo": "Alechgon/bitacoras",
+  "github_rama": "main",
+  "github_archivo": "bot-datos.json",
+
+  "_plazos": "Días hábiles máximos para atender según tipo de falla. Nada pasa de 10 (regla de supervisoras). GAS nunca se aplaza.",
+  "plazo_habiles": { "GAS": 1, "FRIO": 2, "AGUA": 2, "ELEC": 3, "EQUIPO": 5, "OTRO": 10 },
+  "plazo_si_prioridad": 2,
+  "gas_hoy_si_antes_de": "12:30",
+
+  "_tecnicos": "Quién va primero según la falla (Camilo es instalador de gas SEC). Si no tiene bloque libre, va el otro.",
+  "preferencia_tecnico": { "GAS": "CAMILO", "ELEC": "RODRIGO" },
+
+  "_prioridad": "Palabras que cuentan como 'prioridad declarada' (+2 según pesos del panel).",
+  "palabras_prioridad": ["prioridad", "urgente", "urgencia", "emergencia", "no pueden cocinar", "sin almuerzo", "suspender", "peligro"],
+
+  "_sobrecupo": "Si no hay bloque libre antes del plazo, se agrega igual como bloque extra (las emergencias no tienen límite) y te avisa.",
+  "bloque_extra": 4
+}

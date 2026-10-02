@@ -1,0 +1,7 @@
+config.json
+agenda.db
+auth/
+reportes/
+node_modules/
+logs/
+*.log

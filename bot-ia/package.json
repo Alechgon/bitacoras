@@ -1,0 +1,12 @@
+{
+  "name": "bot-soser",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "bot.mjs",
+  "scripts": { "start": "node bot.mjs" },
+  "dependencies": {
+    "@whiskeysockets/baileys": "7.0.0-rc14",
+    "pino": "^9.0.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
