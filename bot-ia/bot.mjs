@@ -13,6 +13,7 @@ import qrcode from 'qrcode-terminal'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { execFile } from 'child_process'
 
 const DIR = path.dirname(fileURLToPath(import.meta.url))
 const API = 'http://127.0.0.1:8765'
@@ -372,6 +373,10 @@ async function conectar () {
       console.log((intentosVinculo ? '   CÓDIGO NUEVO:  ' : '   CÓDIGO:  ') + codigo)
       console.log('==============================')
       console.log(`(son 8 caracteres: ${crudo.split('').join(' ')})`)
+      execFile('termux-clipboard-set', [crudo], err => {
+        console.log(err ? '(no pude copiarlo al portapapeles: instala la app Termux:API para eso)'
+                        : '📋 YA ESTÁ COPIADO: cambia a WhatsApp y pégalo (mantén apretado el primer casillero > Pegar)')
+      })
       console.log('En el WhatsApp del BOT: ⋮ > Dispositivos vinculados > Vincular dispositivo')
       console.log('> "Vincular con número de teléfono" y escribe el código.')
       console.log('Si vence, el bot pide uno nuevo solo en ~1 minuto.\n')
