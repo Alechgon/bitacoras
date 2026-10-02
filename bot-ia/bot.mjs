@@ -191,25 +191,81 @@ function borradorCitado (m) {
 
 function registrarCasos (ids, mOriginal, texto) {
   for (const bid of ids || []) estado.casos[bid] = citable(mOriginal, texto)
+  // se guardan los últimos 400 (para poder citar el mensaje original aunque pasen días)
+  const llaves = Object.keys(estado.casos).map(Number).sort((a, b) => a - b)
+  for (const k of llaves.slice(0, Math.max(0, llaves.length - 400))) delete estado.casos[k]
   guardarEstado()
 }
 
-async function enviarAlGrupo (bid, textos) {
+function enviarArchivo (jid, a, op = {}) {
+  if (!a || !fs.existsSync(a)) return
+  const nombre = path.basename(a).replace(/^\d+_/, '')
+  if (/\.(jpe?g|png|webp)$/i.test(a)) encolar(jid, { image: fs.readFileSync(a) }, op, 2500)
+  else if (/\.xlsx$/i.test(a)) encolar(jid, { document: fs.readFileSync(a), fileName: nombre, mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }, op, 2500)
+  else encolar(jid, { document: fs.readFileSync(a), fileName: nombre, mimetype: 'application/pdf' }, op, 2500)
+}
+
+function sinGrupo () {
+  log('⚠️ sin grupo destino; revisa el perfil')
+  encolar(adminJid(), { text: '⚠️ No encuentro el grupo del perfil activo. Revisa con !diagnostico.' }, {}, 1500)
+}
+
+async function enviarAlGrupo (bid, textos, citarBid = null) {
   const g = grupoDestino()
-  if (!g) { log('⚠️ sin grupo destino; revisa el perfil'); encolar(adminJid(), { text: '⚠️ No encuentro el grupo del perfil activo. Revisa con !diagnostico.' }, {}, 1500); return }
-  const orig = estado.casos[bid] || null
+  if (!g) return sinGrupo()
+  const orig = estado.casos[citarBid ?? bid] || null
   const op = orig ? { quoted: orig } : {}
   for (const t of textos) encolar(g, { text: t }, op)
+  if (!bid) return
   try {
     const { archivos } = await api('/adjuntos', { borrador_id: bid })
-    for (const a of (archivos || [])) {
-      if (!fs.existsSync(a)) continue
-      if (/\.(jpe?g|png|webp)$/i.test(a)) encolar(g, { image: fs.readFileSync(a) }, op, 2500)
-      else encolar(g, { document: fs.readFileSync(a), fileName: path.basename(a).replace(/^\d+_/, ''), mimetype: 'application/pdf' }, op, 2500)
-    }
+    for (const a of (archivos || [])) enviarArchivo(g, a, op)
   } catch {}
-  delete estado.casos[bid]
-  guardarEstado()
+}
+
+// pregunta a la supervisora en el grupo, citando su mensaje y mencionándola
+function enviarPedido (p) {
+  const g = grupoDestino()
+  if (!g) return sinGrupo()
+  const orig = estado.casos[p.borrador_id] || null
+  const quien = orig?.key?.participant || orig?.key?.participantAlt || null
+  let texto = p.texto
+  const extra = {}
+  if (p.mencionar && quien) {
+    texto = `@${quien.split('@')[0]} ${texto}`
+    extra.mentions = [quien]
+  }
+  encolar(g, { text: texto, ...extra }, orig ? { quoted: orig } : {}, azar(3, 10) * 1000)
+}
+
+function jidTecnico (tec) {
+  const n = soloDigitos((cfg().tecnicos_whatsapp || {})[tec])
+  return n ? n + '@s.whatsapp.net' : null
+}
+
+// todo lo que devuelve el servidor pasa por aquí: a ti, al grupo, a técnicos, archivos y preguntas
+async function despachar (r, { jid = null, m = null, original = null, textoOriginal = '' } = {}) {
+  if (!r) return
+  if (r.error) { log('❌ servidor:', r.error); return }
+  if (r.borradores?.length) registrarCasos(r.borradores, original, textoOriginal)
+  const yo = adminJid()
+  for (const t of (r.admin || [])) encolar(yo, { text: t }, {}, azar(2, 5) * 1000)
+  for (const a of (r.archivos_admin || [])) enviarArchivo(yo, a)
+  for (const e of (r.envios_grupo || [])) await enviarAlGrupo(e.borrador_id, e.textos || [], e.citar_borrador ?? null)
+  for (const p of (r.pedidos || [])) enviarPedido(p)
+  if (r.grupo?.length) {
+    const g = jid?.endsWith('@g.us') ? jid : grupoDestino()
+    if (g) encolar(g, { text: r.grupo.join('\n\n') }, (m && jid === g) ? { quoted: m } : {})
+  }
+  if (r.archivos_grupo?.length) {
+    const g = jid?.endsWith('@g.us') ? jid : grupoDestino()
+    for (const a of r.archivos_grupo) enviarArchivo(g, a, (m && jid === g) ? { quoted: m } : {})
+  }
+  for (const t of (r.mensajes_tecnicos || [])) {
+    const dest = jidTecnico(t.tec)
+    if (dest) encolar(dest, { text: t.texto }, {}, azar(5, 20) * 1000)
+    else encolar(yo, { text: `📲 *Para reenviar a ${t.tec.charAt(0) + t.tec.slice(1).toLowerCase()}* (no tengo su número):\n\n${t.texto}` }, {}, 2500)
+  }
 }
 
 function infoWA () {
@@ -254,8 +310,7 @@ async function manejar (m) {
       const [dmin, dmax] = c.delay_comando_seg || [3, 8]
       if (r.texto) encolar(jid, { text: r.texto }, { quoted: m }, azar(dmin, dmax) * 1000)
       if (r.archivo) encolar(jid, { document: fs.readFileSync(r.archivo), fileName: path.basename(r.archivo), mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }, {}, 3000)
-      if (r.borradores?.length) registrarCasos(r.borradores, null, '')        // !simular
-      for (const t of (r.admin || [])) encolar(adminJid(), { text: t }, {}, 2000)
+      await despachar({ ...r, texto: undefined, archivo: undefined }, { jid })   // !simular, etc.
     } catch (e) { log('❌ comando:', e.message) }
     return
   }
@@ -273,9 +328,7 @@ async function manejar (m) {
       }
       const r = await api('/foto', { ruta, autor: m.pushName || 'supervisora', origen: privadoAdmin ? 'admin' : 'grupo',
         caption: texto, citado: citadoDe(m) })
-      if (r.borradores?.length) registrarCasos(r.borradores, privadoAdmin ? null : m, texto || '[foto]')
-      for (const t of (r.admin || [])) encolar(adminJid(), { text: t }, {}, azar(2, 6) * 1000)
-      if (r.grupo?.length) encolar(jid, { text: r.grupo.join('\n\n') }, { quoted: m })
+      await despachar(r, { jid, m, original: privadoAdmin ? null : m, textoOriginal: texto || '[foto]' })
     } catch (e) { log('❌ foto:', e.message) }
     return
   }
@@ -306,27 +359,13 @@ async function manejar (m) {
 
   if (!texto) return
 
-  // ---------------- tu privado: aprobar, sumar o subir un caso
+  // ---------------- tu privado: todo en lenguaje natural ("caso 6 no", "ok 4 y 5", "pregúntale…", "1 hoy camilo b3")
   if (privadoAdmin) {
-    const low = normal(texto)
-    const bidCit = borradorCitado(m)
-    const OK = (c.palabras_ok || ['ok']).map(normal)
-    const NO = (c.palabras_no || ['no']).map(normal)
-    const AG = (c.agendar_palabras || ['agendar']).map(normal)
-    const esDecision = OK.includes(low) || NO.includes(low) || AG.includes(low) || bidCit || texto.startsWith('+')
     try {
-      if (esDecision) {
-        const decision = texto.startsWith('+') ? texto.slice(1).trim() : texto
-        const r = await api('/aprobar', { decision, autor: m.pushName || 'Manuel', borrador_id: bidCit })
-        for (const t of (r.admin || [])) encolar(jid, { text: t }, {}, 1500)
-        if (r.enviar_borrador) await enviarAlGrupo(r.enviar_borrador, r.grupo || [])
-      } else {
-        const r = await api('/entrada', { origen: 'admin', texto, autor: m.pushName || 'Manuel', citado: citadoDe(m), ts: tsDe(m) })
-        registrarCasos(r.borradores, null, '')
-        for (const t of (r.admin || [])) encolar(jid, { text: t }, {}, 1500)
-        if (r.grupo?.length) for (const t of r.grupo) encolar(grupoDestino(), { text: t })   // modo directo
-        if (!r.admin?.length && !r.grupo?.length) encolar(jid, { text: '🤷 No detecté establecimiento ni falla. Dime el nombre o RBD y qué pasa. (*!ayuda* para comandos)' }, {}, 1500)
-      }
+      const r = await api('/privado', { texto, autor: m.pushName || 'Manuel', borrador_id: borradorCitado(m), citado: citadoDe(m), ts: tsDe(m) })
+      const nada = !r.admin?.length && !r.grupo?.length && !r.envios_grupo?.length && !r.pedidos?.length && !r.borradores?.length
+      await despachar(r, { jid })
+      if (nada && !r.error) encolar(jid, { text: '🤷 No detecté establecimiento ni falla. Dime el nombre o RBD y qué pasa. (*!ayuda* para comandos)' }, {}, 1500)
     } catch (e) { log('❌ privado:', e.message); encolar(jid, { text: '❌ El servidor no respondió. Revisa con !diagnostico.' }, {}, 1500) }
     return
   }
@@ -335,12 +374,7 @@ async function manejar (m) {
   log(`📥 ${m.pushName || '?'}: ${texto.slice(0, 80)}`)
   try {
     const r = await api('/entrada', { origen: 'grupo', texto, autor: m.pushName || 'supervisora', citado: citadoDe(m), ts: tsDe(m) })
-    if (r.error) { log('❌ servidor:', r.error); return }
-    if (r.borradores?.length) {                                  // modo borrador: te llega a ti
-      registrarCasos(r.borradores, m, texto)
-      for (const t of (r.admin || [])) encolar(adminJid(), { text: t }, {}, azar(2, 6) * 1000)
-    }
-    if (r.grupo?.length) encolar(jid, { text: r.grupo.join('\n\n') }, { quoted: m })   // modo directo
+    await despachar(r, { jid, m, original: m, textoOriginal: texto })   // borradores a ti; modo directo al grupo
   } catch (e) {
     log('❌ ¿está corriendo servidor.py?', e.message)
   }
@@ -359,9 +393,7 @@ setInterval(async () => {
     // cada minuto: recordatorios, gas automático, respaldo
     if (hecho.tick !== hhmm) {
       hecho.tick = hhmm
-      const r = await api('/tick', {})
-      for (const t of (r.admin || [])) encolar(adminJid(), { text: t }, {}, 1500)
-      for (const e of (r.envios_grupo || [])) await enviarAlGrupo(e.borrador_id, e.textos)
+      await despachar(await api('/tick', {}))
     }
     if (habil && c.agenda_matutina?.activa && grupoDestino() && hhmm === c.agenda_matutina.hora && hecho.agenda !== dia) {
       hecho.agenda = dia

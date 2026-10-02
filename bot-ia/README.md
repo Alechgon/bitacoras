@@ -87,6 +87,48 @@ Ver qué hace: `tail -f ~/bitacoras/bot-ia/logs/bot.log` · Detenerlo: `bash ~/b
 **Automático:** a las 07:30 (lun-vie) manda la agenda del día al grupo, y a las 17:40
 te manda el Excel por privado. Las horas se cambian en `config.json`.
 
+## Tu chat privado (lenguaje natural)
+
+| Escribes | Qué hace |
+|---|---|
+| `ok` · `no` · `agendar` | sobre el último caso pendiente (o el que cites) |
+| `caso 6 no` · `6 ok` · `ok 4 y 5` · `ok todos` | sobre esos casos |
+| `caso 6: pregúntale si tiene fotos` | le pregunta a la supervisora **en el grupo**, citando su mensaje y mencionándola. Lo que responda (texto o foto) se pega al caso y te llega |
+| `caso 6 responde: mañana va Camilo` | tu texto reemplaza el borrador y se envía |
+| `el 3 pásalo a Camilo el jueves b2` | lo reprograma; lo que había en ese bloque se posterga al siguiente hueco |
+| `caso 2 + llevar flexible` | suma una nota |
+| `regla 5 si` / `regla 5 no` | acepta o rechaza una regla que el bot te propuso |
+
+## Plan del día (07:15 y `!plan`)
+
+Te llega hoy y mañana por técnico, bloque por bloque, y los **casos sin hora** numerados.
+Respondes `1 hoy camilo b3, 2 mañana, 3 lunes, 4 no, 5 espera` → vista previa (se simula en una copia, nada cambia).
+`ok plan` → se aplica, se avisa al grupo (citando el mensaje original, con la supervisora de cada colegio
+movido) y a cada técnico (si `tecnicos_whatsapp` tiene su número; si no, te llega a ti para reenviar).
+Lo que no nombres se agenda solo después de lo tuyo (salvo que escribas `solo esos`).
+
+## Memoria: el bot aprende de ti
+
+- Cada decisión tuya queda en la base y en tu planilla, hoja **Decisiones del encargado**.
+- Cada día a las 18:15 busca patrones y te **propone reglas** ("en gas siempre pides fotos").
+- Las reglas viven en la hoja **Reglas del bot**: puedes editarlas (columna Activa si/no) o crearlas con
+  `!regla nueva preguntar falla:GAS ¿tienen fotos?` · tipos: `preguntar`, `tecnico`, `instruccion`.
+- Antes de redactar, Gemini ve tus decisiones parecidas y tus reglas de estilo.
+- Las bitácoras archivadas se copian a la hoja **Bitácoras del bot**.
+- Seguridad: la primera vez que el bot escribe, la planilla guarda su clave (Propiedades del script → BOT_CLAVE).
+  Si reinstalas el bot con otra clave, borra BOT_CLAVE en Apps Script y listo.
+
+## Supervisoras
+
+`!supervisora carla` → sus colegios, casos abiertos, próximas visitas, consultas sin responder.
+`!supervisoras` → resumen de las tres. Cada borrador muestra la supervisora del colegio.
+
+## Preguntas sobre trabajos hechos
+
+"¿Qué se hizo el otro día en el Teresa Prat?" → responde como persona, agrupando por equipo
+("se revisaron los equipos de frío y de calor, quedaron operativos") y **adjunta los PDF** de las bitácoras
+archivadas que menciona. Si preguntan "¿por qué…?" explica con las observaciones de la bitácora.
+
 ## Conexión con el panel
 
 Si pones un `github_token` en `config.json` (fine-grained, solo *Contents: Read and

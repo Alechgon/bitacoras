@@ -21,7 +21,7 @@ import copy, json, os, re, sys
 BASE = os.path.dirname(os.path.abspath(__file__))
 RUTA = os.path.join(BASE, "config.json")
 EJEMPLO = os.path.join(BASE, "config.example.json")
-SECRETOS = {"gemini_api_key", "github_token"}
+SECRETOS = {"gemini_api_key", "github_token", "clave"}
 
 
 # ---------------------------------------------------------------- lectura / escritura
@@ -142,7 +142,7 @@ def _coercer(texto, actual, clave):
 
 def _validar(partes, valor):
     hoja = partes[-1]
-    if hoja in ("hora", "gas_hoy_si_antes_de"):
+    if hoja in ("hora", "gas_hoy_si_antes_de", "minar_hora"):
         valor = str(valor).replace(".", ":")
         if re.fullmatch(r"\d:[0-5]\d", valor):
             valor = "0" + valor
@@ -159,6 +159,12 @@ def _validar(partes, valor):
         raise ValueError("ese perfil no existe")
     if hoja == "admins":
         valor[:] = [re.sub(r"\D", "", str(x)) for x in valor]
+    if partes[0] == "tecnicos_whatsapp" and len(partes) == 2:
+        valor = re.sub(r"\D", "", str(valor))
+        if valor and not (10 <= len(valor) <= 13):
+            raise ValueError("número con código de país, ej 56912345678")
+    if partes[0] == "memoria" and hoja == "clave":
+        raise ValueError("la clave de la planilla no se cambia por chat (rompe el enlace con Google)")
     return valor
 
 
@@ -244,6 +250,10 @@ def resumen():
         f"🗓️ Plazos: " + ", ".join(f"{k} {v}" for k, v in c.get("plazo_habiles", {}).items()),
         f"👷 Preferencia: " + ", ".join(f"{k}→{v}" for k, v in c.get("preferencia_tecnico", {}).items()),
         f"💾 Respaldo {c.get('respaldo', {}).get('hora')} · guarda {c.get('respaldo', {}).get('conservar_dias')} días",
+        f"🧠 Memoria en planilla: {'sí' if c.get('memoria', {}).get('activa') else 'no'} · sincroniza cada "
+        f"{c.get('memoria', {}).get('sync_min')} min · propone reglas a las {c.get('memoria', {}).get('minar_hora')}",
+        f"🗓️ Plan del día: {'sí' if c.get('plan', {}).get('auto') else 'no'} {c.get('plan', {}).get('hora')} · "
+        f"técnicos: " + ", ".join(f"{k} {'📱' if v else '(a ti)'}" for k, v in c.get('tecnicos_whatsapp', {}).items()),
         "",
         "Cambiar: *!config clave valor* · ej: !config plazo_habiles.GAS 1",
         "Ver uno: *!config ver clave* · Volver a fábrica: *!config reset clave*",

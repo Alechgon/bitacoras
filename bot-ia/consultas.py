@@ -13,6 +13,7 @@ consultas.py — responde preguntas sobre lo hecho y lo que viene.
 Gemini solo redacta con esos datos; si no hay IA, responde con plantilla.
 """
 import calendar
+import os
 import re
 from datetime import date, datetime, timedelta
 
@@ -97,13 +98,15 @@ def eventos(rbd):
     D = datos()
     ev = {}
 
-    def add(fecha, tipo, folio, tec, detalle, fuente, items=None):
+    def add(fecha, tipo, folio, tec, detalle, fuente, items=None, archivo=None):
         f = a_fecha(fecha)
         if not f:
             return
         k = (f.isoformat(), _num(folio)) if _num(folio) else (f.isoformat(), fuente, detalle[:30])
         e = ev.setdefault(k, {"fecha": f, "tipo": tipo or "", "folio": _num(folio), "tec": tec or "", "detalle": "",
-                              "items": [], "fuentes": set()})
+                              "items": [], "fuentes": set(), "archivo": None})
+        if archivo and not e["archivo"]:
+            e["archivo"] = archivo
         if detalle and detalle not in e["detalle"]:
             e["detalle"] = (e["detalle"] + " · " if e["detalle"] else "") + detalle.replace("[Datácora]", "").strip()
         if items:
@@ -122,14 +125,15 @@ def eventos(rbd):
             add(x["fecha"], x.get("tipo"), x.get("folio"), x.get("tec"), x.get("det", ""), "Datácora")
     con = db()
     for b in con.execute("SELECT * FROM bitacoras WHERE rbd=?", (rbd,)).fetchall():
-        its = [dict(r) for r in con.execute("SELECT item, ubicacion, accion, observacion FROM bitacora_items "
-                                            "WHERE folio=?", (b["folio"],))]
+        its = [dict(r) for r in con.execute("SELECT categoria, item, ubicacion, cantidad, accion, observacion "
+                                            "FROM bitacora_items WHERE folio=?", (b["folio"],))]
         add(b["fecha"], b["motivo"] if b["motivo"] != "por confirmar" else "Bitácora", b["folio"], b["tecnico"], "",
-            "bitácora archivada", its)
+            "bitácora archivada", its, b["archivo"])
     for b in D.get("BITS", []):
         if b.get("rbd") == rbd:
-            its = [{"item": i.get("item"), "ubicacion": i.get("ubicacion"), "accion": i.get("accion"),
-                    "observacion": i.get("observacion")} for i in b.get("items", [])]
+            its = [{"categoria": i.get("categoria"), "item": i.get("item"), "ubicacion": i.get("ubicacion"),
+                    "cantidad": i.get("cantidad"), "accion": i.get("accion"), "observacion": i.get("observacion")}
+                   for i in b.get("items", [])]
             add(b["fecha"], "Bitácora", b.get("folio"), b.get("tecnico"), "", "bitácora panel", its)
     for t in db().execute("SELECT * FROM tarjetas WHERE rbd=? AND estado='realizada'", (rbd,)).fetchall():
         add(t["fecha"], t["clase"].title(), "", nombre_tec(t["tec"]), t["detalle"][:120], "agenda del bot")
@@ -181,8 +185,27 @@ def _resolver_rbd(texto, pista, autor):
     return _ultimo_rbd.get(autor)
 
 
+POR_QUE = r"\b(por que|porque|motivo|razon|detalle|detalles|que se hizo|que hicieron|explica|explicame|cuentame|" \
+          r"que se reviso|que revisaron|que cambiaron|que se cambio)\b"
+
+
+def _por_categoria(items):
+    """Agrupa los ítems de una bitácora: {'Frío': ['refrigerador x2: temperatura ok', ...]}"""
+    grupos = {}
+    for i in items:
+        cat = (i.get("categoria") or "General").strip().title()
+        cant = f" x{i['cantidad']}" if str(i.get("cantidad") or "1") not in ("1", "", "None") else ""
+        obs = re.sub(r"\s+", " ", str(i.get("observacion") or "")).strip()
+        txt = f"{(i.get('item') or '').lower()}{cant}" + (f" ({(i.get('accion') or '').lower()})" if i.get("accion") else "")
+        grupos.setdefault(cat, []).append(txt + (f": {obs[:110]}" if obs else ""))
+    return grupos
+
+
 def responder(texto, autor, pista=None, ahora=None):
-    """Texto de respuesta a una pregunta. ahora = hora del mensaje (para 'ayer', 'el otro día')."""
+    """
+    Respuesta a una pregunta. Devuelve {'texto', 'archivos', 'rbd'}.
+    ahora = hora del mensaje (para 'ayer', 'el otro día'). archivos = PDFs de las bitácoras que se mencionan.
+    """
     pista = pista or {}
     ahora = ahora or datetime.now()
     D = datos()
@@ -196,9 +219,10 @@ def responder(texto, autor, pista=None, ahora=None):
             m = metas(db())
             j, jt, jf = m["junaeb"]
             g, gt, gf = m["jardines"]
-            return (f"🎯 JUNAEB en Datácora: *{j}/{jt}* (meta {bonita(jf)})\n"
-                    f"🎯 Jardines con preventiva: *{g}/{gt}* (meta {bonita(gf)})")
-        return "🤔 ¿De qué establecimiento? Díganme el nombre o el RBD y les respondo."
+            return {"texto": f"🎯 JUNAEB en Datácora: *{j}/{jt}* (meta {bonita(jf)})\n"
+                             f"🎯 Jardines con preventiva: *{g}/{gt}* (meta {bonita(gf)})", "archivos": [], "rbd": None}
+        return {"texto": "🤔 ¿De qué establecimiento? Díganme el nombre o el RBD y les respondo.", "archivos": [],
+                "rbd": None}
     recordar_rbd(autor, rbd)
     e = D["E"][rbd]
     cab = f"🏫 *{e['nombre']}* · RBD {rbd}"
@@ -213,12 +237,13 @@ def responder(texto, autor, pista=None, ahora=None):
         f"{bonita(p['fecha'])} {nombre_tec(p['tec'])} ({p['clase'].lower()})" for p in prox)) if prox else \
         "📅 Sin visita programada todavía."
     if futuro:
-        return f"{cab}\n{linea_prox}"
+        return {"texto": f"{cab}\n{linea_prox}", "archivos": [], "rbd": rbd}
 
     # ---- preguntas sobre lo hecho
     evs = eventos(rbd)
     if not evs:
-        return f"{cab}\n📭 No tengo visitas registradas de este establecimiento.\n{linea_prox}"
+        return {"texto": f"{cab}\n📭 No tengo visitas registradas de este establecimiento.\n{linea_prox}",
+                "archivos": [], "rbd": rbd}
     tema = pista.get("tema") or texto
     evs_tema, pat = _filtrar_tema(evs, tema)
     base = evs_tema if pat and evs_tema else evs
@@ -236,9 +261,11 @@ def responder(texto, autor, pista=None, ahora=None):
         elegidos, intro = base[:3], "🗓️ Lo más reciente:"
     if pat and not evs_tema:
         intro = "🔎 No encontré trabajos de ese tema; esto es lo último:"
+    por_que = bool(re.search(POR_QUE, t))
 
     hechos = [cab, intro]
     tecs = datos()["META"]["tecnicos"]
+    archivos = []
     for n, x in enumerate(elegidos):
         tec = nombre_tec(x["tec"].upper()) if x["tec"] and x["tec"].upper() in tecs else (x["tec"] or "s/técnico").title()
         lin = f"• {bonita(x['fecha'])} · {tec.split()[0]} · {x['tipo'] or 'visita'}" + \
@@ -246,21 +273,37 @@ def responder(texto, autor, pista=None, ahora=None):
         if x["detalle"]:
             lin += f": {x['detalle'][:140]}"
         hechos.append(lin)
-        for i in (x["items"][:3] if (pat or n == 0) else []):
-            obs = (i.get("observacion") or "").replace("\n", " ")
-            hechos.append(f"   ↳ {i.get('item')} ({i.get('ubicacion') or 's/u'}): {i.get('accion') or ''} — {obs[:90]}")
+        if x.get("archivo") and os.path.exists(x["archivo"]) and x["archivo"] not in archivos:
+            archivos.append(x["archivo"])
+        if x["items"] and (pat or n == 0 or por_que):
+            for cat, cosas in _por_categoria(x["items"]).items():
+                tope = 8 if por_que else 3
+                hechos.append(f"   ↳ {cat}: " + "; ".join(cosas[:tope]) + (" …" if len(cosas) > tope else ""))
     hechos.append(linea_prox)
+    if archivos:
+        hechos.append(f"📎 Se adjunta{'n' if len(archivos) > 1 else ''} {len(archivos)} bitácora"
+                      f"{'s' if len(archivos) > 1 else ''} en PDF")
     plantilla = "\n".join(hechos)
 
     # Gemini solo redacta (no agrega datos); si falla, va la plantilla
     if cfg().get("redactar_con_ia", True):
         import ia
-        prompt = ("Eres el asistente de mantención de SOSER. Responde la pregunta de una supervisora usando "
-                  "SOLO los datos de abajo. Español de Chile, cordial y directo, máximo 7 líneas, con fechas y "
-                  "técnico. Mantén los emojis de los datos. Si los datos no responden exactamente, dilo en una "
-                  f"línea y muestra lo más cercano. No inventes nada.\n\nPREGUNTA de {autor}: {texto}\n\n"
-                  f"DATOS:\n{plantilla}")
+        import memoria
+        ctx = memoria.contexto_ia(rbd, None, "pregunta", autor)
+        prompt = (
+            f"Eres parte del equipo de mantención de SOSER y respondes en el grupo de WhatsApp a {autor}. "
+            "Escribe como una persona, no como un sistema: natural, cercano y profesional, español de Chile, en "
+            "prosa breve (máximo 7 líneas), sin listas largas ni encabezados. Usa SOLO los datos de abajo, con fechas y "
+            "técnico. Resume lo hecho agrupando por tipo de equipo, por ejemplo: «se revisaron los equipos de frío y de "
+            "calor, quedaron operativos; en agua se cambiaron 2 sifones». "
+            + ("Te preguntan POR QUÉ o el DETALLE: explica qué se encontró y qué se hizo según las observaciones de la "
+               "bitácora. " if por_que else "")
+            + ("Si hay bitácoras adjuntas, dilo al final (ej. «te dejo la bitácora»). " if archivos else "")
+            + "Si los datos no responden exactamente, dilo en una línea y da lo más cercano. No inventes nada. "
+            "Puedes usar 1 o 2 emojis como máximo.\n\n"
+            + (ctx + "\n\n" if ctx else "")
+            + f"PREGUNTA de {autor}: {texto}\n\nDATOS:\n{plantilla}")
         txt = ia.generar(prompt, max_seg=25)
         if txt and len(txt) > 20:
-            return txt
-    return plantilla
+            return {"texto": txt, "archivos": archivos, "rbd": rbd}
+    return {"texto": plantilla, "archivos": archivos, "rbd": rbd}

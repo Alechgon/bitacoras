@@ -157,5 +157,39 @@
   "_github": "Opcional: sube los hallazgos a bot-datos.json para la pestaña WhatsApp del panel.",
   "github_repo": "Alechgon/bitacoras",
   "github_rama": "main",
-  "github_archivo": "bot-datos.json"
+  "github_archivo": "bot-datos.json",
+  "_memoria": "Lo que el bot aprende de ti. Tus decisiones van a tu planilla (hoja 'Decisiones del encargado') y las reglas a la hoja 'Reglas del bot', donde puedes editarlas. La clave se crea sola; NO la compartas.",
+  "memoria": {
+    "activa": true,
+    "apps_script_url": "https://script.google.com/macros/s/AKfycbx8mlrYEMlU0gXkvwInPM0tgFG3Oo6PQCU_YhupEhBLvX4vwP_JYngAZG8Kwfwf7pPw/exec",
+    "clave": "",
+    "sync_min": 10,
+    "minar_hora": "18:15",
+    "min_evidencia": 3,
+    "ejemplos": 4
+  },
+  "_plan": "Plan del día: a la hora indicada (días hábiles) te llega hoy/mañana por técnico y los casos sin hora para que elijas. agendar_resto = los casos que no elijas se agendan solos después de los tuyos.",
+  "plan": {
+    "auto": true,
+    "hora": "07:15",
+    "publicar_grupo": true,
+    "avisar_tecnicos": true,
+    "agendar_resto": true,
+    "vigencia_horas": 12
+  },
+  "_tecnicos": "WhatsApp de los técnicos (dígitos con 56). Vacío = el aviso te llega a ti para reenviarlo.",
+  "tecnicos_whatsapp": {
+    "CAMILO": "",
+    "RODRIGO": ""
+  },
+  "_pedir_info": "Cuando escribes 'caso 6: pregúntale si tiene fotos', el bot le pregunta en el grupo citando su mensaje. Lo que ella responda dentro de esos minutos se pega al caso y te llega.",
+  "pedir_info": {
+    "mencionar": true,
+    "esperar_respuesta_min": 180,
+    "redactar_con_ia": true
+  },
+  "_privado": "Tu chat privado entiende lenguaje natural: 'caso 6 no', 'ok 4 y 5', 'el 3 pásalo a Camilo el jueves b2', 'responde: ...'. Si no calza con nada conocido y nombra un caso, Gemini lo interpreta.",
+  "privado": {
+    "entender_con_ia": true
+  }
 }

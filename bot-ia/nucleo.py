@@ -132,6 +132,14 @@ def db():
         caption TEXT, analisis TEXT, hallazgo_id INTEGER);
     CREATE TABLE IF NOT EXISTS bitacora_items(id INTEGER PRIMARY KEY AUTOINCREMENT, folio TEXT,
         rbd INTEGER, categoria TEXT, item TEXT, ubicacion TEXT, cantidad TEXT, accion TEXT, observacion TEXT);
+    CREATE TABLE IF NOT EXISTS decisiones(id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, caso INTEGER,
+        origen TEXT, supervisora TEXT, rbd INTEGER, estab TEXT, tipo TEXT, crit TEXT, original TEXT, propuesta TEXT,
+        decision TEXT, detalle TEXT, texto_final TEXT, tec TEXT, fecha_visita TEXT, bloque TEXT, sync INTEGER DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS reglas(id TEXT PRIMARY KEY, activa INTEGER, tipo TEXT, alcance TEXT, valor TEXT,
+        descripcion TEXT, origen TEXT, creada TEXT, evidencia INTEGER, estado TEXT);
+    CREATE TABLE IF NOT EXISTS pedidos_info(id INTEGER PRIMARY KEY AUTOINCREMENT,
+        creado TEXT DEFAULT (datetime('now','localtime')), borrador_id INTEGER, rbd INTEGER, autor TEXT,
+        pregunta TEXT, estado TEXT DEFAULT 'esperando', respuesta TEXT DEFAULT '', respondido TEXT);
     """)
     for alter in ("ALTER TABLE borradores ADD COLUMN recordado INTEGER DEFAULT 0",
                   "ALTER TABLE borradores ADD COLUMN tipo TEXT DEFAULT 'agendar'",
@@ -325,7 +333,7 @@ def _hueco_posterior(con, t, desde):
     return None, None
 
 
-def agendar(con, rbd, crit, problema, prio, autor, hallazgo_id=None):
+def agendar(con, rbd, crit, problema, prio, autor, hallazgo_id=None, desde=None):
     """
     Programa un hallazgo con TUS reglas. Orden de búsqueda:
       0) si el establecimiento ya tiene visita dentro del plazo -> se cierra en esa visita
@@ -351,6 +359,9 @@ def agendar(con, rbd, crit, problema, prio, autor, hallazgo_id=None):
     else:
         inicio = sumar_habiles(base, 1) if es_habil(base) else sig_habil(base)
     limite = sumar_habiles(inicio, plazo - 1) if plazo > 1 else inicio
+    if desde and a_fecha(desde) > inicio:       # plan del día: lo que no elegiste va DESPUÉS de lo tuyo
+        inicio = sig_habil(a_fecha(desde))
+        limite = max(limite, inicio)
     texto_corr = f"CORRECTIVO ({autor.split()[0] if autor else 'supervisora'}): {problema}"
 
     # --- 0) ya tiene visita dentro del plazo
@@ -364,7 +375,12 @@ def agendar(con, rbd, crit, problema, prio, autor, hallazgo_id=None):
     futura = con.execute("SELECT * FROM tarjetas WHERE rbd=? AND estado='programada' AND fecha>? "
                          "ORDER BY fecha LIMIT 1", (rbd, limite.isoformat())).fetchone()
 
-    pref = c.get("preferencia_tecnico", {}).get(crit)
+    try:
+        import memoria                       # una regla aprendida ("en gas, Camilo") manda sobre la config
+        pref = memoria.tecnico_para(crit, rbd, con)
+    except Exception:
+        pref = None
+    pref = pref or c.get("preferencia_tecnico", {}).get(crit)
     tecs = list(D["META"]["tecnicos"])
     # gas: primero solo el instalador de gas certificado; si no puede, cualquiera
     fases = [[pref], tecs] if (crit == "GAS" and pref in tecs) else [tecs]
@@ -459,3 +475,112 @@ def metas(con):
     jar_ok = sum(1 for e in jar if e.get("prevOK") or e["rbd"] in prev_hechas)
     return {"junaeb": (jun_ok, len(jun), D["META"]["metaJunaeb"]),
             "jardines": (jar_ok, len(jar), D["META"]["metaJardines"])}
+
+
+# ================================================================ colocar a mano (tus órdenes y el plan del día)
+def postergar(con, t, desde, evitar=None):
+    """
+    Mueve la tarjeta t al primer bloque libre desde 'desde' (mismo técnico; si no, el otro).
+    Busca dentro de su límite y, si no cabe, hasta 10 días hábiles más (avisando).
+    Devuelve dict(de, a, bloque, tec, paso_limite) o None.
+    """
+    lim = a_fecha(t["limite"]) or desde
+    tecs = [t["tec"]] + [x for x in datos()["META"]["tecnicos"] if x != t["tec"]]
+    hasta_max = sumar_habiles(max(lim, desde), 10)
+    for tope, paso in ((lim, False), (hasta_max, True)):
+        for tec in tecs:
+            for d in habiles_entre(desde, tope):
+                for b in libres(con, tec, d):
+                    if evitar and (tec, d, b) in evitar:
+                        continue
+                    con.execute("UPDATE tarjetas SET fecha=?, bloque=?, tec=?, aplaz=aplaz+1, modificada=1 WHERE id=?",
+                                (d.isoformat(), b, tec, t["id"]))
+                    nom = datos()["E"].get(t["rbd"], {}).get("nombre", t["rbd"])
+                    log(con, f"Postergada {nom} ({t['clase']}) de {t['fecha']} b{t['bloque']} a {d} b{b} {tec}")
+                    return dict(id=t["id"], rbd=t["rbd"], nombre=nom, de=a_fecha(t["fecha"]), a=d, bloque=b, tec=tec,
+                                tec_antes=t["tec"], paso_limite=paso and d > lim, clase=t["clase"])
+    return None
+
+
+def colocar_forzado(con, rbd, crit, problema, prio, autor, hallazgo_id, tec=None, d=None, b=None, tarjeta_id=None):
+    """
+    Pone una visita donde TÚ digas. Lo que estaba en ese bloque se posterga al siguiente hueco
+    (respetando su límite si se puede). Si ya había visita a ese colegio ese día, se juntan.
+    Devuelve un dict como agendar() + 'postergadas': [...]
+    """
+    D = datos()
+    e = D["E"][rbd]
+    tecs = list(D["META"]["tecnicos"])
+    d = sig_habil(a_fecha(d) or hoy())
+    pts, detalle_pts = puntaje(e, crit or "OTRO", prio)
+    texto_corr = f"CORRECTIVO ({autor.split()[0] if autor else 'supervisora'}): {problema}"
+    postergadas = []
+    propia = con.execute("SELECT * FROM tarjetas WHERE id=?", (tarjeta_id,)).fetchone() if tarjeta_id else None
+
+    # ya hay visita a ese colegio ese día (y no es la misma tarjeta): se junta
+    misma = con.execute("SELECT * FROM tarjetas WHERE rbd=? AND fecha=? AND estado='programada' AND id<>?",
+                        (rbd, d.isoformat(), tarjeta_id or "")).fetchone()
+    if misma and not b and (not tec or tec == misma["tec"]):
+        _fusionar(con, misma, crit or "OTRO", pts, texto_corr, hallazgo_id)
+        if propia:
+            con.execute("UPDATE tarjetas SET estado='anulada', modificada=1 WHERE id=?", (propia["id"],))
+        return dict(tarjeta=misma["id"], tec=misma["tec"], fecha=d, bloque=misma["bloque"], pts=max(pts, misma["pts"]),
+                    detalle_pts=detalle_pts, limite=d, modo="fusion", movida=None, antes=None, postergadas=[])
+
+    if not tec:
+        try:
+            import memoria
+            tec = memoria.tecnico_para(crit, rbd, con)
+        except Exception:
+            tec = None
+        tec = tec or cfg().get("preferencia_tecnico", {}).get(crit)
+        if tec not in tecs or (b is None and not libres(con, tec, d)) or (b and b in ocupados(con, tec, d)):
+            # el que tenga el bloque pedido libre, o más bloques libres ese día, o el más cerca
+            tec = sorted(tecs, key=lambda x: (b in ocupados(con, x, d) if b else 0, -len(libres(con, x, d)),
+                                              distancia(con, x, d, e)))[0]
+    if propia and propia["fecha"] == d.isoformat() and propia["tec"] == tec and (not b or propia["bloque"] == b):
+        b = propia["bloque"]               # ya está ahí
+    else:
+        if b is None:
+            lb = libres(con, tec, d)
+            b = lb[0] if lb else None
+        if b is None:                      # día lleno: se posterga lo de menor puntaje que se pueda mover
+            cands = con.execute("SELECT * FROM tarjetas WHERE tec=? AND fecha=? AND estado='programada' "
+                                "AND COALESCE(crit,'')<>'GAS' AND id<>? ORDER BY "
+                                "CASE WHEN clase IN ('VISITA','PREVENTIVA') THEN 0 ELSE 1 END, pts ASC",
+                                (tec, d.isoformat(), tarjeta_id or "")).fetchall()
+            b = cands[0]["bloque"] if cands else cfg().get("bloque_extra", 4)
+        ocupante = con.execute("SELECT * FROM tarjetas WHERE tec=? AND fecha=? AND bloque=? AND estado='programada' "
+                               "AND id<>?", (tec, d.isoformat(), b, tarjeta_id or "")).fetchone()
+        if ocupante and b <= 3:
+            # libera el bloque (la propia se mueve después, así su hueco viejo queda disponible)
+            con.execute("UPDATE tarjetas SET bloque=99 WHERE id=?", (ocupante["id"],))
+            ocup = dict(ocupante)
+            mov = postergar(con, ocup, d, evitar={(tec, d, b)})
+            if mov:
+                postergadas.append(mov)
+            else:
+                con.execute("UPDATE tarjetas SET bloque=?, fecha=?, modificada=1 WHERE id=?",
+                            (cfg().get("bloque_extra", 4), d.isoformat(), ocupante["id"]))
+    antes = a_fecha(propia["fecha"]) if propia else None
+    if propia:
+        _fusionar(con, propia, crit or "OTRO", pts, texto_corr, hallazgo_id) if propia["hallazgo_id"] != hallazgo_id else None
+        con.execute("UPDATE tarjetas SET fecha=?, tec=?, bloque=?, limite=MAX(COALESCE(limite,''),?), modificada=1 "
+                    "WHERE id=?", (d.isoformat(), tec, b, d.isoformat(), propia["id"]))
+        tid, modo = propia["id"], "reprogramada"
+    else:
+        tid, modo = _nuevo_id(con), "a_mano"
+        while con.execute("SELECT 1 FROM tarjetas WHERE id=?", (tid,)).fetchone():
+            tid = tid[:-3] + f"{int(tid[-3:]) + 1:03d}"
+        con.execute("INSERT INTO tarjetas(id,fecha,tec,bloque,rbd,clase,detalle,pts,crit,estado,aplaz,origen,limite,"
+                    "modificada,hallazgo_id) VALUES(?,?,?,?,?,?,?,?,?,'programada',0,'bot',?,1,?)",
+                    (tid, d.isoformat(), tec, b, rbd, "CORRECTIVO URGENTE", texto_corr, pts, crit or "OTRO",
+                     d.isoformat(), hallazgo_id))
+    log(con, f"Colocada a mano {e['nombre']} -> {tec} {d} b{b}" +
+        (f" (postergó {', '.join(p['nombre'] for p in postergadas)})" if postergadas else ""))
+    movida = None
+    if postergadas:
+        p = postergadas[0]
+        movida = {"nombre": p["nombre"], "de": p["de"], "a": p["a"], "tec": p["tec"]}
+    return dict(tarjeta=tid, tec=tec, fecha=d, bloque=b, pts=pts, detalle_pts=detalle_pts, limite=d,
+                modo=modo + ("+extra" if b > 3 else ""), movida=movida, antes=antes, postergadas=postergadas)

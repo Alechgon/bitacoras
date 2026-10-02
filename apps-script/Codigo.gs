@@ -43,6 +43,7 @@ function doPost(e) {
   try {
     var cuerpo = JSON.parse(e.postData.contents);
     if (cuerpo.accion === 'ping') return json({ ok: true, pong: ahora() });
+    if (cuerpo.origen === 'bot') return json(bot(cuerpo));       // memoria del bot de WhatsApp
 
     var estado = cuerpo.estado || cuerpo;
     guardarJson(estado);
@@ -76,6 +77,110 @@ function doGet(e) {
     .setTitle('SOSER San Pablo · Mantención')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/* ================================================================
+   MEMORIA DEL BOT DE WHATSAPP
+   ----------------------------------------------------------------
+   El bot guarda aquí cada decisión del encargado y las reglas que va
+   aprendiendo. Las reglas se pueden editar a mano en la planilla:
+   columna "Activa" (si/no), "Valor" y "Descripción".
+   Seguridad: la primera llamada del bot fija la clave (BOT_CLAVE en
+   Propiedades del script); después solo esa clave puede escribir/leer.
+   ================================================================ */
+
+var HOJA_DEC = 'Decisiones del encargado';
+var HOJA_REG = 'Reglas del bot';
+var HOJA_BOTBIT = 'Bitácoras del bot';
+var COL_DEC = [
+  { t: 'Fecha', w: 120 }, { t: 'Caso', w: 50, al: 'center' }, { t: 'Origen', w: 80 }, { t: 'Supervisora', w: 140 },
+  { t: 'RBD', w: 60, al: 'center' }, { t: 'Establecimiento', w: 200 }, { t: 'Tipo', w: 100 }, { t: 'Falla', w: 70 },
+  { t: 'Mensaje original', w: 260, wrap: true }, { t: 'Propuesta del bot', w: 260, wrap: true },
+  { t: 'Tu decisión', w: 100 }, { t: 'Detalle de tu decisión', w: 220, wrap: true },
+  { t: 'Texto final enviado', w: 260, wrap: true }, { t: 'Técnico', w: 80 }, { t: 'Fecha visita', w: 90 },
+  { t: 'Bloque', w: 60, al: 'center' }
+];
+var COL_REG = [
+  { t: 'ID', w: 60, al: 'center' }, { t: 'Activa', w: 60, al: 'center' }, { t: 'Tipo', w: 110 },
+  { t: 'Alcance', w: 140 }, { t: 'Valor', w: 260, wrap: true }, { t: 'Descripción', w: 320, wrap: true },
+  { t: 'Origen', w: 90 }, { t: 'Creada', w: 120 }, { t: 'Evidencia (veces)', w: 90, al: 'center' }
+];
+var COL_BOTBIT = [
+  { t: 'Folio', w: 60 }, { t: 'Fecha', w: 90 }, { t: 'RBD', w: 60 }, { t: 'Establecimiento', w: 200 },
+  { t: 'Técnico', w: 120 }, { t: 'Categoría', w: 100 }, { t: 'Ítem', w: 160 }, { t: 'Ubicación', w: 80 },
+  { t: 'Acción', w: 100 }, { t: 'Observación', w: 300, wrap: true }
+];
+
+function claveOk(c) {
+  var k = PROP.getProperty('BOT_CLAVE');
+  if (!k) {
+    if (!c || String(c).length < 16) return false;
+    PROP.setProperty('BOT_CLAVE', String(c));        // primera vez: queda fijada
+    return true;
+  }
+  return k === String(c);
+}
+
+function hojaBot(ss, nombre, cols, titulo) {
+  var h = ss.getSheetByName(nombre);
+  if (h) return h;
+  h = tabla(ss, nombre, cols, [], { titulo: titulo, sub: 'La escribe el bot de WhatsApp · puedes editarla' });
+  return h;
+}
+
+function agregarFilas(h, filas, nc) {
+  if (!filas || !filas.length) return;
+  var ini = Math.max(h.getLastRow() + 1, 4);
+  var r = h.getRange(ini, 1, filas.length, nc);
+  r.setValues(filas.map(function (f) { var x = f.slice(0, nc); while (x.length < nc) x.push(''); return x; }))
+   .setFontSize(10).setVerticalAlignment('top').setWrap(true);
+  try { if (h.getFilter()) h.getFilter().remove(); h.getRange(3, 1, h.getLastRow() - 2, nc).createFilter(); } catch (e) { }
+}
+
+function leerTabla(h, nc) {
+  var n = h.getLastRow() - 3;
+  if (n <= 0) return [];
+  return h.getRange(4, 1, n, nc).getValues();
+}
+
+function bot(b) {
+  if (!claveOk(b.clave)) return { ok: false, error: 'clave del bot inválida' };
+  var ss = libro();
+  var hd = hojaBot(ss, HOJA_DEC, COL_DEC, 'Decisiones del encargado');
+  var hr = hojaBot(ss, HOJA_REG, COL_REG, 'Reglas del bot');
+  if (b.accion === 'decisiones') {
+    agregarFilas(hd, b.filas || [], COL_DEC.length);
+    return { ok: true, n: (b.filas || []).length, hoja: urlSheet() };
+  }
+  if (b.accion === 'bitacoras') {
+    var hb = hojaBot(ss, HOJA_BOTBIT, COL_BOTBIT, 'Bitácoras archivadas por el bot');
+    agregarFilas(hb, b.filas || [], COL_BOTBIT.length);
+    return { ok: true, n: (b.filas || []).length };
+  }
+  if (b.accion === 'regla') {                       // crear o actualizar por ID
+    var rg = b.regla || {};
+    var filas = leerTabla(hr, COL_REG.length);
+    var fila = [rg.id, rg.activa ? 'si' : 'no', rg.tipo, rg.alcance, rg.valor, rg.descripcion, rg.origen || 'bot',
+                rg.creada || ahora(), rg.evidencia || 0];
+    for (var i = 0; i < filas.length; i++) {
+      if (String(filas[i][0]) === String(rg.id)) {
+        hr.getRange(4 + i, 1, 1, COL_REG.length).setValues([fila]);
+        return { ok: true, actualizada: rg.id };
+      }
+    }
+    agregarFilas(hr, [fila], COL_REG.length);
+    return { ok: true, creada: rg.id };
+  }
+  if (b.accion === 'leer') {                         // el bot trae reglas (editadas por ti) y decisiones recientes
+    var reg = leerTabla(hr, COL_REG.length).filter(function (f) { return f[0] !== ''; }).map(function (f) {
+      return { id: String(f[0]), activa: /^s/i.test(String(f[1])), tipo: f[2], alcance: f[3], valor: f[4],
+               descripcion: f[5], origen: f[6], creada: String(f[7]), evidencia: f[8] };
+    });
+    var dec = leerTabla(hd, COL_DEC.length);
+    var n = Math.min(b.n || 300, dec.length);
+    return { ok: true, reglas: reg, decisiones: dec.slice(dec.length - n), hoja: urlSheet() };
+  }
+  return { ok: false, error: 'acción desconocida' };
 }
 
 /* ================================================================
