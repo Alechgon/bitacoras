@@ -358,21 +358,28 @@ async function conectar () {
   })
   sock.ev.on('creds.update', saveCreds)
 
-  if (TELEFONO && !state.creds.registered) {
-    await esperar(3000)
-    const crudo = String(await sock.requestPairingCode(TELEFONO)).replace(/[^A-Za-z0-9]/g, '').toUpperCase()
-    const codigo = crudo.length === 8 ? `${crudo.slice(0, 4)}-${crudo.slice(4)}` : crudo
-    console.log('\n\n==============================')
-    console.log('   CÓDIGO:  ' + codigo)
-    console.log('==============================')
-    console.log(`(son 8 caracteres: ${crudo.split('').join(' ')})`)
-    console.log('WhatsApp del BOT > ⋮ > Dispositivos vinculados > Vincular dispositivo')
-    console.log('> "Vincular con número de teléfono" y escribe las 8 letras/números.')
-    console.log('El código vence en ~1 minuto. Si vence: Ctrl+C y corre de nuevo')
-    console.log(`   node bot.mjs --codigo ${TELEFONO}\n`)
+  // el código se pide cuando WhatsApp ya está listo (cuando ofrece el primer QR); antes la conexión se cae
+  let codigoPedido = false
+  async function pedirCodigo () {
+    codigoPedido = true
+    try {
+      const crudo = String(await sock.requestPairingCode(TELEFONO)).replace(/[^A-Za-z0-9]/g, '').toUpperCase()
+      const codigo = crudo.length === 8 ? `${crudo.slice(0, 4)}-${crudo.slice(4)}` : crudo
+      console.log('\n\n==============================')
+      console.log('   CÓDIGO:  ' + codigo)
+      console.log('==============================')
+      console.log(`(son 8 caracteres: ${crudo.split('').join(' ')})`)
+      console.log('En el WhatsApp del BOT: ⋮ > Dispositivos vinculados > Vincular dispositivo')
+      console.log('> "Vincular con número de teléfono" y escribe el código.')
+      console.log('Si vence, el bot pide uno nuevo solo en ~1 minuto.\n')
+    } catch (e) {
+      codigoPedido = false
+      log('⚠️ No pude pedir el código todavía (' + e.message + '), reintento...')
+    }
   }
 
   sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
+    if (qr && TELEFONO && !state.creds.registered && !codigoPedido) await pedirCodigo()
     if (qr && !TELEFONO) {
       log('📷 Escanea este QR desde WhatsApp > Dispositivos vinculados:')
       qrcode.generate(qr, { small: true })

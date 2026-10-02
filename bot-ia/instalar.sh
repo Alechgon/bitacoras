@@ -53,8 +53,10 @@ if [ -f auth/creds.json ] && grep -q '"registered":true' auth/creds.json; then
   echo "   Ya estaba vinculado, sigo."
 else
   BOTN=${BOTN:-$(python -c "import ajustes;print(ajustes.leer().get('numero_bot',''))")}
+  rm -rf auth          # una vinculación a medias impide vincular de nuevo
+  bash detener.sh >/dev/null 2>&1 || true
   echo "   Aparecerá un CÓDIGO de 8 caracteres."
-  echo "   En el WhatsApp del BOT: ⋮ > Dispositivos vinculados > Vincular dispositivo"
+  echo "   En el WhatsApp del número del BOT: ⋮ > Dispositivos vinculados > Vincular dispositivo"
   echo "   > 'Vincular con número de teléfono' y escribe el código."
   node bot.mjs --codigo "${BOTN//[^0-9]/}"
 fi
