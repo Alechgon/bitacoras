@@ -189,9 +189,17 @@ async function conectar () {
 
   if (TELEFONO && !state.creds.registered) {
     await esperar(3000)
-    const codigo = await sock.requestPairingCode(TELEFONO)
-    log(`🔑 Código de vinculación: ${codigo}`)
-    log('   WhatsApp > Dispositivos vinculados > Vincular dispositivo > Vincular con número de teléfono')
+    const crudo = String(await sock.requestPairingCode(TELEFONO)).replace(/[^A-Za-z0-9]/g, '').toUpperCase()
+    const codigo = crudo.length === 8 ? `${crudo.slice(0, 4)}-${crudo.slice(4)}` : crudo
+    // en su propia línea, sin fecha delante, para que Termux no lo corte
+    console.log('\n\n==============================')
+    console.log('   CÓDIGO:  ' + codigo)
+    console.log('==============================')
+    console.log(`(son 8 caracteres: ${crudo.split('').join(' ')})`)
+    console.log('WhatsApp del bot > ⋮ > Dispositivos vinculados > Vincular dispositivo')
+    console.log('> "Vincular con número de teléfono" y escribe las 8 letras/números.')
+    console.log('El código vence en ~1 minuto. Si vence, presiona Ctrl+C y corre de nuevo:')
+    console.log(`   node bot.mjs --codigo ${TELEFONO}\n`)
   }
 
   sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
