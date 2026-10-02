@@ -232,6 +232,12 @@ def resumen():
         f"({c.get('gemini_endpoint')})",
         f"📝 Modo: {'borrador (apruebas tú)' if c.get('modo_borrador') else 'directo'} · "
         f"recordatorio {b.get('recordatorio_min')} min · gas sale solo a los {b.get('auto_enviar_gas_min')} min",
+        f"🗓️ Agenda solo con: {', '.join(c.get('agendar_palabras', [])[:4])}… "
+        f"({'obligatorio' if c.get('agendar_requiere_palabra', True) else 'no obligatorio'}) · gas siempre: "
+        f"{'sí' if c.get('gas_agenda_siempre', True) else 'no'}",
+        f"❓ Preguntas: {'directo al grupo' if c.get('preguntas_sin_aprobacion') else 'pasan por ti'} · "
+        f"📸 pedir foto: {'sí' if c.get('pedir_foto', True) else 'no'} · analizar fotos: "
+        f"{'sí' if c.get('fotos', {}).get('analizar', True) else 'no'}",
         f"⏱️ Espera respuesta {c.get('delay_respuesta_seg')} s · comandos {c.get('delay_comando_seg')} s",
         f"📅 Agenda al grupo: {'sí' if c.get('agenda_matutina', {}).get('activa') else 'no'} "
         f"{c.get('agenda_matutina', {}).get('hora')} · Reporte: {c.get('reporte_diario', {}).get('hora')}",

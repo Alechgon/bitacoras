@@ -122,10 +122,20 @@ def db():
     CREATE TABLE IF NOT EXISTS bitacoras(folio TEXT PRIMARY KEY, rbd INTEGER, establecimiento TEXT,
         fecha TEXT, hora TEXT, comuna TEXT, motivo TEXT, tecnico TEXT, archivo TEXT,
         cargado TEXT DEFAULT (datetime('now','localtime')), n_items INTEGER);
+    CREATE TABLE IF NOT EXISTS mensajes(id INTEGER PRIMARY KEY AUTOINCREMENT,
+        recibido TEXT DEFAULT (datetime('now','localtime')), origen TEXT, autor TEXT, texto TEXT,
+        intencion TEXT, rbd INTEGER, resultado TEXT, motor TEXT);
+    CREATE TABLE IF NOT EXISTS observaciones(id INTEGER PRIMARY KEY AUTOINCREMENT,
+        recibido TEXT DEFAULT (datetime('now','localtime')), autor TEXT, rbd INTEGER, texto TEXT, resumen TEXT);
+    CREATE TABLE IF NOT EXISTS fotos(id INTEGER PRIMARY KEY AUTOINCREMENT,
+        recibido TEXT DEFAULT (datetime('now','localtime')), autor TEXT, rbd INTEGER, ruta TEXT,
+        caption TEXT, analisis TEXT, hallazgo_id INTEGER);
     CREATE TABLE IF NOT EXISTS bitacora_items(id INTEGER PRIMARY KEY AUTOINCREMENT, folio TEXT,
         rbd INTEGER, categoria TEXT, item TEXT, ubicacion TEXT, cantidad TEXT, accion TEXT, observacion TEXT);
     """)
-    for alter in ("ALTER TABLE borradores ADD COLUMN recordado INTEGER DEFAULT 0",):
+    for alter in ("ALTER TABLE borradores ADD COLUMN recordado INTEGER DEFAULT 0",
+                  "ALTER TABLE borradores ADD COLUMN tipo TEXT DEFAULT 'agendar'",
+                  "ALTER TABLE hallazgos ADD COLUMN foto TEXT"):
         try:
             con.execute(alter)            # migración: bases creadas con versiones anteriores
         except sqlite3.OperationalError:

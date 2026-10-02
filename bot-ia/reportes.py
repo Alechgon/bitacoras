@@ -157,6 +157,26 @@ def generar(dias=10):
     wh.auto_filter.ref = wh.dimensions
     wh.freeze_panes = "A2"
 
+    # ------------------------------------------------ Mensajes (qué entendió el bot)
+    wm = wb.create_sheet("Mensajes")
+    head(wm, 1, ["Recibido", "Origen", "Autor", "Intención", "RBD", "Establecimiento", "Resultado", "Motor", "Texto"],
+         [16, 8, 18, 14, 9, 28, 14, 18, 70])
+    for i, x in enumerate(con.execute("SELECT * FROM mensajes ORDER BY id DESC LIMIT 800"), start=2):
+        vals = [x["recibido"], x["origen"], x["autor"], x["intencion"], x["rbd"], E.get(x["rbd"], {}).get("nombre", ""),
+                x["resultado"], x["motor"], x["texto"]]
+        for j, v in enumerate(vals, start=1):
+            celda(wm, i, j, v, al=ARRIBA if j == 9 else None)
+    wm.auto_filter.ref = wm.dimensions
+    wm.freeze_panes = "A2"
+
+    # ------------------------------------------------ Observaciones
+    wo = wb.create_sheet("Observaciones")
+    head(wo, 1, ["Recibido", "Autor", "RBD", "Establecimiento", "Resumen", "Texto"], [16, 18, 9, 28, 40, 70])
+    for i, x in enumerate(con.execute("SELECT * FROM observaciones ORDER BY id DESC LIMIT 500"), start=2):
+        vals = [x["recibido"], x["autor"], x["rbd"], E.get(x["rbd"], {}).get("nombre", ""), x["resumen"], x["texto"]]
+        for j, v in enumerate(vals, start=1):
+            celda(wo, i, j, v, al=ARRIBA if j == 6 else None)
+
     # ------------------------------------------------ Cambios
     wc = wb.create_sheet("Cambios")
     head(wc, 1, ["Cuándo", "Evento"], [18, 120])

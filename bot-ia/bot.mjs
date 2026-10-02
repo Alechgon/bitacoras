@@ -120,6 +120,14 @@ function textoDe (m) {
          i.videoMessage?.caption || i.documentMessage?.caption || ''
 }
 const docDe = m => interior(m).documentMessage || null
+const imgDe = m => interior(m).imageMessage || null
+function citadoDe (m) {
+  const i = interior(m)
+  const q = (i.extendedTextMessage?.contextInfo || i.imageMessage?.contextInfo || i.documentMessage?.contextInfo)?.quotedMessage
+  if (!q) return ''
+  return q.conversation || q.extendedTextMessage?.text || q.imageMessage?.caption || q.documentMessage?.caption || ''
+}
+const tsDe = m => Number(m.messageTimestamp || 0) || Math.floor(Date.now() / 1000)
 const ctxDe = m => {
   const i = interior(m)
   return i.extendedTextMessage?.contextInfo || i.documentMessage?.contextInfo || null
@@ -195,7 +203,9 @@ async function enviarAlGrupo (bid, textos) {
   try {
     const { archivos } = await api('/adjuntos', { borrador_id: bid })
     for (const a of (archivos || [])) {
-      if (fs.existsSync(a)) encolar(g, { document: fs.readFileSync(a), fileName: path.basename(a).replace(/^\d+_/, ''), mimetype: 'application/pdf' }, op, 2500)
+      if (!fs.existsSync(a)) continue
+      if (/\.(jpe?g|png|webp)$/i.test(a)) encolar(g, { image: fs.readFileSync(a) }, op, 2500)
+      else encolar(g, { document: fs.readFileSync(a), fileName: path.basename(a).replace(/^\d+_/, ''), mimetype: 'application/pdf' }, op, 2500)
     }
   } catch {}
   delete estado.casos[bid]
@@ -250,6 +260,26 @@ async function manejar (m) {
     return
   }
 
+  // ---------------- FOTO (se analiza con IA y se pega al caso)
+  const img = imgDe(m)
+  if (img) {
+    try {
+      const ruta = await descargar(m, `foto_${m.key.id}.jpg`)
+      const bidCit = borradorCitado(m)
+      if (privadoAdmin && bidCit) {                                   // foto para adjuntar a un caso tuyo
+        const r = await api('/adjuntar', { ruta, autor: m.pushName || '', borrador_id: bidCit })
+        for (const t of (r.admin || [])) encolar(jid, { text: t }, {}, 1500)
+        return
+      }
+      const r = await api('/foto', { ruta, autor: m.pushName || 'supervisora', origen: privadoAdmin ? 'admin' : 'grupo',
+        caption: texto, citado: citadoDe(m) })
+      if (r.borradores?.length) registrarCasos(r.borradores, privadoAdmin ? null : m, texto || '[foto]')
+      for (const t of (r.admin || [])) encolar(adminJid(), { text: t }, {}, azar(2, 6) * 1000)
+      if (r.grupo?.length) encolar(jid, { text: r.grupo.join('\n\n') }, { quoted: m })
+    } catch (e) { log('❌ foto:', e.message) }
+    return
+  }
+
   // ---------------- PDF
   if (doc) {
     const esPDF = /pdf/i.test(doc.mimetype || '') || /\.pdf$/i.test(doc.fileName || '')
@@ -282,7 +312,8 @@ async function manejar (m) {
     const bidCit = borradorCitado(m)
     const OK = (c.palabras_ok || ['ok']).map(normal)
     const NO = (c.palabras_no || ['no']).map(normal)
-    const esDecision = OK.includes(low) || NO.includes(low) || bidCit || texto.startsWith('+')
+    const AG = (c.agendar_palabras || ['agendar']).map(normal)
+    const esDecision = OK.includes(low) || NO.includes(low) || AG.includes(low) || bidCit || texto.startsWith('+')
     try {
       if (esDecision) {
         const decision = texto.startsWith('+') ? texto.slice(1).trim() : texto
@@ -290,7 +321,7 @@ async function manejar (m) {
         for (const t of (r.admin || [])) encolar(jid, { text: t }, {}, 1500)
         if (r.enviar_borrador) await enviarAlGrupo(r.enviar_borrador, r.grupo || [])
       } else {
-        const r = await api('/entrada', { origen: 'admin', texto, autor: m.pushName || 'Manuel' })
+        const r = await api('/entrada', { origen: 'admin', texto, autor: m.pushName || 'Manuel', citado: citadoDe(m), ts: tsDe(m) })
         registrarCasos(r.borradores, null, '')
         for (const t of (r.admin || [])) encolar(jid, { text: t }, {}, 1500)
         if (r.grupo?.length) for (const t of r.grupo) encolar(grupoDestino(), { text: t })   // modo directo
@@ -303,7 +334,7 @@ async function manejar (m) {
   // ---------------- grupo de supervisoras
   log(`📥 ${m.pushName || '?'}: ${texto.slice(0, 80)}`)
   try {
-    const r = await api('/entrada', { origen: 'grupo', texto, autor: m.pushName || 'supervisora' })
+    const r = await api('/entrada', { origen: 'grupo', texto, autor: m.pushName || 'supervisora', citado: citadoDe(m), ts: tsDe(m) })
     if (r.error) { log('❌ servidor:', r.error); return }
     if (r.borradores?.length) {                                  // modo borrador: te llega a ti
       registrarCasos(r.borradores, m, texto)

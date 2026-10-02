@@ -75,6 +75,27 @@
     "👎",
     "❌"
   ],
+  "_intenciones": "Cada mensaje se clasifica en agendar, requerimiento, pregunta, observacion o charla. Solo 'agendar' mete algo a la agenda (salvo gas, si gas_agenda_siempre).",
+  "agendar_palabras": [
+    "agendar",
+    "agenden",
+    "agendame",
+    "agendalo",
+    "agendala",
+    "agendemos",
+    "programar visita",
+    "programen"
+  ],
+  "agendar_requiere_palabra": true,
+  "agendar_ventana_horas": 72,
+  "gas_agenda_siempre": true,
+  "preguntas_sin_aprobacion": false,
+  "redactar_con_ia": true,
+  "pedir_foto": true,
+  "fotos": {
+    "analizar": true,
+    "vincular_min": 60
+  },
   "_tiempos": "Segundos de espera antes de responder (al azar entre los dos), para no parecer robot.",
   "delay_respuesta_seg": [
     35,
