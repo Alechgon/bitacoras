@@ -53,6 +53,16 @@ function guardarEstado () {
 // mensaje mínimo para poder citar el original aunque el bot se haya reiniciado
 const citable = (m, texto) => m ? { key: m.key, message: { conversation: texto || ' ' } } : null
 
+// una sola copia del bot: si quedó otra corriendo (dos copias se pelean la sesión y se pierden mensajes), se cierra
+const RUTA_PID = path.join(DIR, 'bot.pid')
+if (!TELEFONO) {
+  try {
+    const viejo = Number(fs.readFileSync(RUTA_PID, 'utf8'))
+    if (viejo && viejo !== process.pid) { process.kill(viejo, 'SIGTERM'); console.log('🔪 Cerré otra copia del bot (pid ' + viejo + ')') }
+  } catch {}
+  fs.writeFileSync(RUTA_PID, String(process.pid))
+}
+
 let sock
 let conectado = false
 const procesados = new Set()
@@ -65,27 +75,43 @@ function encolar (jid, contenido, opciones = {}, delay = null) {
   cola.push({ jid, contenido, opciones, delay })
   if (!enviando) vaciarCola()
 }
+// nada puede trabar la cola: cada envío tiene un tope de tiempo
+const conTope = (p, ms, que) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error(que + ': sin respuesta en ' + ms / 1000 + ' s')), ms))])
+
 async function vaciarCola () {
   enviando = true
   while (cola.length) {
     const { jid, contenido, opciones, delay } = cola.shift()
     const [min, max] = cfg().delay_respuesta_seg || [35, 95]
     await esperar(delay ?? azar(min, max) * 1000)
-    for (let intento = 1; intento <= 3; intento++) {
+    let ok = false
+    let ultimoError = ''
+    for (let intento = 1; intento <= 4 && !ok; intento++) {
+      // si citar o mencionar falla, el último intento va como mensaje simple
+      const simple = intento === 4
+      const cont = simple && contenido.mentions ? { ...contenido, mentions: undefined } : contenido
+      const ops = simple ? {} : opciones
       try {
-        if (!conectado) await esperar(5000)
-        if (contenido.text) {
-          await sock.sendPresenceUpdate('composing', jid)
-          await esperar(Math.min(8000, 1500 + contenido.text.length * 40))
-          await sock.sendPresenceUpdate('paused', jid)
+        for (let s = 0; !conectado && s < 12; s++) await esperar(5000)
+        if (cont.text) {
+          try {
+            await conTope(sock.sendPresenceUpdate('composing', jid), 10000, 'escribiendo')
+            await esperar(Math.min(8000, 1500 + cont.text.length * 40))
+            await conTope(sock.sendPresenceUpdate('paused', jid), 10000, 'pausa')
+          } catch {}
         }
-        await sock.sendMessage(jid, contenido, opciones)
-        log('📤 enviado a', jid)
-        break
+        await conTope(sock.sendMessage(jid, cont, ops), 45000, 'envío')
+        log('📤 enviado a', jid, simple ? '(sin cita)' : '')
+        ok = true
       } catch (e) {
-        log(`❌ error enviando (intento ${intento}/3):`, e.message)
+        ultimoError = e.message
+        log(`❌ error enviando (intento ${intento}/4):`, e.message)
         await esperar(4000 * intento)
       }
+    }
+    if (!ok && jid !== adminJid()) {
+      const que = contenido.text ? `«${contenido.text.slice(0, 200)}»` : 'un archivo'
+      cola.unshift({ jid: adminJid(), contenido: { text: `⚠️ No pude enviar al ${jid.endsWith('@g.us') ? 'grupo' : 'chat ' + jid} ${que}\nError: ${ultimoError}` }, opciones: {}, delay: 1500 })
     }
   }
   enviando = false
@@ -310,7 +336,7 @@ async function manejar (m) {
       const [dmin, dmax] = c.delay_comando_seg || [3, 8]
       if (r.texto) encolar(jid, { text: r.texto }, { quoted: m }, azar(dmin, dmax) * 1000)
       if (r.archivo) encolar(jid, { document: fs.readFileSync(r.archivo), fileName: path.basename(r.archivo), mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }, {}, 3000)
-      await despachar({ ...r, texto: undefined, archivo: undefined }, { jid })   // !simular, etc.
+      await despachar({ ...r, texto: undefined, archivo: undefined }, { jid, m })   // !simular, etc.
     } catch (e) { log('❌ comando:', e.message) }
     return
   }
@@ -364,6 +390,7 @@ async function manejar (m) {
     try {
       const r = await api('/privado', { texto, autor: m.pushName || 'Manuel', borrador_id: borradorCitado(m), citado: citadoDe(m), ts: tsDe(m) })
       const nada = !r.admin?.length && !r.grupo?.length && !r.envios_grupo?.length && !r.pedidos?.length && !r.borradores?.length
+      if (r.error) encolar(jid, { text: '❌ El servidor tuvo un error: ' + r.error }, {}, 1500)
       await despachar(r, { jid })
       if (nada && !r.error) encolar(jid, { text: '🤷 No detecté establecimiento ni falla. Dime el nombre o RBD y qué pasa. (*!ayuda* para comandos)' }, {}, 1500)
     } catch (e) { log('❌ privado:', e.message); encolar(jid, { text: '❌ El servidor no respondió. Revisa con !diagnostico.' }, {}, 1500) }
@@ -509,6 +536,10 @@ async function conectar () {
       if (code === DisconnectReason.loggedOut) {
         log('🚪 Sesión cerrada desde el teléfono. Borra la carpeta auth/ y vuelve a vincular.')
         process.exit(1)
+      }
+      if (code === DisconnectReason.connectionReplaced) {
+        log('⚠️ Otra copia del bot tomó la sesión (código 440). Me cierro para no pelear.')
+        process.exit(0)
       }
       log('🔄 Reconectando en 5 s... (código', code, ')')
       setTimeout(conectar, 5000)

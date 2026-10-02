@@ -171,6 +171,47 @@ function bot(b) {
     agregarFilas(hr, [fila], COL_REG.length);
     return { ok: true, creada: rg.id };
   }
+  if (b.accion === 'estado') {                       // el bot manda el paquete del panel con su agenda viva
+    var st = b.estado || {};
+    var prev = leerJson() || {};
+    // no pisar lo que el panel guardó por su cuenta: movimientos y bitácoras se juntan
+    st.LOG = (prev.LOG || []).filter(function (l) { return l.fuente !== 'bot'; }).concat(st.LOG || []);
+    var folios = {}; (st.BITS || []).forEach(function (x) { folios[String(x.folio)] = 1; });
+    st.BITS = (st.BITS || []).concat((prev.BITS || []).filter(function (x) { return !folios[String(x.folio)]; }));
+    guardarJson(st);
+    var k = kpis(st);
+    escribirHojas(st, k);
+    anotarHistorico(k);
+    PROP.setProperty('ultimo', ahora() + ' (bot)');
+    return { ok: true, kpi: k, hoja: urlSheet(), filas: (st.PLAN || []).length };
+  }
+  if (b.accion === 'tablas') {                       // hojas propias del bot (cronograma, metas, conversaciones…)
+    (b.tablas || []).forEach(function (t) {
+      var nc = (t.cols || []).length;
+      var filas = (t.filas || []).map(function (f) {
+        var x = f.slice(0, nc).map(function (v) { return v === null || v === undefined ? '' : v; });
+        while (x.length < nc) x.push('');
+        return x;
+      });
+      tabla(ss, t.hoja, t.cols, filas, { titulo: t.titulo, sub: t.sub, congelarCol: 1 });
+    });
+    var hc = ss.getSheetByName('Cronograma');
+    if (hc) {
+      hc.setConditionalFormatRules([]);
+      reglaTexto(hc, 4, 'LIBRE', C.verdeBg, C.verde);
+      reglaTexto(hc, 5, 'LIBRE', C.verdeBg, C.verde);
+      reglaTexto(hc, 6, 'LIBRE', C.verdeBg, C.verde);
+    }
+    var hm = ss.getSheetByName('Metas por establecimiento');
+    if (hm) {
+      hm.setConditionalFormatRules([]);
+      reglaTexto(hm, 7, 'CUMPLIDA', C.verdeBg, C.verde);
+      reglaTexto(hm, 7, 'SIN AGENDAR', C.ambarBg, C.ambar);
+      reglaTexto(hm, 7, 'DESPUÉS', C.rojoBg, C.rojo);
+    }
+    SpreadsheetApp.flush();
+    return { ok: true, hojas: (b.tablas || []).length };
+  }
   if (b.accion === 'leer') {                         // el bot trae reglas (editadas por ti) y decisiones recientes
     var reg = leerTabla(hr, COL_REG.length).filter(function (f) { return f[0] !== ''; }).map(function (f) {
       return { id: String(f[0]), activa: /^s/i.test(String(f[1])), tipo: f[2], alcance: f[3], valor: f[4],

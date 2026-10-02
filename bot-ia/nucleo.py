@@ -140,6 +140,31 @@ def db():
     CREATE TABLE IF NOT EXISTS pedidos_info(id INTEGER PRIMARY KEY AUTOINCREMENT,
         creado TEXT DEFAULT (datetime('now','localtime')), borrador_id INTEGER, rbd INTEGER, autor TEXT,
         pregunta TEXT, estado TEXT DEFAULT 'esperando', respuesta TEXT DEFAULT '', respondido TEXT);
+    CREATE TABLE IF NOT EXISTS hilos(id INTEGER PRIMARY KEY AUTOINCREMENT,
+        creado TEXT DEFAULT (datetime('now','localtime')), actualizado TEXT DEFAULT (datetime('now','localtime')),
+        autor TEXT, texto TEXT, problema TEXT, crit TEXT, rbd INTEGER, cands TEXT DEFAULT '[]', paso TEXT,
+        estado TEXT DEFAULT 'abierto', intencion TEXT, hallazgo_id INTEGER, opciones TEXT DEFAULT '[]', libre TEXT,
+        msgs TEXT DEFAULT '[]', intentos INTEGER DEFAULT 0, deshacer TEXT, motor TEXT, resultado TEXT);
+    CREATE TABLE IF NOT EXISTS movimientos(id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cuando TEXT DEFAULT (datetime('now','localtime')), tarjeta_id TEXT, rbd INTEGER, clase TEXT,
+        de_fecha TEXT, de_tec TEXT, de_bloque INTEGER, a_fecha TEXT, a_tec TEXT, a_bloque INTEGER,
+        estado_antes TEXT, estado TEXT, aplaz INTEGER, motivo TEXT);
+    -- cada cambio de la agenda queda anotado solo (para la hoja "Movimientos" y el cronograma)
+    CREATE TRIGGER IF NOT EXISTS mov_upd AFTER UPDATE OF fecha, tec, bloque, estado ON tarjetas
+    WHEN NEW.bloque <> 99 AND (OLD.fecha IS NOT NEW.fecha OR OLD.tec IS NOT NEW.tec OR OLD.estado IS NOT NEW.estado
+         OR (OLD.bloque IS NOT NEW.bloque AND OLD.bloque <> 99))
+    BEGIN
+      INSERT INTO movimientos(tarjeta_id, rbd, clase, de_fecha, de_tec, de_bloque, a_fecha, a_tec, a_bloque,
+                              estado_antes, estado, aplaz, motivo)
+      VALUES(NEW.id, NEW.rbd, NEW.clase, OLD.fecha, OLD.tec, OLD.bloque, NEW.fecha, NEW.tec, NEW.bloque,
+             OLD.estado, NEW.estado, NEW.aplaz, COALESCE((SELECT v FROM meta WHERE k='motivo'), 'bot'));
+    END;
+    CREATE TRIGGER IF NOT EXISTS mov_ins AFTER INSERT ON tarjetas WHEN NEW.origen = 'bot'
+    BEGIN
+      INSERT INTO movimientos(tarjeta_id, rbd, clase, a_fecha, a_tec, a_bloque, estado, aplaz, motivo)
+      VALUES(NEW.id, NEW.rbd, NEW.clase, NEW.fecha, NEW.tec, NEW.bloque, 'nueva', 0,
+             COALESCE((SELECT v FROM meta WHERE k='motivo'), 'bot'));
+    END;
     """)
     for alter in ("ALTER TABLE borradores ADD COLUMN recordado INTEGER DEFAULT 0",
                   "ALTER TABLE borradores ADD COLUMN tipo TEXT DEFAULT 'agendar'",
@@ -154,6 +179,12 @@ def db():
 
 def log(con, evento):
     con.execute("INSERT INTO historial(evento) VALUES(?)", (evento,))
+
+
+def motivo(con, texto):
+    """Por qué cambia la agenda ahora (lo anota el trigger en 'movimientos' y sale en la planilla)."""
+    con.execute("INSERT OR REPLACE INTO meta VALUES('motivo', ?)", (str(texto)[:200],))
+    con.execute("INSERT OR REPLACE INTO meta VALUES('agenda_cambio', datetime('now','localtime'))")
 
 
 def limite_de_tarjeta(p, e):
@@ -176,6 +207,7 @@ def sincronizar_plan(con):
     if fila and fila["v"] == ver:
         return
     ids = set()
+    con.execute("INSERT OR REPLACE INTO meta VALUES('motivo', ?)", (f"Plan regenerado en el panel ({ver})",))
     for p in D["PLAN"]:
         if p.get("origen") != "plan":
             continue
@@ -196,6 +228,7 @@ def sincronizar_plan(con):
                     f"AND id NOT IN ({marcas})", list(ids))
     con.execute("INSERT OR REPLACE INTO meta VALUES('version',?)", (ver,))
     log(con, f"Plan sincronizado con datos.js versión {ver}")
+    con.execute("INSERT OR REPLACE INTO meta VALUES('motivo', 'bot')")
     con.commit()
 
 
@@ -363,6 +396,7 @@ def agendar(con, rbd, crit, problema, prio, autor, hallazgo_id=None, desde=None)
         inicio = sig_habil(a_fecha(desde))
         limite = max(limite, inicio)
     texto_corr = f"CORRECTIVO ({autor.split()[0] if autor else 'supervisora'}): {problema}"
+    motivo(con, f"Falla {crit} en {e['nombre']} ({autor or 'supervisora'}): {problema[:80]}")
 
     # --- 0) ya tiene visita dentro del plazo
     ya = con.execute("SELECT * FROM tarjetas WHERE rbd=? AND estado='programada' AND fecha BETWEEN ? AND ? "

@@ -13,9 +13,11 @@ sys.modules.setdefault("servidor", sys.modules[__name__])   # un solo módulo (y
 
 import bitacoras
 import consultas
+import conversacion
 import ia
 import memoria
 import planificador
+import planilla
 import privado
 import reportes
 from nucleo import (a_fecha, agenda, agendar, bonita, buscar, cfg, datos, db, en_texto, es_habil, es_prioridad,
@@ -300,6 +302,15 @@ def entrada(origen, texto, autor, forzar_directo=False, citado="", foto=None, fo
                             (origen, autor, texto[:1000], "respuesta_info", p["rbd"], f"caso #{p['borrador_id']}", "regla"))
                 con.commit()
                 return {**vacio, **r}
+            hl = conversacion.buscar_hilo(con, texto, autor, citado)
+            if hl:
+                r = conversacion.continuar(con, hl, texto, autor)
+                if r is not None:
+                    con.execute("INSERT INTO mensajes(origen,autor,texto,intencion,rbd,resultado,motor) "
+                                "VALUES(?,?,?,?,?,?,?)", (origen, autor, texto[:1000], "conversacion", hl["rbd"],
+                                                          f"conversación #{hl['id']}", "regla"))
+                    con.commit()
+                    return {**vacio, **r, "intencion": "conversacion"}
     contexto = ""
     if citado:
         contexto += f"El mensaje responde a: «{citado[:400]}»\n"
@@ -339,7 +350,13 @@ def entrada(origen, texto, autor, forzar_directo=False, citado="", foto=None, fo
             sin_falla_nueva = ia.tipo_por_palabras(texto) == "OTRO" and not en_texto(texto)
             if it == "agendar" and sin_falla_nueva and _registrados_para_agendar(con, texto, citado, autor):
                 analisis["hallazgos"] = []          # 'agendar' a secas o citando: va lo ya registrado
-            if analisis.get("hallazgos"):
+            charla = None
+            if origen == "grupo" and len(analisis.get("hallazgos") or []) == 1 and not foto:
+                charla = conversacion.iniciar(con, texto, autor, analisis["hallazgos"][0], it, motor)
+            if charla is not None:                  # el bot conversa en el grupo antes de agendar
+                items = []
+                out = {**vacio, **charla}
+            elif analisis.get("hallazgos"):
                 items = _generar_respuestas(con, texto, autor, motor, analisis, agendar_ya, foto)
             else:
                 filas = _registrados_para_agendar(con, texto, citado, autor) if it == "agendar" else []
@@ -354,8 +371,9 @@ def entrada(origen, texto, autor, forzar_directo=False, citado="", foto=None, fo
                 if not filas and it == "agendar":
                     items = [("🗓️ ¿Qué agendo? Citen el mensaje de la falla y escriban *agendar*, o escriban "
                               "*agendar* con el establecimiento y el problema.", None, None, None, None, "aviso")]
-            out = _salida(con, origen, autor, texto, items, modo_borrador)
-            resultado = f"{len(items)} caso(s)"
+            if charla is None:
+                out = _salida(con, origen, autor, texto, items, modo_borrador)
+            resultado = "conversación" if charla is not None else f"{len(items)} caso(s)"
         else:
             if origen == "admin":
                 out["admin"].append("🤖 Te leo. Escríbeme un caso, una pregunta o *!ayuda* para ver comandos.")
@@ -541,6 +559,8 @@ def aprobar(decision, autor, bid=None, memo=None):
             out["enviar_borrador"] = b["id"]       # para que bot.mjs adjunte PDFs y cite el original
             out["admin"].append(f"✅ Enviado al grupo (caso #{b['id']}).")
         elif dl in no:
+            from nucleo import motivo as _motivo
+            _motivo(con, f"Caso #{b['id']} descartado por {autor}")
             if b["tarjeta_id"]:
                 con.execute("UPDATE tarjetas SET estado='anulada', modificada=1 WHERE id=?", (b["tarjeta_id"],))
             if b["hallazgo_id"]:
@@ -613,6 +633,11 @@ caso 6 responde: mañana va Camilo → envía tu texto
 el 3 pásalo a Camilo el jueves b2 → reprograma
 !casos — pendientes · !caso N — ver uno
 
+*💬 Conversación en el grupo*
+Si una supervisora avisa un caso sin decir qué pasa o dónde, el bot le pregunta.
+Si es urgente, muestra tu agenda de hoy y mañana y pregunta qué visita se puede mover.
+!hilos — conversaciones · deshacer N — revierte un cambio · !cerrar N
+
 *🗓️ Plan del día*
 !plan · !plan mañana → hoy/mañana por técnico + casos sin hora
 1 hoy camilo b3, 2 mañana, 3 no → vista previa
@@ -626,6 +651,7 @@ ok plan → se aplica y avisa a grupo y técnicos
 !reglas — lo que aprendí · regla 5 si / regla 5 no
 !regla nueva preguntar falla:GAS ¿tienen fotos?
 !memoria — estado y sincronizar con tu planilla
+!planilla — sube ya todo a Google (programa, cronograma, metas…)
 
 *⚙️ Encargado*
 !config — ver ajustes · !config clave valor — cambiar
@@ -663,20 +689,26 @@ def procesar_comando(texto, autor, es_admin, privado=False, wa=None):
     args = partes[1:]
     tecs = {t.lower(): t for t in D["META"]["tecnicos"]}
     # estos dos van FUERA del candado: llaman a internet o a entrada(), que maneja su propio candado
-    if cmd in ("!diagnostico", "!diag", "!simular", "!memoria"):
+    if cmd in ("!diagnostico", "!diag", "!simular", "!memoria", "!planilla"):
         if not es_admin:
             return {"texto": "Ese comando es solo para el encargado."}
         if cmd == "!memoria":
             r = memoria.sincronizar()
             return {"texto": f"🧠 *Memoria*\n{memoria.estado_texto()}\n\nRecién: {r}"}
+        if cmd == "!planilla":
+            r = planilla.sincronizar(forzar=True)
+            return {"texto": f"📊 *Planilla de Google*: {r}\n{planilla.estado_texto()}\n"
+                             f"Hojas: Panel, Programa, Cronograma, Metas por establecimiento, Movimientos, "
+                             f"Correctivos, Hallazgos WhatsApp, Conversaciones, Decisiones, Reglas y más."}
         if cmd == "!simular":
             if not args:
                 return {"texto": "Uso: !simular <mensaje como si fuera una supervisora>"}
-            r = entrada("grupo", texto.split(None, 1)[1], "Simulación")
+            r = entrada("grupo", texto.split(None, 1)[1], autor or "Simulación")
             if not r["admin"] and not r["grupo"]:
                 return {"texto": "🧪 La simulación no detectó establecimiento ni falla."}
-            return {"texto": f"🧪 Simulación lista ({len(r['borradores'])} caso/s). Revisa el borrador.",
-                    "admin": r["admin"], "borradores": r["borradores"]}
+            aviso = (f"🧪 Simulación: {len(r['borradores'])} caso/s, revisa el borrador." if r["borradores"] else
+                     "🧪 Simulación: el bot va a conversar en el grupo. Respóndele ahí como si fueras la supervisora.")
+            return {"texto": aviso, "admin": r["admin"], "borradores": r["borradores"], "grupo": r["grupo"]}
         return {"texto": diagnostico(wa or {})}
     with LOCK:
         con = db()
@@ -737,6 +769,12 @@ def procesar_comando(texto, autor, es_admin, privado=False, wa=None):
             if cmd == "!supervisoras":
                 sups = sorted({e["sup"] for e in D["ESTAB"] if e.get("sup")})
                 return {"texto": "\n\n".join(texto_supervisora(con, s_, corto=True) for s_ in sups)}
+            if cmd in ("!hilos", "!conversaciones"):
+                return {"texto": conversacion.texto_hilos(con)}
+            if cmd == "!cerrar" and es_admin and args and args[0].isdigit():
+                n = con.execute("UPDATE hilos SET estado='cerrado', resultado='cerrada por Manuel' WHERE id=? "
+                                "AND estado='abierto'", (int(args[0]),)).rowcount
+                return {"texto": f"✅ Conversación #{args[0]} cerrada." if n else "No hay una conversación abierta con ese número."}
             if cmd == "!reglas":
                 return {"texto": memoria.texto_reglas()}
             if cmd == "!regla" and es_admin:
@@ -769,6 +807,8 @@ def procesar_comando(texto, autor, es_admin, privado=False, wa=None):
             if cmd == "!caso" and args and args[0].isdigit():
                 return {"texto": _texto_borrador(con, int(args[0]))}
             if cmd == "!hecho" and args and args[0].isdigit():
+                from nucleo import motivo as _motivo
+                _motivo(con, f"Visita realizada (marcada por {autor})")
                 t = con.execute("SELECT * FROM tarjetas WHERE rbd=? AND estado='programada' ORDER BY fecha LIMIT 1",
                                 (int(args[0]),)).fetchone()
                 if not t:
@@ -845,6 +885,9 @@ def procesar_comando(texto, autor, es_admin, privado=False, wa=None):
             if not es_admin:
                 return {"texto": "Ese comando es solo para el encargado."} if cmd in ("!mover", "!anular") else \
                     {"texto": "No entendí. Escribe !ayuda"}
+            if cmd in ("!mover", "!hecho", "!anular"):
+                from nucleo import motivo as _motivo
+                _motivo(con, f"{cmd} por {autor}")
             if cmd == "!mover" and len(args) >= 2 and args[0].isdigit():
                 d = a_fecha(f"{hoy().year}-{args[1][3:5]}-{args[1][0:2]}") if len(args[1]) == 5 else a_fecha(args[1])
                 b = int(args[2]) if len(args) > 2 and args[2].isdigit() else 1
@@ -968,6 +1011,7 @@ def diagnostico(wa):
     # memoria
     mem = c.get("memoria", {})
     lin.append(f"{v(mem.get('activa') and mem.get('apps_script_url'))} Memoria: {memoria.estado_texto()}")
+    lin.append(f"{v(not planilla._estado['resultado'].startswith('no se'))} Planilla: {planilla.estado_texto()}")
     # disco
     libre = shutil.disk_usage(os.path.dirname(os.path.abspath(__file__))).free / 1e9
     lin.append(f"{v(libre > 0.5)} Espacio libre: {libre:.1f} GB")
@@ -1032,6 +1076,10 @@ def tick():
             out["admin"].append(f"⌛ {p['autor'] or 'La supervisora'} no respondió en {minutos // 60} h la consulta del "
                                 f"caso #{p['borrador_id']} («{p['pregunta'][:60]}»). Responde *caso {p['borrador_id']} ok* "
                                 f"para enviar igual, o pregúntale de nuevo.")
+        # conversaciones del grupo que quedaron sin respuesta
+        rv = conversacion.vencidos(con)
+        out["admin"] += rv["admin"]
+        out["envios_grupo"] += rv["envios_grupo"]
         # plan del día
         pl = c.get("plan", {})
         if pl.get("auto", True) and es_habil(ahora.date()) and _tick_estado["plan"] != hoy_s and \
@@ -1054,6 +1102,15 @@ def tick():
                 out["admin"].append(f"⏰ El caso #{br['id']} lleva {int(edad)} min esperando tu ok.\n"
                                     f"Responde *ok*, *no* o escribe *!caso {br['id']}* para verlo.")
         con.commit()
+    # planilla de Google: todo el estado (programa, cronograma, metas, movimientos…) si cambió algo
+    try:
+        cambio = db().execute("SELECT v FROM meta WHERE k='agenda_cambio'").fetchone()
+        ult = planilla._estado["ultimo"]
+        reciente = cambio and ult and cambio[0] > ult.strftime("%Y-%m-%d %H:%M:%S")
+        if c.get("memoria", {}).get("apps_script_url") and (planilla.toca() or reciente):
+            threading.Thread(target=planilla.sincronizar, daemon=True).start()
+    except Exception as e:
+        print("[planilla]", e)
     # memoria: subir decisiones / traer reglas, y una vez al día buscar patrones
     if memoria.toca_sincronizar():
         threading.Thread(target=memoria.sincronizar, daemon=True).start()
@@ -1176,8 +1233,13 @@ class H(BaseHTTPRequestHandler):
                                             data.get("caption", ""), data.get("citado", "")))
             if self.path == "/privado":        # todo lo que escribes en tu chat privado (lenguaje natural)
                 ts = data.get("ts")
-                return self._json(200, privado.manejar(data.get("texto", ""), data.get("autor", "Manuel"),
-                                                       data.get("borrador_id"), data.get("citado", ""), ts))
+                try:
+                    return self._json(200, privado.manejar(data.get("texto", ""), data.get("autor", "Manuel"),
+                                                           data.get("borrador_id"), data.get("citado", ""), ts))
+                except Exception as e:
+                    traceback.print_exc()
+                    return self._json(200, {"admin": [f"❌ Se me cayó algo procesando eso: {str(e)[:200]}\n"
+                                                      f"(quedó en logs/servidor.log; prueba de nuevo o con otras palabras)"]})
             if self.path == "/aprobar":        # ok / no / texto sobre un borrador
                 return self._json(200, aprobar(data.get("decision", ""), data.get("autor", ""),
                                                data.get("borrador_id")))

@@ -16,13 +16,13 @@ Si nombra un caso pero no calza con nada, Gemini lo interpreta con tus casos pen
 Si no nombra ningún caso, es un caso nuevo o una pregunta: va al flujo normal.
 """
 import json, re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import ia
 import lenguaje
 import memoria
 import planificador
-from nucleo import cfg, colocar_forzado, datos, db, log, norm
+from nucleo import buscar, cfg, colocar_forzado, datos, db, en_texto, log, motivo, norm
 
 VERBO_PEDIR = r"(preguntale|preguntales|pregunta|preguntar|pidele|pideles|pide|pedir|consultale|consulta|solicitale|" \
               r"solicita|averigua|que (me )?(mande|manden|envie|envien))"
@@ -160,7 +160,9 @@ def _pedir_info(con, b, pregunta, autor):
             f"{nombre or ''} en un grupo de WhatsApp. Español de Chile, cordial, tuteo, 1 o 2 líneas, sin firmar, sin "
             "comillas. Si son varias cosas, enuméralas en la misma línea.\n"
             + (ctx + "\n" if ctx else "")
-            + f"Mensaje original de ella: «{b['texto_original'][:300]}»\nInstrucción de Manuel: {pregunta}", max_seg=20)
+            + (f"Mensaje original de ella: «{b['texto_original'][:300]}»\n" if b["origen"] == "grupo" else
+               f"Es sobre el establecimiento {datos()['E'].get(b['rbd'], {}).get('nombre', '')}.\n")
+            + f"Instrucción de Manuel: {pregunta}", max_seg=20)
         if txt and 5 < len(txt) < 400:
             texto = txt.strip().strip('"«»')
     if not texto:
@@ -171,7 +173,8 @@ def _pedir_info(con, b, pregunta, autor):
         p = re.sub(r"\s+y\s+(si|que)\s+", "? ¿", p, flags=re.I)
         if re.match(r"^(fotos?|videos?|registros?|una foto|un video|el|la|los|las|un|una)\b", p, re.I):
             p = f"me puedes mandar {p}"
-        texto = f"{nombre + ', ' if nombre else ''}una consulta sobre tu mensaje: ¿{p}?"
+        sobre = "tu mensaje" if b["origen"] == "grupo" else f"el {__import__('conversacion').nom(b['rbd'])}"
+        texto = f"{nombre + ', ' if nombre else ''}una consulta sobre {sobre}: ¿{p}?"
     texto += f"\n_(caso #{b['id']})_"
     con.execute("INSERT INTO pedidos_info(borrador_id, rbd, autor, pregunta) VALUES(?,?,?,?)",
                 (b["id"], b["rbd"], b["autor"] if b["origen"] == "grupo" else sup, pregunta))
@@ -197,6 +200,7 @@ def _reprogramar(con, b, orden, autor):
         d = datetime.strptime(actual["fecha"], "%Y-%m-%d").date() if actual and actual["estado"] == "programada" else None
     if not (tec or d or bl):
         return "¿Para cuándo o con quién? Ej: *caso 3 camilo jueves b2*"
+    motivo(con, f"Orden de {autor} por privado (caso #{b['id']}): {orden[:80]}")
     res = colocar_forzado(con, h["rbd"], h["crit"], h["problema"], bool(h["prio"]), h["autor"], h["id"], tec=tec, d=d,
                           b=bl, tarjeta_id=actual["id"] if actual and actual["estado"] == "programada" else None)
     resp = S.texto_respuesta(E[h["rbd"]], h["problema"], h["crit"], res)
@@ -222,6 +226,15 @@ def _reescribir(con, b, texto, autor):
     con.execute("UPDATE borradores SET respuesta=? WHERE id=?", (texto.strip(), b["id"]))
     con.commit()
     return S.aprobar("ok", autor, b["id"], memo=("reescribir", "", b["respuesta"])), None
+
+
+def _consulta_suelta(con, rbd, texto):
+    """Pregunta sobre un colegio sin caso abierto: se crea un caso 'consulta' para poder seguir la respuesta."""
+    sup = datos()["E"].get(rbd, {}).get("sup", "")
+    bid = con.execute("INSERT INTO borradores(origen,autor,texto_original,respuesta,rbd,estado,tipo) "
+                      "VALUES('admin',?,?,'',?,'consulta','consulta')", (sup, texto, rbd)).lastrowid
+    con.commit()
+    return bid
 
 
 def ejecutar(con, bid, accion, contenido, autor):
@@ -277,6 +290,12 @@ def manejar(texto, autor, citado_bid=None, citado="", ts=None):
         acepta = norm(m.group(2)) not in ("no", "nop", "rechaza", "rechazar")
         out["admin"].append(memoria.decidir_regla(con, m.group(1), acepta, autor))
         return out
+    # deshacer un cambio que hizo el bot conversando en el grupo
+    m = re.match(r"^\s*deshacer\s*#?\s*(\d+)\s*$", raw, re.I)
+    if m:
+        import conversacion
+        out["admin"].append(conversacion.deshacer(con, int(m.group(1)), autor))
+        return out
     # plan del día
     if planificador.parece_plan(con, raw):
         return _mezclar(out, planificador.responder(raw, autor))
@@ -287,10 +306,30 @@ def manejar(texto, autor, citado_bid=None, citado="", ts=None):
         refs = [b["id"] for b in reversed(pendientes)]
     if not refs and citado_bid:
         refs = [citado_bid]
-    if not refs and it["accion"] and pendientes:
-        if it["accion"] in ("ok", "no", "agendar", "nota") or re.match(
-                rf"^({VERBO_PEDIR}|{VERBO_RESP}|{VERBO_MOVER})\b", norm(raw)):
-            refs = [pendientes[0]["id"]]               # sin número: el último caso pendiente
+    if not refs and it["accion"] and (pendientes or it["accion"] == "pedir_info"):
+        if it["accion"] in ("ok", "no", "agendar", "nota", "pedir_info") or re.match(
+                rf"^({VERBO_RESP}|{VERBO_MOVER})\b", norm(raw)):
+            # sin número: el caso del colegio que nombras ("…la emergencia del República de Austria"), o el último
+            nombrados = en_texto(raw)
+            if not nombrados:
+                top = buscar(raw)
+                nombrados = [top[0][1]] if top and top[0][0] >= 85 else []
+            pool = list(pendientes)
+            if it["accion"] == "pedir_info":       # también se puede preguntar por casos ya enviados o conversados
+                desde = (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d")
+                pool += con.execute("SELECT * FROM borradores WHERE estado<>'pendiente' AND creado>=? ORDER BY id DESC",
+                                    (desde,)).fetchall()
+            del_colegio = [b["id"] for b in pool if b["rbd"] in nombrados]
+            if del_colegio:
+                refs = [del_colegio[0]]
+            elif it["accion"] == "pedir_info" and nombrados:
+                refs = [_consulta_suelta(con, nombrados[0], raw)]
+            elif pendientes and not nombrados:
+                refs = [pendientes[0]["id"]]
+            elif it["accion"] == "pedir_info":
+                out["admin"].append("¿A quién le pregunto? Dime el colegio o el número del caso. "
+                                    "Ej: *caso 6: pregúntale si tiene fotos*")
+                return out
     if refs and it["accion"]:
         for bid in refs:
             _mezclar(out, ejecutar(con, bid, it["accion"], it["contenido"], autor))

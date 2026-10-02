@@ -191,5 +191,25 @@
   "_privado": "Tu chat privado entiende lenguaje natural: 'caso 6 no', 'ok 4 y 5', 'el 3 pásalo a Camilo el jueves b2', 'responde: ...'. Si no calza con nada conocido y nombra un caso, Gemini lo interpreta.",
   "privado": {
     "entender_con_ia": true
+  },
+  "_conversacion": "El bot conversa en el grupo antes de agendar: pregunta de qué se trata si no lo dicen, en qué colegio si no lo entiende, y si es urgente muestra tu agenda de hoy y del día hábil siguiente para que digan qué visita se puede mover. Si no responden en esperar_min: gas o prioridad se agenda solo; lo demás queda para tu plan.",
+  "conversacion": {
+    "activa": true,
+    "preguntar_detalle": true,
+    "preguntar_lugar": true,
+    "ofrecer_agenda": true,
+    "ofrecer_agenda_para": [
+      "GAS",
+      "FRIO",
+      "AGUA"
+    ],
+    "esperar_min": 45,
+    "copiar_encargado": true
+  },
+  "_planilla": "Respaldo completo en tu Google Sheet (el mismo del panel): programa, cronograma, metas, movimientos, hallazgos, conversaciones. Revisa cada revisar_min y sube solo si algo cambió (y al menos cada refrescar_min).",
+  "planilla": {
+    "activa": true,
+    "revisar_min": 10,
+    "refrescar_min": 60
   }
 }

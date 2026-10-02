@@ -13,3 +13,4 @@ config.json.tmp
 estado.json.tmp
 __pycache__/
 *.pyc
+bot.pid

@@ -276,6 +276,8 @@ def aplicar(con, pv, autor):
     E = datos()["E"]
     items, solo, _ = interpretar(pv["texto"], pv["ids"])
     antes = _foto_agenda(con)
+    from nucleo import motivo
+    motivo(con, f"Plan del día de {autor}: {pv['texto'][:80]}")
     hechos, solos = _ejecutar(con, items, solo)
     cambios = _cambios(antes, _foto_agenda(con))
     c = cfg().get("plan", {})

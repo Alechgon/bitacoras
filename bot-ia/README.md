@@ -99,6 +99,26 @@ te manda el Excel por privado. Las horas se cambian en `config.json`.
 | `caso 2 + llevar flexible` | suma una nota |
 | `regla 5 si` / `regla 5 no` | acepta o rechaza una regla que el bot te propuso |
 
+## Conversación en el grupo
+
+Cuando una supervisora avisa un caso, el bot habla como persona (directo en el grupo, a ti te llega copia):
+1. Si no dice qué pasa: "Carla, ¿de qué se trata la emergencia en el X? Así vemos quién va y qué llevar."
+2. Si no se entiende el colegio: "¿En qué colegio es? ¿Es el Carolina Vergara Ayares?"
+3. Si es urgente (gas, frío, agua, o dice emergencia/urgente): lista tus visitas de hoy y del día hábil
+   siguiente por técnico con su horario, propone un bloque libre si hay, y pregunta cuál se puede cambiar.
+   Responden "sí", "la del Confederación Suiza", "cualquiera" o "ninguna" y el bot mueve esa visita al
+   siguiente hueco (respetando su meta) y pone la emergencia ahí.
+4. A ti te llega el resultado con `deshacer N`. `!hilos` lista las conversaciones, `!cerrar N` corta una.
+5. Sin respuesta en 45 min: gas/prioridad se agenda solo; lo demás queda sin hora en tu `!plan`.
+
+## Planilla de Google (todo respaldado)
+
+El bot sube a tu planilla el mismo paquete que el panel, con su agenda viva: Panel (metas/KPIs), Programa,
+Movimientos (cada cambio de agenda y por qué), Correctivos, Establecimientos, Bitácoras, Datácora, Semanas,
+Histórico, más **Cronograma** (4 semanas día × técnico × bloque), **Metas por establecimiento**,
+Hallazgos WhatsApp, Conversaciones, Consultas a supervisoras y Mensajes del grupo. Sube sola cuando algo
+cambia (revisa cada 10 min) y al menos cada hora. A mano: `!planilla`.
+
 ## Plan del día (07:15 y `!plan`)
 
 Te llega hoy y mañana por técnico, bloque por bloque, y los **casos sin hora** numerados.

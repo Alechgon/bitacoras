@@ -218,6 +218,8 @@ PREGUNTA_RX = (r"\?|^(y )?(que|cuando|cual|quien|como|donde|fueron|vino|vinieron
                r"cuando van|cuando pasan|que paso|como quedo|quien fue)\b")
 RESUELTO_RX = (r"\b(quedo funcionando|ya funciona|funcionando|operativo|solucionado|reparado|arreglado|ya llego|"
                r"llegaron|ya esta|ya quedo|cierran|cierra a las|abren a las|recordar que|aviso que|les aviso)\b")
+EMERGENCIA_RX = (r"\b(emergencia|urgente|urgencia|problema con|problemas con|falla|fallando|no funciona|no funcionan|"
+                 r"no sirve|no prende|no enciende|se cayo|se rompio|roto|rota|quebrad|danad|malo|mala|ayuda)\b")
 CHARLA_RX = r"^(hola|holi|buenos dias|buenas tardes|buenas noches|buenas|gracias|muchas gracias|ok|oki|okey|dale|perfecto|genial|saludos)\b"
 
 
@@ -232,7 +234,8 @@ def sin_ia(texto, contexto=""):
     hits = en_texto(texto) or (en_texto(contexto) if contexto else [])
     tipo = tipo_por_palabras(texto)
     agendar = pide_agendar(texto)
-    if not agendar and re.search(PREGUNTA_RX, t):
+    aviso_falla = re.search(EMERGENCIA_RX, t) and "?" not in texto
+    if not agendar and not aviso_falla and re.search(PREGUNTA_RX, t):
         return {"intencion": "pregunta", "es_reporte": False, "hallazgos": [],
                 "pregunta": {"rbd": hits[0] if hits else None, "nombre_mencionado": "", "tema": "",
                              "tiempo": "", "sobre": "futuro" if re.search(r"cuando (vienen|van|pasan|viene|va)|proxima", t)
@@ -271,9 +274,15 @@ def sin_ia(texto, contexto=""):
         if m:
             hallazgos.append({"rbd": None, "nombre_mencionado": m.group(1).strip(), "problema": texto.strip()[:90],
                               "tipo": tipo, "seguro": False})
+    if not hallazgos and aviso_falla:
+        # "tengo una emergencia en el Vergara Ayares": hay falla aunque no se sepa cuál ni dónde exactamente
+        m = re.search(r"\b(?:en|del|de la|en el|en la)\s+(?:el\s+|la\s+)?([^,.;:\n?!]{3,50})$", texto.strip(), re.I)
+        nombre = m.group(1).strip() if m else ""
+        hallazgos.append({"rbd": hits[0] if hits else None, "nombre_mencionado": nombre,
+                          "problema": limpio(texto), "tipo": tipo, "seguro": bool(hits)})
     if agendar:
         return {"intencion": "agendar", "es_reporte": True, "hallazgos": hallazgos}
-    if hallazgos and (tipo != "OTRO" or any(h["tipo"] != "OTRO" for h in hallazgos)):
+    if hallazgos and (tipo != "OTRO" or aviso_falla or any(h["tipo"] != "OTRO" for h in hallazgos)):
         return {"intencion": "requerimiento", "es_reporte": True, "hallazgos": hallazgos}
     if hits:
         return {"intencion": "observacion", "es_reporte": False, "hallazgos": [],
