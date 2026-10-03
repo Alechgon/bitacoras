@@ -223,9 +223,11 @@ function registrarCasos (ids, mOriginal, texto) {
   guardarEstado()
 }
 
-function enviarArchivo (jid, a, op = {}) {
+function enviarArchivo (jid, x, op = {}) {
+  // x puede ser una ruta o {ruta, nombre} (para mandar el PDF con un nombre claro: "Bitacora Colegio 30-09-2026.pdf")
+  const a = typeof x === 'string' ? x : x?.ruta
   if (!a || !fs.existsSync(a)) return
-  const nombre = path.basename(a).replace(/^\d+_/, '')
+  const nombre = (typeof x === 'object' && x.nombre) || path.basename(a).replace(/^\d+_/, '')
   if (/\.(jpe?g|png|webp)$/i.test(a)) encolar(jid, { image: fs.readFileSync(a) }, op, 2500)
   else if (/\.xlsx$/i.test(a)) encolar(jid, { document: fs.readFileSync(a), fileName: nombre, mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }, op, 2500)
   else encolar(jid, { document: fs.readFileSync(a), fileName: nombre, mimetype: 'application/pdf' }, op, 2500)

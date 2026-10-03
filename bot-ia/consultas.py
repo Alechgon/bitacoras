@@ -219,13 +219,13 @@ def responder(texto, autor, pista=None, ahora=None):
             m = metas(db())
             j, jt, jf = m["junaeb"]
             g, gt, gf = m["jardines"]
-            return {"texto": f"🎯 JUNAEB en Datácora: *{j}/{jt}* (meta {bonita(jf)})\n"
-                             f"🎯 Jardines con preventiva: *{g}/{gt}* (meta {bonita(gf)})", "archivos": [], "rbd": None}
-        return {"texto": "🤔 ¿De qué establecimiento? Díganme el nombre o el RBD y les respondo.", "archivos": [],
+            return {"texto": f"Vamos en JUNAEB con {j} de {jt} cargados en Datácora (meta {bonita(jf)}) "
+                             f"y en jardines con preventiva {g} de {gt} (meta {bonita(gf)}).", "archivos": [], "rbd": None}
+        return {"texto": "¿De qué colegio me preguntan? Díganme el nombre o el RBD y les respondo.", "archivos": [],
                 "rbd": None}
     recordar_rbd(autor, rbd)
     e = D["E"][rbd]
-    cab = f"🏫 *{e['nombre']}* · RBD {rbd}"
+    cab = f"{e['nombre'].title()} (RBD {rbd})"
 
     # ---- preguntas sobre lo que viene
     futuro = pista.get("sobre") == "futuro" or re.search(
@@ -233,16 +233,16 @@ def responder(texto, autor, pista=None, ahora=None):
     con = db()
     prox = con.execute("SELECT * FROM tarjetas WHERE rbd=? AND estado='programada' AND fecha>=? ORDER BY fecha LIMIT 2",
                        (rbd, hoy().isoformat())).fetchall()
-    linea_prox = ("📅 Próxima visita: " + " · ".join(
+    linea_prox = ("Próxima visita: " + " · ".join(
         f"{bonita(p['fecha'])} {nombre_tec(p['tec'])} ({p['clase'].lower()})" for p in prox)) if prox else \
-        "📅 Sin visita programada todavía."
+        "Todavía no tiene visita programada."
     if futuro:
         return {"texto": f"{cab}\n{linea_prox}", "archivos": [], "rbd": rbd}
 
     # ---- preguntas sobre lo hecho
     evs = eventos(rbd)
     if not evs:
-        return {"texto": f"{cab}\n📭 No tengo visitas registradas de este establecimiento.\n{linea_prox}",
+        return {"texto": f"{cab}\nNo tengo visitas registradas de este colegio.\n{linea_prox}",
                 "archivos": [], "rbd": rbd}
     tema = pista.get("tema") or texto
     evs_tema, pat = _filtrar_tema(evs, tema)
@@ -251,16 +251,16 @@ def responder(texto, autor, pista=None, ahora=None):
     if desde:
         en_rango = [x for x in base if desde <= x["fecha"] <= hasta]
         if en_rango:
-            elegidos, intro = en_rango[:4], f"🗓️ {etiqueta.capitalize()}:"
+            elegidos, intro = en_rango[:4], f"{etiqueta.capitalize()}:"
         else:
             ancla = desde + (hasta - desde) / 2
             elegidos = sorted(base, key=lambda x: abs((x["fecha"] - ancla).days))[:2]
             elegidos.sort(key=lambda x: x["fecha"], reverse=True)
-            intro = f"🗓️ No hay visita justo {etiqueta}; lo más cercano:"
+            intro = f"No hay visita justo {etiqueta}; lo más cercano:"
     else:
-        elegidos, intro = base[:3], "🗓️ Lo más reciente:"
+        elegidos, intro = base[:3], "Lo más reciente:"
     if pat and not evs_tema:
-        intro = "🔎 No encontré trabajos de ese tema; esto es lo último:"
+        intro = "No encontré trabajos de ese tema; esto es lo último:"
     por_que = bool(re.search(POR_QUE, t))
 
     hechos = [cab, intro]
@@ -278,10 +278,10 @@ def responder(texto, autor, pista=None, ahora=None):
         if x["items"] and (pat or n == 0 or por_que):
             for cat, cosas in _por_categoria(x["items"]).items():
                 tope = 8 if por_que else 3
-                hechos.append(f"   ↳ {cat}: " + "; ".join(cosas[:tope]) + (" …" if len(cosas) > tope else ""))
+                hechos.append(f"   {cat}: " + "; ".join(cosas[:tope]) + (" …" if len(cosas) > tope else ""))
     hechos.append(linea_prox)
     if archivos:
-        hechos.append(f"📎 Se adjunta{'n' if len(archivos) > 1 else ''} {len(archivos)} bitácora"
+        hechos.append(f"Se adjunta{'n' if len(archivos) > 1 else ''} {len(archivos)} bitácora"
                       f"{'s' if len(archivos) > 1 else ''} en PDF")
     plantilla = "\n".join(hechos)
 
@@ -300,7 +300,7 @@ def responder(texto, autor, pista=None, ahora=None):
                "bitácora. " if por_que else "")
             + ("Si hay bitácoras adjuntas, dilo al final (ej. «te dejo la bitácora»). " if archivos else "")
             + "Si los datos no responden exactamente, dilo en una línea y da lo más cercano. No inventes nada. "
-            "Puedes usar 1 o 2 emojis como máximo.\n\n"
+            "Sin emojis, sin negritas, sin viñetas: como un mensaje de WhatsApp de una persona.\n\n"
             + (ctx + "\n\n" if ctx else "")
             + f"PREGUNTA de {autor}: {texto}\n\nDATOS:\n{plantilla}")
         txt = ia.generar(prompt, max_seg=25)

@@ -58,7 +58,8 @@ def nom(rbd_o_nombre):
     """Nombre del colegio como lo escribe una persona: 'Liceo Confederación Suiza', no 'LICEO CONFEDERACION SUIZA'."""
     n = datos()["E"].get(rbd_o_nombre, {}).get("nombre", rbd_o_nombre) if isinstance(rbd_o_nombre, int) else rbd_o_nombre
     t = " ".join(w if re.fullmatch(r"[A-Z]\d+|E\d+|[IVX]+", w) else w.capitalize() for w in str(n).split())
-    return re.sub(r"\b(De|Del|La|Las|Los|El|Y)\b", lambda m: m.group(0).lower(), t)
+    t = re.sub(r"(?<=\s)(De|Del|La|Las|Los|El|Y)\b", lambda m: m.group(0).lower(), t)
+    return t
 
 
 def _hora(d, b):
@@ -79,6 +80,32 @@ def _dia(d, d0=None):
     if d == d0 + timedelta(days=1):
         return "mañana"
     return f"el {DIAS_LARGO[d.weekday()]} {d.strftime('%d-%m')}"
+
+
+def pasa_a(d):
+    """'pasa al martes 06-10' / 'pasa a mañana'."""
+    x = _dia(d)
+    return "al " + x[3:] if x.startswith("el ") else "a " + x
+
+
+def limpiar_problema(texto, rbd):
+    """'Tengo una emergencia en el Teresa Prat, se cortó la luz' -> 'se cortó la luz'."""
+    p = " " + re.sub(r"\s+", " ", texto or "") + " "
+    nombres = [datos()["E"].get(rbd, {}).get("nombre", "")] + datos()["E"].get(rbd, {}).get("unidades", []) + \
+              [k for k, r in datos()["ALIAS"].items() if r == rbd]
+    tildes = {"a": "[aá]", "e": "[eé]", "i": "[ií]", "o": "[oó]", "u": "[uúü]", "n": "[nñ]"}
+    flex = lambda w: "".join(tildes.get(ch, re.escape(ch)) for ch in norm(w))
+    for n in sorted(filter(None, nombres), key=len, reverse=True):
+        p = re.sub(r"(?i)\b(en|del|de)?\s*(el|la)?\s*" + r"\s+".join(flex(w) for w in norm(n).split()) + r"\b", " ", p)
+    p = re.sub(r"(?i)\b(hola|buenas|buenos dias)\b|\b(tengo|tenemos|hay)\s+(una|un)?\s*(emergencia|urgencia|problema|"
+               r"caso)\s*(en|de|con)?\s*(el|la)?\b|\brbd\s*\d+|\b\d{4,6}\b", " ", p)
+    p = re.sub(r"\s+", " ", p).strip(" ,.;:-·")
+    pals = "|".join(re.escape(x) for x in cfg().get("agendar_palabras", ["agendar"]))
+    p = re.sub(rf"(?i)\b({pals})\b|\b(porfa|por favor|plis)\b", " ", p)
+    p = re.sub(r"\s+", " ", p).strip(" ,.;:-·")
+    p = re.sub(r"^(emergencia|urgencia|urgente)\b[\s,:.-]*", "", p, flags=re.I)
+    p = re.sub(r"^(y|que|en|el|la|tiene|tienen|esta|está)\s+", "", p, flags=re.I).strip(" ,.;:-")
+    return p[:1].lower() + p[1:] if len(p.split()) >= 2 else ""
 
 
 def _cap(s):
@@ -151,23 +178,22 @@ def buscar_hilo(con, texto, autor, citado=""):
 
 
 # ---------------------------------------------------------------- empezar
+def _rbd_escrito(texto, rbd):
+    return bool(rbd) and re.search(rf"\b{rbd}\b", texto or "") is not None
+
+
 def iniciar(con, texto, autor, h, intencion, motor):
     """
-    Primer mensaje de un caso. Devuelve la salida (grupo/admin) si el bot va a conversar,
+    Primer mensaje de un caso en el grupo. Devuelve la salida si el bot va a conversar,
     o None para seguir el flujo normal (borrador para ti).
+    Orden: 1) confirmar el colegio  2) de qué se trata  3) si es urgente, la agenda para ver qué se aplaza.
     """
     import servidor as S
     c = conf()
     if not c.get("activa", True):
         return None
-    E = datos()["E"]
     rbd, cands = S.resolver(h, texto)
     crit = h.get("tipo") if h.get("tipo") in ia.PAL or h.get("tipo") == "OTRO" else ia.tipo_por_palabras(texto)
-    vaga = c.get("preguntar_detalle", True) and es_vaga(texto, crit, rbd, h.get("nombre_mencionado", ""))
-    sin_lugar = c.get("preguntar_lugar", True) and not rbd
-    urgente = c.get("ofrecer_agenda", True) and es_urgente(crit, texto)
-    if not (vaga or sin_lugar or urgente):
-        return None
     if rbd:
         dias = int(cfg().get("borrador", {}).get("dias_duplicado", 7))
         desde = (datetime.now() - timedelta(days=dias)).strftime("%Y-%m-%d")
@@ -175,43 +201,54 @@ def iniciar(con, texto, autor, h, intencion, motor):
                        (rbd, crit, desde)).fetchone() or \
            con.execute("SELECT 1 FROM hilos WHERE rbd=? AND estado='abierto'", (rbd,)).fetchone():
             return None                      # ya está agendado o ya se está conversando: flujo normal
-    hid = con.execute("INSERT INTO hilos(autor,texto,problema,crit,rbd,cands,paso,intencion,motor) "
-                      "VALUES(?,?,?,?,?,?,?,?,?)",
+    confirmado = 1 if (_rbd_escrito(texto, rbd) or not c.get("confirmar_colegio", True)) else 0
+    hid = con.execute("INSERT INTO hilos(autor,texto,problema,crit,rbd,cands,paso,intencion,motor,confirmado) "
+                      "VALUES(?,?,?,?,?,?,?,?,?,?)",
                       (autor, texto, (h.get("problema") or texto)[:120], crit, rbd, json.dumps(cands),
-                       "nuevo", intencion, motor)).lastrowid
+                       "nuevo", intencion, motor, confirmado)).lastrowid
     log(con, f"Conversación #{hid} con {autor}: {texto[:80]}")
-    return _avanzar(con, _hilo(con, hid), vaga=vaga)
+    return _avanzar(con, _hilo(con, hid))
 
 
-def _pregunta_detalle(h):
-    n = _n(h["autor"])
-    lugar = f" en el {nom(h['rbd'])}" if h["rbd"] else ""
-    que = "la emergencia" if re.search(r"emergencia", norm(h["texto"])) else "el problema"
-    return f"{n}, ¿de qué se trata {que}{lugar}? Así vemos quién va y qué tiene que llevar."
+def _que(h):
+    return "la emergencia" if re.search(r"emergencia", norm(h["texto"])) else "el problema"
 
 
-def _pregunta_lugar(h, vaga=False):
-    n = _n(h["autor"])
-    cands = json.loads(h["cands"] or "[]")
-    E = datos()["E"]
-    inicio = f"{n}, ¿de qué se trata y en qué colegio es?" if vaga else f"{n}, ¿en qué colegio es?"
-    if len(cands) == 1:
-        return f"{inicio} ¿Es el {nom(cands[0])} ({E[cands[0]]['comuna'].title()})?"
-    if cands:
-        return f"{inicio} ¿Es el " + ", el ".join(nom(r) for r in cands[:-1]) + f" o el {nom(cands[-1])}?"
-    return f"{inicio} No me queda claro el nombre, ¿me lo dices o el RBD?"
+def _comuna(rbd):
+    return datos()["E"].get(rbd, {}).get("comuna", "").title()
 
 
-def _avanzar(con, h, vaga=False):
-    """Decide el siguiente paso del hilo y arma el mensaje."""
+def _vaga(h):
+    return conf().get("preguntar_detalle", True) and not h["detallado"] and es_vaga(h["texto"], h["crit"], h["rbd"])
+
+
+def _avanzar(con, h):
+    """Decide el siguiente paso del hilo: colegio -> confirmación -> detalle -> agenda (o flujo normal)."""
     out = {"grupo": [], "admin": []}
-    if vaga and h["paso"] in ("nuevo",):
-        txt = _pregunta_lugar(h, vaga=True) if not h["rbd"] else _pregunta_detalle(h)
+    n = _n(h["autor"])
+    vaga = _vaga(h)
+    if not h["rbd"]:
+        cands = json.loads(h["cands"] or "[]")
+        if len(cands) == 1:
+            txt = f"{n}, ¿es el {nom(cands[0])} de {_comuna(cands[0])}?"
+        elif cands:
+            txt = f"{n}, ¿en qué colegio es? ¿El " + ", el ".join(nom(r) for r in cands[:-1]) + f" o el {nom(cands[-1])}?"
+        else:
+            txt = f"{n}, ¿en qué colegio es? No me queda claro el nombre, ¿me lo dices o el RBD?"
+        if vaga:
+            txt += f" ¿Y de qué se trata {_que(h)}?"
+        _guardar(con, h["id"], paso="lugar")
+        return _salida(con, _hilo(con, h["id"]), txt, out, "le pregunté en qué colegio es")
+    if not h["confirmado"]:
+        txt = f"{n}, ¿es el {nom(h['rbd'])} de {_comuna(h['rbd'])}?"
+        if vaga:
+            txt += f" ¿Y de qué se trata {_que(h)}? Así vemos quién va y qué tiene que llevar."
+        _guardar(con, h["id"], paso="confirmar")
+        return _salida(con, _hilo(con, h["id"]), txt, out, "le pedí confirmar el colegio")
+    if vaga:
+        txt = f"{n}, ¿de qué se trata {_que(h)} en el {nom(h['rbd'])}? Así vemos quién va y qué tiene que llevar."
         _guardar(con, h["id"], paso="detalle")
         return _salida(con, _hilo(con, h["id"]), txt, out, "le pregunté de qué se trata")
-    if not h["rbd"]:
-        _guardar(con, h["id"], paso="lugar")
-        return _salida(con, _hilo(con, h["id"]), _pregunta_lugar(h), out, "le pregunté en qué colegio es")
     if conf().get("ofrecer_agenda", True) and es_urgente(h["crit"], h["texto"]):
         return _ofrecer(con, h, out)
     # no es urgente: pasa al flujo normal (te llega el borrador del requerimiento)
@@ -223,7 +260,7 @@ def _salida(con, h, texto, out, resumen):
     out["grupo"].append(texto)
     _anotar_msg(con, h, texto)
     if conf().get("copiar_encargado", True):
-        out["admin"].append(f"💬 Conversación #{h['id']} con {h['autor']}: {resumen}.\n«{texto[:300]}»")
+        out["admin"].append(f"Conversación #{h['id']} con {h['autor']}: {resumen}.\n«{texto[:300]}»")
     con.commit()
     return out
 
@@ -239,7 +276,7 @@ def _a_flujo_normal(con, h, out):
             out.setdefault(k, [])
             out[k] += v
     if out.get("borradores"):
-        out["admin"].insert(0, f"💬 Conversación #{h['id']}: ya tengo los datos, te paso el borrador.")
+        out["admin"].insert(0, f"Conversación #{h['id']}: ya tengo los datos, te paso el borrador.")
     con.commit()
     return out
 
@@ -249,8 +286,7 @@ def _dias_oferta():
     ahora = datetime.now()
     d1 = hoy()
     if es_habil(d1):
-        ult = max(bloques(d1))
-        ini = _inicio(d1, ult)
+        ini = _inicio(d1, max(bloques(d1)))
         if ini and ahora.time() >= ini:
             d1 = sumar_habiles(d1, 1)
     else:
@@ -258,37 +294,49 @@ def _dias_oferta():
     return d1, sumar_habiles(d1, 1)
 
 
+def _entre(d, b):
+    h = hora_bloque(d, b)
+    if "-" not in h:
+        return "en bloque extra"
+    a, z = [x.strip() for x in h.split("-")]
+    return f"entre las {a} y las {z}"
+
+
 def _armar_oferta(con, h):
+    """Texto de la agenda de los dos días + lista de opciones (visitas y bloques libres) para elegir."""
     D = datos()
     tecs = list(D["META"]["tecnicos"])
     pref = memoria.tecnico_para(h["crit"], h["rbd"], con) or cfg().get("preferencia_tecnico", {}).get(h["crit"])
     d1, d2 = _dias_oferta()
     ahora = datetime.now()
     lineas, opciones, libre = [], [], None
-    for d in (d1, d2):
-        lineas.append(f"\n{_cap(_dia(d))} tengo:")
+    for n_dia, d in enumerate((d1, d2), 1):
+        lineas.append(f"\n{_cap(_dia(d))}{'' if _dia(d).startswith('el ') else ' ' + DIAS_LARGO[d.weekday()]} "
+                      f"{d.strftime('%d-%m') if not _dia(d).startswith('el ') else ''}".rstrip() + ":")
         for tec in sorted(tecs, key=lambda t: t != pref):
             lineas.append(nombre_tec(tec))
             filas = {t["bloque"]: t for t in agenda(con, d, d, tec)}
             for b in sorted(set(bloques(d)) | set(filas)):
                 t = filas.get(b)
                 pasado = d == hoy() and (_inicio(d, b) or ahora.time()) <= ahora.time()
+                hora = _hora(d, b) if b in bloques(d) else "extra"
                 if t:
-                    movible = not pasado and t["rbd"] != h["rbd"] and (t["crit"] or "") != "GAS"
-                    lineas.append(f"- {nom(t['rbd'])}, {_hora(d, b)}")
+                    movible = not pasado and ((t["crit"] or "") != "GAS" or t["rbd"] == h["rbd"])
+                    lineas.append(f"- {nom(t['rbd'])}, {hora}")
                     opciones.append({"id": t["id"], "rbd": t["rbd"], "nombre": nom(t["rbd"]), "tec": tec,
-                                     "fecha": d.isoformat(), "bloque": b, "movible": movible,
+                                     "fecha": d.isoformat(), "dia": n_dia, "bloque": b, "movible": movible,
                                      "por_que": "ya pasó ese bloque" if pasado else
                                      ("es de gas" if (t["crit"] or "") == "GAS" else "")})
                 elif b <= 3 and not pasado:
-                    lineas.append(f"- libre, {_hora(d, b)}")
+                    lineas.append(f"- libre, {hora}")
+                    opciones.append({"id": None, "rbd": None, "nombre": "bloque libre", "tec": tec,
+                                     "fecha": d.isoformat(), "dia": n_dia, "bloque": b, "movible": True, "por_que": ""})
                     if libre is None and (h["crit"] != "GAS" or tec == pref or pref not in tecs):
                         libre = {"tec": tec, "fecha": d.isoformat(), "bloque": b}
     return lineas, opciones, libre, (d1, d2)
 
 
 def _ofrecer(con, h, out):
-    E = datos()["E"]
     lineas, opciones, libre, _ = _armar_oferta(con, h)
     # el caso queda registrado desde ya (si nadie responde, igual aparece en tu plan del día)
     if not h["hallazgo_id"]:
@@ -298,57 +346,120 @@ def _ofrecer(con, h, out):
                            h["problema"], h["crit"], int(es_prioridad(h["texto"])), h["motor"] or "conversación")
                           ).lastrowid
         _guardar(con, h["id"], hallazgo_id=hid)
-    etiqueta = ETIQUETA.get(h["crit"], "")
-    cab = f"Ok {_n(h['autor'])}, lo del {nom(h['rbd'])}" + (f" ({etiqueta})" if etiqueta else "") + "."
-    if libre:
-        cierre = (f"\n{nombre_tec(libre['tec'])} tiene libre {_dia(a_fecha(libre['fecha']))} de "
-                  f"{_hora(a_fecha(libre['fecha']), libre['bloque'])}, ¿lo dejamos ahí? Si no, díganme cuál de "
-                  f"estas visitas se puede cambiar y la muevo.")
+    problema = limpiar_problema(h["problema"], h["rbd"]) or limpiar_problema(h["texto"].split(" · ")[-1], h["rbd"])
+    cab = (f"Ok {_n(h['autor'])}, {problema} en el {nom(h['rbd'])}." if problema else
+           f"Ok {_n(h['autor'])}, lo del {nom(h['rbd'])}.")
+    cab += " Esta es la programación que tengo:"
+    propia = next((o for o in opciones if o["rbd"] == h["rbd"]), None)
+    if propia:                       # ya tiene visita en esos días: lo natural es resolverlo ahí
+        dp = a_fecha(propia["fecha"])
+        libre = {"tec": propia["tec"], "fecha": propia["fecha"], "bloque": propia["bloque"], "propia": True}
+        cierre = (f"\nEl {nom(h['rbd'])} ya tiene visita {_dia(dp)} con {nombre_tec(propia['tec'])} "
+                  f"{_entre(dp, propia['bloque'])}; si les sirve, lo ven ahí mismo. Si es más urgente, díganme "
+                  f"qué visita se podría aplazar; esa pasa al día hábil siguiente.")
+    elif libre:
+        cierre = (f"\n{nombre_tec(libre['tec'])} tiene libre {_dia(a_fecha(libre['fecha']))} "
+                  f"{_entre(a_fecha(libre['fecha']), libre['bloque'])}, si les sirve lo dejo ahí. Si no, "
+                  f"díganme qué visita se podría aplazar; esa pasa al día hábil siguiente.")
     else:
-        cierre = "\n¿Cuál de estas visitas se puede cambiar? Me dicen y la muevo para ir allá."
+        cierre = ("\nLo puedo sumar, pero habría que aplazar algún establecimiento. ¿Cuál podría ser? "
+                  "(Por ejemplo: el del segundo bloque del segundo día.) El que se aplace pasa al día hábil siguiente.")
     if h["crit"] == "GAS":
-        cierre += f" (El gas lo ve {nombre_tec(cfg().get('preferencia_tecnico', {}).get('GAS', 'CAMILO'))}.)"
+        cierre += f" El gas lo ve {nombre_tec(cfg().get('preferencia_tecnico', {}).get('GAS', 'CAMILO'))}."
     texto = cab + "\n" + "\n".join(lineas).strip("\n") + "\n" + cierre
     _guardar(con, h["id"], paso="agenda", opciones=json.dumps(opciones, ensure_ascii=False),
              libre=json.dumps(libre) if libre else None)
-    return _salida(con, _hilo(con, h["id"]), texto, out, "le mostré la agenda para ver qué se puede mover")
+    return _salida(con, _hilo(con, h["id"]), texto, out, "le mostré la agenda para ver qué se puede aplazar")
 
 
 # ---------------------------------------------------------------- seguir la conversación
+ORD_DIA = {"primer": 1, "primero": 1, "1er": 1, "segundo": 2, "2do": 2, "otro": 2}
+
+
 def _elegir(texto, opciones, rbd_caso=None):
-    """¿Qué visita nombró? Devuelve (opcion, motivo_si_no_se_puede)."""
+    """
+    ¿Qué visita o bloque nombró? Entiende el colegio ('la del Confederación Suiza'), o día + bloque
+    ('el segundo bloque del segundo día', 'mañana en la tarde', 'el de Camilo de las 11').
+    Devuelve (opcion, motivo_si_no_se_puede, ambiguas).
+    """
     if not opciones:
-        return None, ""
+        return None, "", []
+    visitas = [o for o in opciones if o["rbd"]]
     rbds = [r for r in en_texto(texto) if r != rbd_caso]
-    cand = [o for o in opciones if o["rbd"] in rbds]
+    cand = [o for o in visitas if o["rbd"] in rbds]
     if not cand:
         q = _limpio(texto)
-        puntajes = sorted(((_parecido(_limpio(o["nombre"]), q), i) for i, o in enumerate(opciones)), reverse=True)
+        puntajes = sorted(((_parecido(_limpio(o["nombre"]), q), i) for i, o in enumerate(visitas)), reverse=True)
         if puntajes and puntajes[0][0] >= 0.82:
-            cand = [opciones[puntajes[0][1]]]
+            cand = [visitas[puntajes[0][1]]]
     if not cand:
-        tec, bl, d = lenguaje.tec_de(texto), lenguaje.bloque_de(texto), lenguaje.fecha_de(texto)
-        if tec and bl:
-            dias = sorted({o["fecha"] for o in opciones})
-            dia = d.isoformat() if d else dias[0]
-            cand = [o for o in opciones if o["tec"] == tec and o["bloque"] == bl and o["fecha"] == dia]
+        t = norm(texto)
+        dia = None
+        m = re.search(r"\b(primer|primero|1er|segundo|2do|otro)\s+dia\b|\bdia\s+([12])\b", t)
+        if m:
+            dia = ORD_DIA.get(m.group(1)) if m.group(1) else int(m.group(2))
+        else:
+            f = lenguaje.fecha_de(texto)
+            if f:
+                dia = next((o["dia"] for o in opciones if o["fecha"] == f.isoformat()), None)
+        bl = lenguaje.bloque_de(re.sub(r"\b(primer|primero|segundo|otro)\s+dia\b", " ", t))
+        if not bl:
+            m = re.search(r"\b(?:las|a las)\s*(\d{1,2})(?:[:.](\d{2}))?\b", t)
+            if m:
+                hh = int(m.group(1))
+                for o in opciones:
+                    ini = _inicio(a_fecha(o["fecha"]), o["bloque"])
+                    if ini and ini.hour == hh:
+                        bl = o["bloque"]
+                        break
+        tec = lenguaje.tec_de(texto)
+        if bl or (dia and tec):
+            cand = [o for o in opciones if (not dia or o["dia"] == dia) and (not bl or o["bloque"] == bl)
+                    and (not tec or o["tec"] == tec)]
+            if not dia and len({o["dia"] for o in cand}) > 1:
+                cand = [o for o in cand if o["dia"] == 1] or cand
     if not cand:
-        return None, ""
+        return None, "", []
+    if len(cand) > 1:
+        return None, "", cand
     o = cand[0]
-    return o, ("" if o["movible"] else o["por_que"] or "no se puede mover")
+    return o, ("" if o["movible"] else o["por_que"] or "no se puede mover"), []
+
+
+NO_RX = r"^(no|nop|noo+|negativo|no es|es otro|es otra|otro|otra)\b"
+
+
+def _resto_tras_si(texto):
+    return re.sub(r"^\s*(s[ií]+|ok|ya|exacto|correcto|ese|esa|ese mismo|esa misma|as[ií] es|eso|efectivamente)"
+                  r"[\s,.!:;-]*", "", texto, flags=re.I).strip()
 
 
 def continuar(con, h, texto, autor):
     out = {"grupo": [], "admin": []}
     t = norm(texto)
+    if h["paso"] in ("verificador", "verif_lugar"):
+        import verificadores
+        return verificadores.continuar(con, h, texto, autor)
+    if h["paso"] == "confirmar":
+        otros = [r for r in en_texto(texto) if r != h["rbd"]]
+        if not otros and re.match(NO_RX, t):
+            top = [x for _, x in buscar(re.sub(NO_RX, "", t)) [:3]] if len(t.split()) > 2 else []
+            top = [x for x in top if x != h["rbd"]]
+            _guardar(con, h["id"], rbd=None, cands=json.dumps(top[:2]), paso="nuevo")
+            return _avanzar(con, _hilo(con, h["id"]))
+        rbd = otros[0] if otros else h["rbd"]
+        resto = limpiar_problema(re.sub(NO_RX, "", _resto_tras_si(texto), flags=re.I), rbd)
+        campos = {"rbd": rbd, "confirmado": 1, "paso": "nuevo"}
+        if resto and not es_vaga(resto, ia.tipo_por_palabras(resto), rbd):   # "sí, hay que instalar el cable…"
+            crit = ia.tipo_por_palabras(resto)
+            campos.update(texto=f"{h['texto']} · {resto}"[:1500], problema=resto[:120],
+                          crit=crit if crit != "OTRO" else h["crit"], detallado=1)
+        _guardar(con, h["id"], **campos)
+        return _avanzar(con, _hilo(con, h["id"]))
     if h["paso"] == "detalle":
         crit = ia.tipo_por_palabras(texto)
-        rbd = h["rbd"] or next(iter(en_texto(texto)), None)
-        if not rbd and not h["rbd"]:
-            top = buscar(texto)
-            rbd = top[0][1] if top and top[0][0] >= 82 else None
         _guardar(con, h["id"], texto=f"{h['texto']} · {texto}"[:1500], problema=texto[:120],
-                 crit=crit if crit != "OTRO" else h["crit"], rbd=rbd, paso="nuevo")
+                 crit=crit if crit != "OTRO" else h["crit"], paso="nuevo", detallado=1)   # se pregunta una sola vez
         return _avanzar(con, _hilo(con, h["id"]))
     if h["paso"] == "lugar":
         cands = json.loads(h["cands"] or "[]")
@@ -367,42 +478,52 @@ def continuar(con, h, texto, autor):
             if h["intentos"] >= 1:
                 _guardar(con, h["id"], estado="vencido", resultado="no se identificó el colegio")
                 con.commit()
-                out["admin"].append(f"💬 Conversación #{h['id']}: no logré saber el colegio con {h['autor']}. "
+                out["admin"].append(f"Conversación #{h['id']}: no logré saber el colegio con {h['autor']}. "
                                     f"Mensaje: «{h['texto'][:200]}». Escríbeme el caso con el RBD si corresponde.")
                 return out
             _guardar(con, h["id"], intentos=h["intentos"] + 1)
             return _salida(con, _hilo(con, h["id"]), f"No lo encuentro, {_n(autor)}. ¿Me das el RBD o el nombre "
                                                       f"completo?", out, "no ubiqué el colegio, le pedí el RBD")
+        # si lo eligió de la lista o lo nombró, ya está confirmado; si fue búsqueda difusa, se confirma
+        exacto = bool(en_texto(texto)) or (cands and rbd in cands)
+        resto = re.sub(rf"\b{re.escape(norm(datos()['E'][rbd]['nombre']))}\b", "", t).strip()
         crit = ia.tipo_por_palabras(texto)
-        _guardar(con, h["id"], rbd=rbd, crit=crit if crit != "OTRO" else h["crit"], paso="nuevo",
-                 texto=f"{h['texto']} · {texto}"[:1500])
-        h2 = _hilo(con, h["id"])
-        if es_vaga(h2["texto"], h2["crit"], rbd) and conf().get("preguntar_detalle", True):
-            _guardar(con, h["id"], paso="detalle")
-            return _salida(con, _hilo(con, h["id"]), _pregunta_detalle(_hilo(con, h["id"])), out,
-                           "le pregunté de qué se trata")
-        return _avanzar(con, h2)
+        campos = {"rbd": rbd, "confirmado": 1 if exacto else 0, "paso": "nuevo",
+                  "crit": crit if crit != "OTRO" else h["crit"], "texto": f"{h['texto']} · {texto}"[:1500]}
+        if crit != "OTRO" or len(resto.split()) >= 4:
+            campos["problema"] = texto[:120]
+        _guardar(con, h["id"], **campos)
+        return _avanzar(con, _hilo(con, h["id"]))
     if h["paso"] == "agenda":
         opciones = json.loads(h["opciones"] or "[]")
         libre = json.loads(h["libre"]) if h["libre"] else None
         if re.search(NINGUNA, t):
-            return _sin_cambio(con, h, autor, out, "nadie puede mover")
-        o, por_que = _elegir(texto, opciones, h["rbd"])
+            return _sin_cambio(con, h, autor, out, "nadie puede aplazar")
+        o, por_que, ambiguas = _elegir(texto, opciones, h["rbd"])
+        if ambiguas:
+            txt = (f"{_n(autor)}, ¿cuál? ¿" + " o ".join(
+                f"la de {nombre_tec(x['tec'])} ({x['nombre']})" for x in ambiguas[:3]) + "?")
+            txt = txt.replace("¿la de", "¿La de", 1)
+            return _salida(con, h, txt, out, "la respuesta calzaba con más de una visita")
         if o and por_que:
-            return _salida(con, h, f"Esa no la puedo mover, {_n(autor)} ({por_que}). ¿Otra?", out,
-                           f"pidieron mover {o['nombre']} pero {por_que}")
+            return _salida(con, h, f"Esa no la puedo aplazar, {_n(autor)} ({por_que}). ¿Otra?", out,
+                           f"pidieron aplazar {o['nombre']} pero {por_que}")
         if not o and re.search(CUALQUIERA, t):
-            movibles = [x for x in opciones if x["movible"]]
+            movibles = [x for x in opciones if x["movible"] and x["rbd"]]
             if movibles:
                 pts = {r["id"]: r["pts"] for r in con.execute("SELECT id, pts FROM tarjetas")}
                 o = sorted(movibles, key=lambda x: pts.get(x["id"], 99))[0]
+        if o and o["rbd"] == h["rbd"]:
+            return aplicar(con, h, autor, libre={**o, "propia": True})
+        if o and not o["rbd"]:
+            return aplicar(con, h, autor, libre=o)
         if o:
             return aplicar(con, h, autor, opcion=o)
         if libre and re.search(SI, t):
             return aplicar(con, h, autor, libre=libre)
         if _mismo(h["autor"], autor):
-            return _salida(con, h, f"{_n(autor)}, ¿cuál visita se puede cambiar? Dime el colegio "
-                                   f"(o *ninguna*).", out, "no entendí la respuesta")
+            return _salida(con, h, f"{_n(autor)}, ¿qué visita se podría aplazar? Dime el colegio o el día y el "
+                                   f"bloque (o *ninguna*).", out, "no entendí la respuesta")
         return None
     return None
 
@@ -425,7 +546,8 @@ def aplicar(con, h, autor, opcion=None, libre=None, automatico=False, intro=None
     else:
         dest = opcion or libre
         res = colocar_forzado(con, h["rbd"], h["crit"], h["problema"], bool(hal["prio"]), h["autor"], hal["id"],
-                              tec=dest["tec"], d=a_fecha(dest["fecha"]), b=dest["bloque"])
+                              tec=dest["tec"], d=a_fecha(dest["fecha"]),
+                              b=None if dest.get("propia") else dest["bloque"])     # su propia visita: se junta
     resp = S.texto_respuesta(E[h["rbd"]], h["problema"], h["crit"], res)
     con.execute("UPDATE hallazgos SET estado='agendado', pts=?, tarjeta_id=?, respuesta=? WHERE id=?",
                 (res["pts"], res["tarjeta"], resp, hal["id"]))
@@ -434,19 +556,22 @@ def aplicar(con, h, autor, opcion=None, libre=None, automatico=False, intro=None
     nuevas = [k for k in despues if k not in antes]
     d = res["fecha"]
     quien = nombre_tec(res["tec"])
-    hora = _hora(d, res["bloque"]) if res["bloque"] in bloques(d) else "en bloque extra"
     intro = intro or (f"Listo {_n(autor)}." if not automatico else "Como no alcanzamos a coordinar, lo dejé así:")
-    partes = [intro,
-              f"{quien} va {_dia(d)} {('de ' + hora) if 'extra' not in hora else hora} al {nom(h['rbd'])}."]
+    partes = [intro, f"{quien} va {_dia(d)} {_entre(d, res['bloque'])} al {nom(h['rbd'])}."]
     if res["modo"] == "fusion":
-        partes[-1] = f"El {nom(h['rbd'])} ya tenía visita {_dia(d)} con {quien}; lo ven ahí mismo."
+        partes[-1] = f"El {nom(h['rbd'])} ya tenía visita {_dia(d)} con {quien}, así que lo ven ahí mismo."
     for p in res.get("postergadas") or ([res["movida"]] if res.get("movida") else []):
         a = a_fecha(p["a"])
         bl = p.get("bloque")
-        partes.append(f"El {nom(p['nombre'])} pasa {_dia(a)}" + (f" de {_hora(a, bl)}" if bl else "") +
-                      (f", con {nombre_tec(p['tec'])}" if p.get("tec") and p.get("tec_antes") and p["tec"] != p["tec_antes"] else "") + ".")
+        mismo_tec = not p.get("tec_antes") or p.get("tec") == p.get("tec_antes")
+        if bl and bl in bloques(a):
+            cuando = f"{_dia(a)} {_entre(a, bl)}"
+        else:
+            cuando = f"{_dia(a)} como bloque extra"
+        cuando = (pasa_a(a) + cuando[len(_dia(a)):]) if cuando.startswith(_dia(a)) else cuando
+        partes.append(f"El {nom(p['nombre'])} pasa {cuando}" + ("" if mismo_tec else f", con {nombre_tec(p['tec'])}") + ".")
         if p.get("paso_limite"):
-            partes.append("(Ojo: esa queda después de su fecha meta, la reviso con Manuel.)")
+            partes.append("Ojo que esa queda después de su fecha meta; Manuel la revisa.")
     texto = " ".join(partes)
     bid = con.execute("INSERT INTO borradores(origen,autor,texto_original,respuesta,rbd,crit,hallazgo_id,tarjeta_id,"
                       "estado,tipo) VALUES('conversacion',?,?,?,?,?,?,?,'enviado','agendar')",
@@ -461,7 +586,7 @@ def aplicar(con, h, autor, opcion=None, libre=None, automatico=False, intro=None
     log(con, f"Conversación #{h['id']} cerrada: {elegido}")
     con.commit()
     out["grupo"].append(texto)
-    out["admin"].append(f"🔁 *Conversación #{h['id']}* con {h['autor']}: {nom(h['rbd'])} → {quien} "
+    out["admin"].append(f"*Conversación #{h['id']}* con {h['autor']}: {nom(h['rbd'])} → {quien} "
                         f"{bonita(d)} B{res['bloque']} ({elegido}).\n«{texto}»\nSi no corresponde: *deshacer {h['id']}*")
     return out
 
@@ -469,7 +594,7 @@ def aplicar(con, h, autor, opcion=None, libre=None, automatico=False, intro=None
 def _sin_cambio(con, h, autor, out, por_que):
     """Nadie puede mover nada: se agenda con las reglas normales (puede quedar en bloque extra)."""
     r = aplicar(con, h, autor, automatico=True, intro=f"Ok {_n(autor)}, entonces lo dejo así:")
-    r["admin"].insert(0, f"⚠️ Conversación #{h['id']}: {por_que}; lo agendé con las reglas normales.")
+    r["admin"].insert(0, f"Conversación #{h['id']}: {por_que}; lo agendé con las reglas normales.")
     return r
 
 
@@ -504,13 +629,13 @@ def vencidos(con):
         if h["paso"] == "agenda" and h["hallazgo_id"] and (h["crit"] == "GAS" or es_prioridad(h["texto"])):
             r = aplicar(con, h, h["autor"], automatico=True)
             out["envios_grupo"].append({"borrador_id": None, "textos": r["grupo"]})
-            out["admin"] += [f"⏱️ Conversación #{h['id']} sin respuesta en {minutos} min y es "
+            out["admin"] += [f"Conversación #{h['id']} sin respuesta en {minutos} min y es "
                              f"{'gas' if h['crit'] == 'GAS' else 'prioridad'}: la agendé sola."] + r["admin"]
         else:
             _guardar(con, h["id"], estado="vencido", resultado="sin respuesta")
             que = {"detalle": "de qué se trataba", "lugar": "en qué colegio era",
                    "agenda": "qué visita se podía mover"}.get(h["paso"], "")
-            out["admin"].append(f"⌛ Conversación #{h['id']}: {h['autor']} no respondió {que} en {minutos} min. "
+            out["admin"].append(f"Conversación #{h['id']}: {h['autor']} no respondió {que} en {minutos} min. "
                                 f"«{h['texto'][:150]}»" + (" · Queda sin hora en tu *!plan*." if h["hallazgo_id"] else ""))
     con.commit()
     return out
@@ -521,7 +646,8 @@ def texto_hilos(con):
     if not filas:
         return "💬 No hay conversaciones todavía."
     icono = {"abierto": "🟢", "cerrado": "✅", "vencido": "⌛", "deshecho": "↩️"}
-    paso = {"detalle": "esperando de qué se trata", "lugar": "esperando el colegio", "agenda": "esperando qué mover"}
+    paso = {"detalle": "esperando de qué se trata", "lugar": "esperando el colegio", "agenda": "esperando qué aplazar",
+            "confirmar": "esperando que confirme el colegio", "verificador": "esperando qué bitácora quiere"}
     return "💬 *Conversaciones del grupo*\n" + "\n".join(
         f"{icono.get(h['estado'], '•')} #{h['id']} {h['autor']} · {nom(h['rbd']) if h['rbd'] else '¿colegio?'} · "
         f"{paso.get(h['paso'], h['resultado'] or h['estado'])}" for h in filas) + \

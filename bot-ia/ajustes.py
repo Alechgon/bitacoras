@@ -163,6 +163,8 @@ def _validar(partes, valor):
         valor = re.sub(r"\D", "", str(valor))
         if valor and not (10 <= len(valor) <= 13):
             raise ValueError("número con código de país, ej 56912345678")
+    if hoja == "postergar" and valor not in ("dia_siguiente", "hueco"):
+        raise ValueError("usa dia_siguiente o hueco")
     if partes[0] == "memoria" and hoja == "clave":
         raise ValueError("la clave de la planilla no se cambia por chat (rompe el enlace con Google)")
     return valor

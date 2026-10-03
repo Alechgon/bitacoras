@@ -2415,6 +2415,42 @@ async function traerDeGoogle(){
     ir('panel');
   }catch(e){ el.textContent = 'No se pudo traer: '+e.message; }
 }
+/* ---- agenda viva del bot de WhatsApp ----
+   El bot sube su agenda a tu Apps Script. Al abrir el panel (y cada 5 min) se trae y se aplica:
+   solo las visitas que el bot cambió (emergencias, aplazamientos) y las que creó. Lo demás queda como lo tengas. */
+async function traerAgendaBot(){
+  try{
+    const u = gsUrl(); if(!u) return;
+    const r = await fetch(u + (u.includes('?')?'&':'?') + 'modo=json&t=' + Date.now(), {redirect:'follow'});
+    const j = await r.json();
+    if(!j || !j.BOT || !j.PLAN) return;
+    if(ST.cfg.botTs && ST.cfg.botTs >= j.BOT.ts) return;
+    const orig = {}; D.PLAN.forEach(p=>orig[p.id]=p);
+    const mio = {}; ST.plan.forEach(p=>mio[p.id]=p);
+    let cambios = 0;
+    j.PLAN.forEach(b=>{
+      const o = orig[b.id], m = mio[b.id];
+      if(!o || !m) return;
+      const botCambio = o.fecha!==b.fecha || o.tec!==b.tec || o.bloque!==b.bloque || o.estado!==b.estado
+        || (o.clase||'')!==(b.clase||'');
+      if(!botCambio) return;
+      if(m.fecha===b.fecha && m.tec===b.tec && m.bloque===b.bloque && m.estado===b.estado && m.clase===b.clase) return;
+      Object.assign(m, {fecha:b.fecha, tec:b.tec, bloque:b.bloque, estado:b.estado, aplaz:b.aplaz||0,
+        clase:b.clase, detalle:b.detalle, pts:b.pts||m.pts, crit:b.crit||m.crit, hora:b.hora||m.hora});
+      cambios++;
+    });
+    const delBot = j.PLAN.filter(b=>b.origen==='bot');
+    const antes = ST.extras.filter(x=>x.origen==='bot').length;
+    ST.extras = ST.extras.filter(x=>x.origen!=='bot').concat(delBot.map(b=>({...b})));
+    cambios += Math.abs(delBot.length - antes);
+    ST.cfg.botTs = j.BOT.ts; ST.cfg.botAct = j.BOT.actualizado;
+    guardar();
+    if(cambios){ refrescar(); avisoGs('Agenda del bot', cambios+' cambio(s) del bot de WhatsApp aplicados · '+j.BOT.actualizado); }
+  }catch(e){ console.warn('agenda del bot', e); }
+}
+setTimeout(traerAgendaBot, 2500);
+setInterval(traerAgendaBot, 5*60*1000);
+
 function avisoGs(titulo, texto){
   const a = document.getElementById('aviso');
   a.innerHTML = '<b>'+esc(titulo)+'</b><div style="margin-top:5px;font-size:13px">'+esc(texto)+'</div>'

@@ -20,7 +20,8 @@ import planificador
 import planilla
 import privado
 import reportes
-from nucleo import (a_fecha, agenda, agendar, bonita, buscar, cfg, datos, db, en_texto, es_habil, es_prioridad,
+import verificadores
+from nucleo import (a_fecha, agenda, agendar, bloques, bonita, buscar, cfg, datos, db, en_texto, es_habil, es_prioridad,
                     hora_bloque, hoy, log, metas, nombre_tec, norm, sumar_habiles)
 
 LOCK = threading.RLock()   # reentrante: una función con el candado puede llamar a otra que también lo usa
@@ -65,24 +66,45 @@ def resolver(h, texto, excluir=()):
 
 
 # ================================================================ mensajes del grupo
+def _problema_corto(problema, e):
+    """'El lecaros tiene la campana sin extracción' -> 'la campana sin extracción' (sin repetir el colegio)."""
+    from conversacion import limpiar_problema
+    limpio = limpiar_problema(problema, e.get("rbd"))
+    if limpio:
+        return limpio[:110]
+    p = re.sub(r"\s+", " ", problema or "").strip(" .")
+    for w in [e.get("nombre", "")] + e.get("unidades", []):
+        p = re.sub(re.escape(w), "", p, flags=re.I)
+    p = re.sub(r"^(en el|en la|el|la)?\s*\S*\s*(tiene|tienen|hay|esta|está|con)\s+", "", p, flags=re.I) \
+        if re.search(r"\b(tiene|tienen|hay|esta|está|con)\b", p[:40], re.I) else p
+    p = p.strip(" ,.-")
+    return (p[:1].lower() + p[1:])[:110] if p else ""
+
+
 def texto_respuesta(e, problema, crit, res):
-    lin = [f"📌 *{e['nombre']}* · RBD {e['rbd']}",
-           f"{EMOJI.get(crit, '🔧')} {problema}",
-           f"⚠️ Criticidad *{res['pts']}/20* ({crit}) · {e.get('inst', '').upper()} · {e.get('rac', '?')} raciones",
-           f"👷 {nombre_tec(res['tec'])} · *{bonita(res['fecha'])}* · {hora_bloque(res['fecha'], res['bloque'])}"]
+    """Lo que se publica en el grupo cuando algo queda agendado. Natural, sin íconos."""
+    from conversacion import _dia, _entre, nom
+    d = a_fecha(res["fecha"])
+    quien = nombre_tec(res["tec"])
+    p = _problema_corto(problema, e)
+    cuando = f"{_dia(d)} {_entre(d, res['bloque'])}"
+    que = f"lo del {nom(e['rbd'])}" + (f" ({p})" if p else "")
     if res["modo"] == "fusion":
-        lin.append("✅ Se resuelve en la visita que ya estaba agendada")
-    elif res["modo"].startswith("adelantada"):
-        lin.append(f"⏩ Se adelantó su visita del {bonita(res['antes'])}")
-    if "extra" in res["modo"] or res["modo"] == "sobrecupo":
-        lin.append("❗ Agenda llena: va como bloque extra (emergencia), Manuel lo confirma")
-    if res.get("postergadas"):
-        for m in res["postergadas"]:
-            lin.append(f"↪️ {m['nombre']} pasa del {bonita(m['de'])} al {bonita(m['a'])}")
-    elif res.get("movida"):
-        m = res["movida"]
-        lin.append(f"↪️ {m['nombre']} pasa del {bonita(m['de'])} al {bonita(m['a'])}")
-    return "\n".join(lin)
+        txt = f"Listo, {que} lo ve {quien} {cuando}, aprovechando la visita que ya tenía."
+    elif str(res["modo"]).startswith("adelantada"):
+        txt = f"Listo, {que} lo ve {quien} {cuando}. Adelantamos la visita que tenía para el {bonita(res['antes'])}."
+    else:
+        txt = f"Listo, {que} lo ve {quien} {cuando}."
+    txt = txt[:1].upper() + txt[1:]
+    if "extra" in str(res["modo"]) or res["modo"] == "sobrecupo" or res["bloque"] not in bloques(d):
+        txt += " Va como bloque extra porque la agenda está llena; Manuel lo confirma."
+    movs = res.get("postergadas") or ([res["movida"]] if res.get("movida") else [])
+    for m in movs:
+        a = a_fecha(m["a"])
+        bl = m.get("bloque")
+        from conversacion import pasa_a
+        txt += f" El {nom(m['nombre'])} pasa {pasa_a(a)}" + (f" {_entre(a, bl)}" if bl and bl in bloques(a) else "") + "."
+    return txt
 
 
 def registrar_y_agendar(con, rbd, problema, crit, texto, autor, motor, hid=None):
@@ -111,12 +133,13 @@ def procesar_mensaje(texto, autor):
 
 
 def texto_registro(e, problema, crit, pedir_foto):
-    lin = [f"📝 *Registrado* · {e['nombre']} · RBD {e['rbd']}",
-           f"{EMOJI.get(crit, '🔧')} {problema}",
-           "Para programar la visita respondan *agendar* (o citen este mensaje y escriban agendar)."]
+    from conversacion import nom
+    p = _problema_corto(problema, e)
+    txt = f"Anotado lo del {nom(e['rbd'])}" + (f": {p}." if p else ".")
+    txt += " Cuando quieran que lo programemos, respondan *agendar* a este mensaje."
     if pedir_foto:
-        lin.append("📸 Si pueden, manden una foto de la falla: ayuda a llevar los materiales correctos.")
-    return "\n".join(lin)
+        txt += " Si pueden, manden una foto de la falla, así el técnico lleva lo que necesita."
+    return txt
 
 
 def _generar_respuestas(con, texto, autor, motor, analisis, agendar_ahora=True, foto=None):
@@ -142,7 +165,7 @@ def _generar_respuestas(con, texto, autor, motor, analisis, agendar_ahora=True, 
                               "AND recibido>=?", (rbd, crit,
                               (datetime.now() - timedelta(days=int(bcfg.get("dias_duplicado", 7)))).strftime("%Y-%m-%d"))).fetchone()
             if dup:
-                salida.append((f"🔁 Ya estaba agendado:\n{dup['respuesta']}", rbd, crit, None, None, "aviso"))
+                salida.append((f"Eso ya estaba agendado. {dup['respuesta']}", rbd, crit, None, None, "aviso"))
                 continue
             e = E[rbd]
             ahora_si = agendar_ahora or (crit == "GAS" and c.get("gas_agenda_siempre", True))
@@ -160,7 +183,7 @@ def _generar_respuestas(con, texto, autor, motor, analisis, agendar_ahora=True, 
             res = agendar(con, rbd, crit, problema, es_prioridad(texto), autor, hid)
             resp = texto_respuesta(e, problema, crit, res)
             if crit == "GAS" and not agendar_ahora:
-                resp += "\n🔥 Gas: se agenda de inmediato aunque no digan agendar."
+                resp += " Como es gas, lo dejé agendado de inmediato."
             con.execute("UPDATE hallazgos SET pts=?, tarjeta_id=?, respuesta=? WHERE id=?",
                         (res["pts"], res["tarjeta"], resp, hid))
             log(con, f"Hallazgo {hid} {e['nombre']} {crit} {res['pts']}pts -> {res['tec']} {res['fecha']} [{res['modo']}]")
@@ -172,10 +195,10 @@ def _generar_respuestas(con, texto, autor, motor, analisis, agendar_ahora=True, 
                          int(es_prioridad(texto)), json.dumps(cands), motor))
             nom = h.get("nombre_mencionado") or "el establecimiento"
             if cands:
-                ops = "\n".join(f"  • {E[r]['nombre']} ({E[r]['comuna']}) → *!es {r}*" for r in cands)
-                salida.append((f"🤔 «{nom}»: ¿cuál es?\n{ops}\n{EMOJI.get(crit, '🔧')} {problema}", None, crit, None, None, "aviso"))
+                ops = "\n".join(f"- {E[r]['nombre'].title()} ({E[r]['comuna'].title()}): respondan *!es {r}*" for r in cands)
+                salida.append((f"¿Cuál es «{nom}»?\n{ops}", None, crit, None, None, "aviso"))
             else:
-                salida.append((f"❓ No ubico «{nom}» en los 93 establecimientos.\n{EMOJI.get(crit, '🔧')} "
+                salida.append((f"No ubico «{nom}» entre los establecimientos. "
                                f"{problema}\nRespondan *!es RBD* para agendarlo.", None, crit, None, None, "aviso"))
     return salida
 
@@ -311,6 +334,14 @@ def entrada(origen, texto, autor, forzar_directo=False, citado="", foto=None, fo
                                                           f"conversación #{hl['id']}", "regla"))
                     con.commit()
                     return {**vacio, **r, "intencion": "conversacion"}
+    if verificadores.es_pedido(texto):          # "necesito el verificador del Nemesio Antúnez"
+        with LOCK:
+            con = db()
+            r = verificadores.pedir(con, texto, autor, origen)
+            con.execute("INSERT INTO mensajes(origen,autor,texto,intencion,rbd,resultado,motor) VALUES(?,?,?,?,?,?,?)",
+                        (origen, autor, texto[:1000], "verificador", None, "verificador", "regla"))
+            con.commit()
+            return {**vacio, **r}
     contexto = ""
     if citado:
         contexto += f"El mensaje responde a: «{citado[:400]}»\n"
@@ -369,7 +400,7 @@ def entrada(origen, texto, autor, forzar_directo=False, citado="", foto=None, fo
                     tid = con.execute("SELECT tarjeta_id FROM hallazgos WHERE id=?", (f["id"],)).fetchone()[0]
                     items.append((resp, f["rbd"], f["crit"], f["id"], tid, "agendar"))
                 if not filas and it == "agendar":
-                    items = [("🗓️ ¿Qué agendo? Citen el mensaje de la falla y escriban *agendar*, o escriban "
+                    items = [("¿Qué agendo? Citen el mensaje de la falla y escriban *agendar*, o escriban "
                               "*agendar* con el establecimiento y el problema.", None, None, None, None, "aviso")]
             if charla is None:
                 out = _salida(con, origen, autor, texto, items, modo_borrador)
@@ -540,7 +571,7 @@ def aprobar(decision, autor, bid=None, memo=None):
         if dl in si:
             resp = b["respuesta"]
             if _nota_publica(b["nota_interna"]):
-                resp += f"\nℹ️ {_nota_publica(b['nota_interna'])}"
+                resp += f"\n{_nota_publica(b['nota_interna'])}"
             con.execute("UPDATE borradores SET estado='enviado' WHERE id=?", (b["id"],))
             log(con, f"Borrador #{b['id']} aprobado por {autor} -> grupo")
             t = con.execute("SELECT * FROM tarjetas WHERE id=?", (b["tarjeta_id"],)).fetchone() if b["tarjeta_id"] else None
@@ -616,6 +647,8 @@ AYUDA = """🤖 *Comandos del bot*
 📎 PDF con texto: Nombre, dd/mm/aaaa
 !consulta <texto> — ej: !consulta gas silvia salas
 !historial RBD — bitácoras de un establecimiento
+!verificadores — PDFs que tengo en la carpeta del teléfono
+"necesito el verificador del X" (en el grupo) → lista las fechas y manda el PDF elegido
 !buscar <palabra> — en todas las observaciones
 
 *💬 Cómo escribir en el grupo*
@@ -664,20 +697,22 @@ ok plan → se aplica y avisa a grupo y técnicos
 
 
 def texto_agenda(con, desde, hasta, tec=None, titulo="Agenda"):
-    E = datos()["E"]
+    """Agenda en texto simple, como la escribiría una persona."""
+    from conversacion import nom
     filas = agenda(con, desde, hasta, tec)
     if not filas:
-        return f"📅 *{titulo}*: sin visitas programadas."
-    out, dia = [f"📅 *{titulo}*"], None
+        return f"{titulo}: sin visitas programadas."
+    out, dia, t_act = [f"*{titulo}*"], None, None
     for t in filas:
         if t["fecha"] != dia:
-            dia = t["fecha"]
-            out.append(f"\n*{bonita(dia).upper()}*")
-        e = E.get(t["rbd"], {})
-        icono = "🚨" if "CORRECTIVO" in t["clase"] else ("🛠️" if "PREV" in t["clase"] else "📋")
-        extra = f" {EMOJI.get(t['crit'], '')}" if "CORRECTIVO" in t["clase"] and t["crit"] else ""
-        b = f"B{t['bloque']}" if t["bloque"] <= 3 else "EXTRA"
-        out.append(f"{icono} {nombre_tec(t['tec'])} {b}: {e.get('nombre', t['rbd'])} ({t['pts']}){extra}")
+            dia, t_act = t["fecha"], None
+            out.append(f"\n*{bonita(dia)}*")
+        if t["tec"] != t_act:
+            t_act = t["tec"]
+            out.append(nombre_tec(t["tec"]))
+        hora = hora_bloque(t["fecha"], t["bloque"]).split("-")[0].strip() if t["bloque"] <= 3 else "extra"
+        clase = t["clase"].lower().replace("correctivo urgente", "correctivo")
+        out.append(f"- {hora} {nom(t['rbd'])} ({clase})")
     return "\n".join(out)
 
 
@@ -769,6 +804,8 @@ def procesar_comando(texto, autor, es_admin, privado=False, wa=None):
             if cmd == "!supervisoras":
                 sups = sorted({e["sup"] for e in D["ESTAB"] if e.get("sup")})
                 return {"texto": "\n\n".join(texto_supervisora(con, s_, corto=True) for s_ in sups)}
+            if cmd in ("!verificadores", "!bitacoras"):
+                return {"texto": "📁 " + verificadores.resumen(con)}
             if cmd in ("!hilos", "!conversaciones"):
                 return {"texto": conversacion.texto_hilos(con)}
             if cmd == "!cerrar" and es_admin and args and args[0].isdigit():
@@ -1089,7 +1126,7 @@ def tick():
         for br in con.execute("SELECT * FROM borradores WHERE estado='pendiente'").fetchall():
             edad = (ahora - datetime.strptime(br["creado"], "%Y-%m-%d %H:%M:%S")).total_seconds() / 60
             if gas and br["crit"] == "GAS" and edad >= gas:
-                resp = br["respuesta"] + (f"\nℹ️ {_nota_publica(br['nota_interna'])}" if _nota_publica(br["nota_interna"]) else "")
+                resp = br["respuesta"] + (f"\n{_nota_publica(br['nota_interna'])}" if _nota_publica(br["nota_interna"]) else "")
                 con.execute("UPDATE borradores SET estado='enviado' WHERE id=?", (br["id"],))
                 memoria.registrar_de_borrador(con, br, "auto_gas", detalle=f"{int(edad)} min sin respuesta",
                                               texto_final=resp)
@@ -1151,7 +1188,7 @@ def respaldar(conservar=14):
 
 def agenda_del_dia():
     con = db()
-    return texto_agenda(con, hoy(), hoy(), None, f"Agenda de hoy {bonita(hoy())}")
+    return texto_agenda(con, hoy(), hoy(), None, f"Buenos días, esta es la agenda de hoy {bonita(hoy())}")
 
 
 # ================================================================ panel (GitHub)

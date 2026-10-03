@@ -145,6 +145,8 @@ def db():
         autor TEXT, texto TEXT, problema TEXT, crit TEXT, rbd INTEGER, cands TEXT DEFAULT '[]', paso TEXT,
         estado TEXT DEFAULT 'abierto', intencion TEXT, hallazgo_id INTEGER, opciones TEXT DEFAULT '[]', libre TEXT,
         msgs TEXT DEFAULT '[]', intentos INTEGER DEFAULT 0, deshacer TEXT, motor TEXT, resultado TEXT);
+    CREATE TABLE IF NOT EXISTS verificadores(ruta TEXT PRIMARY KEY, mtime REAL, rbd INTEGER, fecha TEXT,
+        folio TEXT, origen TEXT, nombre TEXT);
     CREATE TABLE IF NOT EXISTS movimientos(id INTEGER PRIMARY KEY AUTOINCREMENT,
         cuando TEXT DEFAULT (datetime('now','localtime')), tarjeta_id TEXT, rbd INTEGER, clase TEXT,
         de_fecha TEXT, de_tec TEXT, de_bloque INTEGER, a_fecha TEXT, a_tec TEXT, a_bloque INTEGER,
@@ -168,7 +170,9 @@ def db():
     """)
     for alter in ("ALTER TABLE borradores ADD COLUMN recordado INTEGER DEFAULT 0",
                   "ALTER TABLE borradores ADD COLUMN tipo TEXT DEFAULT 'agendar'",
-                  "ALTER TABLE hallazgos ADD COLUMN foto TEXT"):
+                  "ALTER TABLE hallazgos ADD COLUMN foto TEXT",
+                  "ALTER TABLE hilos ADD COLUMN confirmado INTEGER DEFAULT 0",
+                  "ALTER TABLE hilos ADD COLUMN detallado INTEGER DEFAULT 0"):
         try:
             con.execute(alter)            # migración: bases creadas con versiones anteriores
         except sqlite3.OperationalError:
@@ -520,6 +524,22 @@ def postergar(con, t, desde, evitar=None):
     """
     lim = a_fecha(t["limite"]) or desde
     tecs = [t["tec"]] + [x for x in datos()["META"]["tecnicos"] if x != t["tec"]]
+    nom = datos()["E"].get(t["rbd"], {}).get("nombre", t["rbd"])
+    if cfg().get("postergar", "dia_siguiente") == "dia_siguiente":
+        # tu regla: lo que se corre, se corre UN día hábil nomás (tú después vas ordenando)
+        nd = sumar_habiles(a_fecha(t["fecha"]), 1)
+        b0 = t["bloque"] if t["bloque"] <= 3 else 1
+        opciones = [(t["tec"], b0)] + [(t["tec"], x) for x in libres(con, t["tec"], nd) if x != b0] + \
+                   [(x, b0) for x in tecs[1:]]
+        elegido = next(((tc, bl) for tc, bl in opciones if bl in libres(con, tc, nd)
+                        and not (evitar and (tc, nd, bl) in evitar)), None)
+        tc, bl = elegido or (t["tec"], int(cfg().get("bloque_extra", 4)))
+        con.execute("UPDATE tarjetas SET fecha=?, bloque=?, tec=?, aplaz=aplaz+1, modificada=1 WHERE id=?",
+                    (nd.isoformat(), bl, tc, t["id"]))
+        log(con, f"Postergada un día {nom} ({t['clase']}) de {t['fecha']} b{t['bloque']} a {nd} b{bl} {tc}")
+        return dict(id=t["id"], rbd=t["rbd"], nombre=nom, de=a_fecha(t["fecha"]), a=nd, bloque=bl, tec=tc,
+                    tec_antes=t["tec"], paso_limite=nd > lim and t["clase"] in MOVIBLES, clase=t["clase"],
+                    extra=elegido is None)
     hasta_max = sumar_habiles(max(lim, desde), 10)
     for tope, paso in ((lim, False), (hasta_max, True)):
         for tec in tecs:
@@ -529,7 +549,6 @@ def postergar(con, t, desde, evitar=None):
                         continue
                     con.execute("UPDATE tarjetas SET fecha=?, bloque=?, tec=?, aplaz=aplaz+1, modificada=1 WHERE id=?",
                                 (d.isoformat(), b, tec, t["id"]))
-                    nom = datos()["E"].get(t["rbd"], {}).get("nombre", t["rbd"])
                     log(con, f"Postergada {nom} ({t['clase']}) de {t['fecha']} b{t['bloque']} a {d} b{b} {tec}")
                     return dict(id=t["id"], rbd=t["rbd"], nombre=nom, de=a_fecha(t["fecha"]), a=d, bloque=b, tec=tec,
                                 tec_antes=t["tec"], paso_limite=paso and d > lim, clase=t["clase"])

@@ -178,6 +178,7 @@ function bot(b) {
     st.LOG = (prev.LOG || []).filter(function (l) { return l.fuente !== 'bot'; }).concat(st.LOG || []);
     var folios = {}; (st.BITS || []).forEach(function (x) { folios[String(x.folio)] = 1; });
     st.BITS = (st.BITS || []).concat((prev.BITS || []).filter(function (x) { return !folios[String(x.folio)]; }));
+    st.BOT = { actualizado: ahora(), ts: new Date().toISOString() };   // el panel lo ve y toma la agenda del bot
     guardarJson(st);
     var k = kpis(st);
     escribirHojas(st, k);

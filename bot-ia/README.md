@@ -102,14 +102,22 @@ te manda el Excel por privado. Las horas se cambian en `config.json`.
 ## Conversación en el grupo
 
 Cuando una supervisora avisa un caso, el bot habla como persona (directo en el grupo, a ti te llega copia):
+0. Primero confirma el colegio: "¿Es el República de Francia de Estación Central? ¿Y de qué se trata?"
 1. Si no dice qué pasa: "Carla, ¿de qué se trata la emergencia en el X? Así vemos quién va y qué llevar."
 2. Si no se entiende el colegio: "¿En qué colegio es? ¿Es el Carolina Vergara Ayares?"
 3. Si es urgente (gas, frío, agua, o dice emergencia/urgente): lista tus visitas de hoy y del día hábil
    siguiente por técnico con su horario, propone un bloque libre si hay, y pregunta cuál se puede cambiar.
-   Responden "sí", "la del Confederación Suiza", "cualquiera" o "ninguna" y el bot mueve esa visita al
-   siguiente hueco (respetando su meta) y pone la emergencia ahí.
+   Responden "sí", "la del Confederación Suiza", "el segundo bloque del segundo día", "cualquiera" o "ninguna".
+   La visita que se aplaza pasa UN día hábil (mismo bloque si está libre; si no, como extra para que tú ordenes).
 4. A ti te llega el resultado con `deshacer N`. `!hilos` lista las conversaciones, `!cerrar N` corta una.
 5. Sin respuesta en 45 min: gas/prioridad se agenda solo; lo demás queda sin hora en tu `!plan`.
+
+## Verificadores (bitácoras PDF a pedido)
+
+Guarda los PDF en una carpeta llamada **datacora** del teléfono (el bot la encuentra sola; en Termux corre
+una vez `termux-setup-storage`). Nombre: `Nemesio Antunez 30-09-2026.pdf` o el que trae Datácora (con RBD;
+la fecha se lee del PDF). En el grupo: "necesito el verificador del Nemesio Antúnez" → el bot lista las fechas
+numeradas → "la 2" → manda ese PDF. Si hay una sola, la manda de una. `!verificadores` muestra qué encontró.
 
 ## Planilla de Google (todo respaldado)
 

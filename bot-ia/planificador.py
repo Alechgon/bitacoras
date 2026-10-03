@@ -318,11 +318,13 @@ def aplicar(con, pv, autor):
         propios = {con.execute("SELECT tarjeta_id FROM hallazgos WHERE id=?", (x,)).fetchone()[0] for x in tocados}
         movs = [(a, b) for a, b in cambios if a["id"] not in propios]
         if movs:
-            lin = ["↪️ *Cambios de agenda*"]
+            from conversacion import nom, pasa_a, _entre
+            lin = ["Cambios de agenda:"]
             for a, b in movs:
                 e = E.get(a["rbd"], {})
-                lin.append(f"• {e.get('nombre', a['rbd'])}: pasa del {bonita(a['fecha'])} al *{bonita(b['fecha'])}* "
-                           f"({hora_bloque(b['fecha'], b['bloque'])}, {nombre_tec(b['tec'])}) · {e.get('sup', '')}")
+                db_ = a_fecha(b["fecha"])
+                lin.append(f"- El {nom(a['rbd'])} pasa {pasa_a(db_)} {_entre(db_, b['bloque'])}, con "
+                           f"{nombre_tec(b['tec'])} ({e.get('sup', '').split()[0] if e.get('sup') else ''}).")
             out["envios_grupo"].append({"borrador_id": None, "textos": ["\n".join(lin)]})
         con.commit()
     # ---- técnicos: su día

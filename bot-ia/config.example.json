@@ -201,15 +201,29 @@
     "ofrecer_agenda_para": [
       "GAS",
       "FRIO",
-      "AGUA"
+      "AGUA",
+      "ELEC"
     ],
     "esperar_min": 45,
-    "copiar_encargado": true
+    "copiar_encargado": true,
+    "confirmar_colegio": true
   },
   "_planilla": "Respaldo completo en tu Google Sheet (el mismo del panel): programa, cronograma, metas, movimientos, hallazgos, conversaciones. Revisa cada revisar_min y sube solo si algo cambió (y al menos cada refrescar_min).",
   "planilla": {
     "activa": true,
     "revisar_min": 10,
     "refrescar_min": 60
-  }
+  },
+  "_verificadores": "Bitácoras PDF que el bot manda al grupo cuando piden un verificador. Busca sola cualquier carpeta llamada 'datacora' en el almacenamiento del teléfono (necesita termux-setup-storage una vez) + las que agregues en carpetas. Nombre del PDF: 'Colegio dd-mm-aaaa.pdf' o el de Datácora (con RBD).",
+  "verificadores": {
+    "activa": true,
+    "nombre_carpeta": "datacora",
+    "carpetas": [
+      "~/storage/shared/datacora"
+    ],
+    "max_lista": 10,
+    "leer_pdf": true
+  },
+  "_postergar": "Qué pasa con la visita que se corre para meter una emergencia: dia_siguiente (pasa al día hábil siguiente, mismo bloque si está libre) o hueco (busca el primer hueco libre dentro de su plazo).",
+  "postergar": "dia_siguiente"
 }
