@@ -138,7 +138,14 @@
     "no pueden cocinar",
     "sin almuerzo",
     "suspender",
-    "peligro"
+    "peligro",
+    "auditoria",
+    "supervision",
+    "retirar",
+    "se lo roben",
+    "a la calle",
+    "va junaeb",
+    "viene junaeb"
   ],
   "bloque_extra": 4,
   "_identificacion": "Qué tan parecido debe ser un nombre (0-100) para dar por seguro el establecimiento, y desde cuánto ofrece opciones.",
@@ -214,16 +221,28 @@
     "revisar_min": 10,
     "refrescar_min": 60
   },
-  "_verificadores": "Bitácoras PDF que el bot manda al grupo cuando piden un verificador. Busca sola cualquier carpeta llamada 'datacora' en el almacenamiento del teléfono (necesita termux-setup-storage una vez) + las que agregues en carpetas. Nombre del PDF: 'Colegio dd-mm-aaaa.pdf' o el de Datácora (con RBD).",
+  "_verificadores": "Bitácoras PDF que el bot manda al grupo cuando piden un verificador. Lee la carpeta Documents/Datacora del teléfono (y cualquier carpeta llamada 'datacora'); necesita termux-setup-storage una vez. Sirve el nombre que trae Datácora (Bitácora Mantención N° Folio 801 RBD 8812.pdf): el colegio sale del RBD y la fecha se lee del PDF. Si hay un zip de fotos del mismo folio (8678_307_Fotos.zip), lo manda junto.",
   "verificadores": {
     "activa": true,
     "nombre_carpeta": "datacora",
     "carpetas": [
-      "~/storage/shared/datacora"
+      "~/storage/shared/Documents/Datacora"
     ],
     "max_lista": 10,
-    "leer_pdf": true
+    "leer_pdf": true,
+    "mandar_fotos": true
   },
   "_postergar": "Qué pasa con la visita que se corre para meter una emergencia: dia_siguiente (pasa al día hábil siguiente, mismo bloque si está libre) o hueco (busca el primer hueco libre dentro de su plazo).",
-  "postergar": "dia_siguiente"
+  "postergar": "dia_siguiente",
+  "_situaciones": "Reglas sacadas del chat real: horarios de acceso, reclamos, insistencias, supervisiones y preguntas frecuentes (respuestas.json). directo = responden al grupo sin pasar por ti (te llega copia de lo importante).",
+  "situaciones": {
+    "activa": true,
+    "directo": true,
+    "copiar_faq": false
+  },
+  "_aviso_previo": "Cada día hábil a esta hora el bot publica en el grupo a qué colegios se va el día siguiente, por supervisora, y te avisa si alguna visita choca con un horario que avisaron.",
+  "aviso_previo": {
+    "activa": true,
+    "hora": "16:30"
+  }
 }

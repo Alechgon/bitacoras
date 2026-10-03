@@ -230,6 +230,7 @@ function enviarArchivo (jid, x, op = {}) {
   const nombre = (typeof x === 'object' && x.nombre) || path.basename(a).replace(/^\d+_/, '')
   if (/\.(jpe?g|png|webp)$/i.test(a)) encolar(jid, { image: fs.readFileSync(a) }, op, 2500)
   else if (/\.xlsx$/i.test(a)) encolar(jid, { document: fs.readFileSync(a), fileName: nombre, mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }, op, 2500)
+  else if (/\.zip$/i.test(a)) encolar(jid, { document: fs.readFileSync(a), fileName: nombre, mimetype: 'application/zip' }, op, 2500)
   else encolar(jid, { document: fs.readFileSync(a), fileName: nombre, mimetype: 'application/pdf' }, op, 2500)
 }
 

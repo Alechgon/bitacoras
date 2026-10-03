@@ -1,0 +1,81 @@
+{
+  "_ayuda": "Preguntas frecuentes del grupo. patrones = expresiones regulares sobre el texto en minúsculas y sin tildes. respuesta acepta {nombre} {tecnicos} {tec_gas} {jornada_lj} {jornada_v} {bloques} {hora_aviso}. dinamica = agenda_hoy | proxima_visita (responde con datos de la agenda). aprobar = true: la respuesta pasa por Manuel antes de salir. Puedes agregar, borrar o cambiar entradas: el bot lee este archivo en cada mensaje.",
+  "preguntas": [
+    {
+      "id": "tecnicos",
+      "titulo": "¿Cómo se llama el técnico? ¿Quiénes son los técnicos?",
+      "patrones": ["(como se llama|quien es|nombre de)l? (el |la )?(tecnico|gasfiter|maestro|electrico|tecnico en frio)",
+                   "quienes son los tecnicos", "el tecnico (en|de) (frio|gas) como se llama"],
+      "respuesta": "{nombre}, los técnicos son {tecnicos}. El gas lo ve {tec_gas}."
+    },
+    {
+      "id": "quien_hoy",
+      "titulo": "¿Quién va hoy? ¿A qué colegios van hoy?",
+      "patrones": ["(quien|quienes) (va|van|viene|vienen) hoy", "a (que colegios|donde) van hoy", "agenda de hoy",
+                   "que colegios (hay|tienen) hoy"],
+      "dinamica": "agenda_hoy",
+      "respuesta": ""
+    },
+    {
+      "id": "a_que_hora",
+      "titulo": "¿A qué hora llegan al colegio X?",
+      "patrones": ["a que hora (llegan|vienen|van|pasan|llega|viene|va)\\b"],
+      "dinamica": "proxima_visita",
+      "respuesta": ""
+    },
+    {
+      "id": "horario_tecnicos",
+      "titulo": "¿Hasta qué hora trabajan los técnicos?",
+      "patrones": ["(hasta|a) que hora trabajan", "horario de (los )?tecnicos", "en que horario (trabajan|atienden)"],
+      "respuesta": "{nombre}, los técnicos trabajan de lunes a jueves {jornada_lj} y el viernes {jornada_v}, en bloques de {bloques}."
+    },
+    {
+      "id": "como_pedir",
+      "titulo": "¿Cómo pido una visita?",
+      "patrones": ["como (pido|solicito|pedimos|solicitamos|agendo|agendamos) (una )?visita", "como (se )?pide (una )?visita",
+                   "que tengo que hacer para (que vengan|pedir)"],
+      "respuesta": "{nombre}, escríbanme acá el colegio y qué pasa (con foto si pueden). Si es para programar, pongan *agendar* en el mismo mensaje o respondiendo al mensaje de la falla."
+    },
+    {
+      "id": "fin_de_semana",
+      "titulo": "¿Trabajan sábado, domingo o feriados?",
+      "patrones": ["(trabajan|vienen|van|atienden|pueden venir) (el |los )?(sabado|domingo|fin de semana|feriado)"],
+      "respuesta": "{nombre}, las visitas son de lunes a viernes hábiles. Si hay una emergencia de gas el fin de semana, avísenle directo a Manuel."
+    },
+    {
+      "id": "aviso_previo",
+      "titulo": "¿Nos avisan antes de ir? (para las PAE / autorizaciones)",
+      "patrones": ["(nos )?avisan antes", "avisar (antes|a las pae|a la pae)", "con cuanta anticipacion",
+                   "si van a .* (nos )?avisan"],
+      "respuesta": "Sí, {nombre}. Cada día hábil a las {hora_aviso} publico acá a qué colegios vamos al día siguiente, así alcanzan a avisar a las PAE y pedir autorización."
+    },
+    {
+      "id": "telefono_tecnico",
+      "titulo": "¿Me pasan el número del técnico?",
+      "patrones": ["(numero|telefono|celular|whatsapp|fono) del? (tecnico|gasfiter|maestro|camilo|rodrigo)"],
+      "respuesta": "{nombre}, mejor coordinemos por este grupo así queda registro y Manuel lo ve. Si es urgente, avísale directo a él."
+    },
+    {
+      "id": "corresponde",
+      "titulo": "¿Eso nos corresponde a nosotros o al colegio?",
+      "patrones": ["(nos )?corresponde (a nosotros|al colegio|a soser|a ustedes)", "es (nuestro|de nosotros) o del colegio",
+                   "quien se hace cargo", "lo ve el colegio", "no se si (eso )?nos corresponde"],
+      "aprobar": true,
+      "respuesta": "{nombre}, nosotros vemos lo de la cocina: equipos, gas, agua y electricidad de la cocina y bodegas de alimentos. Lo del edificio (presión de la red de agua, techumbre, puertas y marcos, mallas, baños de alumnos) normalmente lo ve el colegio o el sostenedor. Igual lo revisamos en la próxima visita para confirmar."
+    },
+    {
+      "id": "repuestos",
+      "titulo": "¿Quién compra los repuestos? ¿Hay que comprar algo?",
+      "patrones": ["quien (compra|paga)", "hay que comprar", "(compran|traen) (el |los )?repuesto"],
+      "aprobar": true,
+      "respuesta": "{nombre}, los repuestos de lo que nos corresponde los gestionamos nosotros; Manuel confirma cuando llega el material y se agenda la instalación."
+    },
+    {
+      "id": "limpieza_camara",
+      "titulo": "¿Cuándo es la limpieza de cámara?",
+      "patrones": ["(cuando|que dia) (es|van|vienen|toca) (a )?(la )?limpieza de camara"],
+      "dinamica": "proxima_visita",
+      "respuesta": ""
+    }
+  ]
+}

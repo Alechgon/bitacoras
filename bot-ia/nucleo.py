@@ -145,6 +145,9 @@ def db():
         autor TEXT, texto TEXT, problema TEXT, crit TEXT, rbd INTEGER, cands TEXT DEFAULT '[]', paso TEXT,
         estado TEXT DEFAULT 'abierto', intencion TEXT, hallazgo_id INTEGER, opciones TEXT DEFAULT '[]', libre TEXT,
         msgs TEXT DEFAULT '[]', intentos INTEGER DEFAULT 0, deshacer TEXT, motor TEXT, resultado TEXT);
+    CREATE TABLE IF NOT EXISTS ventanas(id INTEGER PRIMARY KEY AUTOINCREMENT,
+        creado TEXT DEFAULT (datetime('now','localtime')), autor TEXT, rbd INTEGER, fecha TEXT, desde TEXT,
+        hasta TEXT, texto TEXT);
     CREATE TABLE IF NOT EXISTS verificadores(ruta TEXT PRIMARY KEY, mtime REAL, rbd INTEGER, fecha TEXT,
         folio TEXT, origen TEXT, nombre TEXT);
     CREATE TABLE IF NOT EXISTS movimientos(id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -172,7 +175,8 @@ def db():
                   "ALTER TABLE borradores ADD COLUMN tipo TEXT DEFAULT 'agendar'",
                   "ALTER TABLE hallazgos ADD COLUMN foto TEXT",
                   "ALTER TABLE hilos ADD COLUMN confirmado INTEGER DEFAULT 0",
-                  "ALTER TABLE hilos ADD COLUMN detallado INTEGER DEFAULT 0"):
+                  "ALTER TABLE hilos ADD COLUMN detallado INTEGER DEFAULT 0",
+                  "ALTER TABLE hallazgos ADD COLUMN insistencias INTEGER DEFAULT 0"):
         try:
             con.execute(alter)            # migración: bases creadas con versiones anteriores
         except sqlite3.OperationalError:

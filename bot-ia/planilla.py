@@ -217,6 +217,17 @@ def tablas(con):
                          _col("Estado", 90), _col("Respuesta", 320, wrap=True), _col("Respondió", 120)],
                 "filas": filas})
 
+    # Horarios de acceso que avisaron las supervisoras
+    filas = [[v["creado"], v["autor"], v["rbd"], E.get(v["rbd"], {}).get("nombre", ""), v["fecha"] or "siempre",
+              v["desde"] or "", v["hasta"] or "", v["texto"]]
+             for v in con.execute("SELECT * FROM ventanas ORDER BY id DESC LIMIT 300")]
+    out.append({"hoja": "Horarios avisados", "titulo": "Horarios de acceso que avisaron en el grupo",
+                "sub": "Cierres temprano, extensiones y horarios autorizados · " + datetime.now().strftime("%d-%m-%Y %H:%M"),
+                "cols": [_col("Avisado", 120), _col("Quién", 140), _col("RBD", 70, al="center"),
+                         _col("Establecimiento", 220), _col("Día", 90, al="center"), _col("Desde", 60, al="center"),
+                         _col("Hasta", 60, al="center"), _col("Mensaje", 380, wrap=True)],
+                "filas": filas})
+
     # Mensajes del grupo (lo que leyó el bot y cómo lo entendió)
     filas = [[m["recibido"], m["origen"], m["autor"], m["intencion"], m["rbd"] or "",
               E.get(m["rbd"], {}).get("nombre", ""), m["texto"][:500], m["resultado"] or "", m["motor"] or ""]

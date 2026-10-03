@@ -5,7 +5,7 @@ y devuelve la respuesta para el grupo. Corre en http://127.0.0.1:8765.
 
 Uso: python servidor.py
 """
-import base64, json, os, re, sys, threading, traceback, urllib.request
+import base64, json, os, re, sys, threading, time, traceback, urllib.request
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -20,6 +20,7 @@ import planificador
 import planilla
 import privado
 import reportes
+import situaciones
 import verificadores
 from nucleo import (a_fecha, agenda, agendar, bloques, bonita, buscar, cfg, datos, db, en_texto, es_habil, es_prioridad,
                     hora_bloque, hoy, log, metas, nombre_tec, norm, sumar_habiles)
@@ -342,6 +343,20 @@ def entrada(origen, texto, autor, forzar_directo=False, citado="", foto=None, fo
                         (origen, autor, texto[:1000], "verificador", None, "verificador", "regla"))
             con.commit()
             return {**vacio, **r}
+    tipo_sit, dato_sit = situaciones.detectar(texto)
+    previo = None                               # avisos de una situación que además sigue el flujo normal
+    if tipo_sit:                                # horario, reclamo, insistencia, supervisión, pregunta frecuente
+        with LOCK:
+            con = db()
+            r = situaciones.actuar(con, tipo_sit, dato_sit, texto, autor, origen)
+            if r is not None and r.pop("_seguir", False):
+                previo, r = r, None
+            if r is not None:
+                con.execute("INSERT INTO mensajes(origen,autor,texto,intencion,rbd,resultado,motor) VALUES(?,?,?,?,?,?,?)",
+                            (origen, autor, texto[:1000], tipo_sit, (situaciones._colegios(texto) or [None])[0],
+                             tipo_sit, "regla"))
+                con.commit()
+                return {**vacio, **r, "intencion": tipo_sit}
     contexto = ""
     if citado:
         contexto += f"El mensaje responde a: «{citado[:400]}»\n"
@@ -415,6 +430,10 @@ def entrada(origen, texto, autor, forzar_directo=False, citado="", foto=None, fo
         con.commit()
     if it in ("agendar", "requerimiento"):
         threading.Thread(target=subir_github, daemon=True).start()
+    if previo:
+        for k, v in previo.items():
+            if isinstance(v, list):
+                out[k] = v + out.get(k, [])
     return out
 
 
@@ -671,6 +690,11 @@ Si una supervisora avisa un caso sin decir qué pasa o dónde, el bot le pregunt
 Si es urgente, muestra tu agenda de hoy y mañana y pregunta qué visita se puede mover.
 !hilos — conversaciones · deshacer N — revierte un cambio · !cerrar N
 
+*📋 Reglas del grupo*
+!situaciones — cómo actúo ante horarios, reclamos, insistencias y supervisiones
+!faq — preguntas frecuentes que respondo solo (bot-ia/respuestas.json)
+A las 16:30 aviso al grupo a qué colegios vamos el día siguiente
+
 *🗓️ Plan del día*
 !plan · !plan mañana → hoy/mañana por técnico + casos sin hora
 1 hoy camilo b3, 2 mañana, 3 no → vista previa
@@ -806,6 +830,10 @@ def procesar_comando(texto, autor, es_admin, privado=False, wa=None):
                 return {"texto": "\n\n".join(texto_supervisora(con, s_, corto=True) for s_ in sups)}
             if cmd in ("!verificadores", "!bitacoras"):
                 return {"texto": "📁 " + verificadores.resumen(con)}
+            if cmd in ("!situaciones", "!reglasgrupo"):
+                return {"texto": situaciones.texto_reglas()}
+            if cmd in ("!faq", "!preguntas"):
+                return {"texto": situaciones.texto_faq()}
             if cmd in ("!hilos", "!conversaciones"):
                 return {"texto": conversacion.texto_hilos(con)}
             if cmd == "!cerrar" and es_admin and args and args[0].isdigit():
@@ -1117,6 +1145,16 @@ def tick():
         rv = conversacion.vencidos(con)
         out["admin"] += rv["admin"]
         out["envios_grupo"] += rv["envios_grupo"]
+        # aviso al grupo de a qué colegios vamos el día hábil siguiente (para avisar a las PAE)
+        av = c.get("aviso_previo", {})
+        if av.get("activa", True) and es_habil(ahora.date()) and _tick_estado.get("aviso") != hoy_s and \
+                _en_ventana(hhmm, av.get("hora", "16:30"), 60):
+            _tick_estado["aviso"] = hoy_s
+            txt_av, choques = situaciones.aviso_manana(con)
+            if txt_av:
+                out["envios_grupo"].append({"borrador_id": None, "textos": [txt_av]})
+            if choques:
+                out["admin"].append("Ojo, mañana hay visitas fuera del horario que avisaron:\n- " + "\n- ".join(choques))
         # plan del día
         pl = c.get("plan", {})
         if pl.get("auto", True) and es_habil(ahora.date()) and _tick_estado["plan"] != hoy_s and \
@@ -1148,6 +1186,10 @@ def tick():
             threading.Thread(target=planilla.sincronizar, daemon=True).start()
     except Exception as e:
         print("[planilla]", e)
+    # bitácoras de la carpeta Datacora: se indexan en segundo plano (leer cada PDF nuevo toma unos segundos)
+    if time.time() - _tick_estado.get("indice", 0) > 600:
+        _tick_estado["indice"] = time.time()
+        threading.Thread(target=lambda: verificadores.indexar(db(), forzar=True), daemon=True).start()
     # memoria: subir decisiones / traer reglas, y una vez al día buscar patrones
     if memoria.toca_sincronizar():
         threading.Thread(target=memoria.sincronizar, daemon=True).start()

@@ -168,6 +168,11 @@ def buscar_hilo(con, texto, autor, citado=""):
             if any(c[:60] in m or m[:60] in c for m in json.loads(h["msgs"] or "[]")):
                 return h
     otro_colegio = lambda h: any(r != h["rbd"] for r in en_texto(texto)) and ia.tipo_por_palabras(texto) != "OTRO"
+    # una pregunta, un reclamo o un pedido de verificador de la misma persona NO es la respuesta a la conversación
+    import situaciones, verificadores
+    if "?" in texto or situaciones.detectar(texto)[0] in ("faq", "reclamo", "supervision", "horario") or \
+            verificadores.es_pedido(texto):
+        return None
     for h in abiertos:
         if _mismo(h["autor"], autor) and not (h["paso"] != "lugar" and otro_colegio(h)):
             return h

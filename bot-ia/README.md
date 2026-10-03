@@ -114,10 +114,23 @@ Cuando una supervisora avisa un caso, el bot habla como persona (directo en el g
 
 ## Verificadores (bitácoras PDF a pedido)
 
-Guarda los PDF en una carpeta llamada **datacora** del teléfono (el bot la encuentra sola; en Termux corre
+Guarda los PDF en **Documents/Datacora** del teléfono (o cualquier carpeta llamada datacora) (el bot la encuentra sola; en Termux corre
 una vez `termux-setup-storage`). Nombre: `Nemesio Antunez 30-09-2026.pdf` o el que trae Datácora (con RBD;
 la fecha se lee del PDF). En el grupo: "necesito el verificador del Nemesio Antúnez" → el bot lista las fechas
 numeradas → "la 2" → manda ese PDF. Si hay una sola, la manda de una. `!verificadores` muestra qué encontró.
+
+## Reglas de acción (sacadas del chat real del grupo)
+
+| Lo que escriben | Lo que hace el bot |
+|---|---|
+| "cierra a las 4 hoy", "se puede entrar a las 14:00", "con extensión hasta las 5:30" | Anota el horario y te avisa si choca con una visita agendada |
+| "no llegaron a limpiar la cámara", "vino el gasfiter y se fue sin avisar" | Disculpa corta, te alerta y deja el caso con prioridad para `!plan` |
+| "recordar lo del Haití", "¿qué pasó con el gasfiter?", "para cuándo la visita" | Responde el estado real (quién va y cuándo, o que está sin hora) y sube la prioridad |
+| "mañana recibe supervisión", "será objeto de auditoría", "hoy va Junaeb" | Prioriza lo pendiente de ese colegio y te avisa |
+| Preguntas frecuentes (técnicos, horario, cómo pedir visita, fin de semana, qué nos corresponde…) | Responde con `respuestas.json`; las delicadas pasan por ti |
+
+Cada día hábil a las 16:30 publica en el grupo a qué colegios se va el día siguiente, por supervisora.
+`!situaciones` y `!faq` muestran las reglas; las preguntas se editan en `bot-ia/respuestas.json`.
 
 ## Planilla de Google (todo respaldado)
 

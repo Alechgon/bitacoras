@@ -68,7 +68,7 @@ def _buscar_por_nombre(nombre, raiz="~/storage/shared", prof=3):
 
 
 def carpetas():
-    out = [os.path.expanduser(c) for c in conf().get("carpetas", ["~/storage/shared/datacora"])]
+    out = [os.path.expanduser(c) for c in conf().get("carpetas", ["~/storage/shared/Documents/Datacora"])]
     if conf().get("nombre_carpeta", "datacora"):
         out += _buscar_por_nombre(conf().get("nombre_carpeta", "datacora"))
     out.append(os.path.join(BASE, cfg().get("archivo_carpeta", "archivo")))
@@ -156,9 +156,14 @@ def indexar(con, forzar=False):
                         folio = folio or (cab.get("folio") or "")
                     except Exception:
                         pass
+                if not fecha:                                     # último recurso: el día que se descargó
+                    fecha = datetime.fromtimestamp(mt).date().isoformat()
+                    origen_f = "descarga"
+                else:
+                    origen_f = "carpeta"
                 con.execute("INSERT OR REPLACE INTO verificadores(ruta,mtime,rbd,fecha,folio,origen,nombre) "
                             "VALUES(?,?,?,?,?,?,?)", (ruta, mt, rbd, fecha, str(folio or ""),
-                                                      "archivo" if os.sep + "archivo" + os.sep in ruta else "carpeta", a))
+                                                      "archivo" if os.sep + "archivo" + os.sep in ruta else origen_f, a))
     for f in con.execute("SELECT ruta FROM verificadores").fetchall():
         if f["ruta"] not in vistos:
             con.execute("DELETE FROM verificadores WHERE ruta=?", (f["ruta"],))
@@ -186,12 +191,25 @@ def _fecha_cl(iso):
 
 
 def _etiqueta(f):
-    return _fecha_cl(f["fecha"]) + (f" (folio {f['folio']})" if f.get("folio") else "")
+    return _fecha_cl(f["fecha"]) + (f" (folio {f['folio']})" if f.get("folio") else "") + \
+        (" (fecha de descarga)" if f.get("origen") == "descarga" else "")
 
 
 def _archivo(f, rbd):
     from conversacion import nom
     return {"ruta": f["ruta"], "nombre": f"Bitacora {nom(rbd)} {_fecha_cl(f['fecha'])}.pdf"}
+
+
+def _fotos(f, rbd):
+    """Si junto al PDF hay un zip de fotos de ese folio (8678_307_Fotos.zip), se manda también."""
+    if not f.get("folio") or not conf().get("mandar_fotos", True):
+        return []
+    carpeta = os.path.dirname(f["ruta"])
+    out = []
+    for a in os.listdir(carpeta):
+        if a.lower().endswith(".zip") and re.match(rf"^{rbd}[_\s-]+{f['folio']}(?!\d)", a):
+            out.append({"ruta": os.path.join(carpeta, a), "nombre": a})
+    return out
 
 
 # ---------------------------------------------------------------- conversación
@@ -265,6 +283,7 @@ def _ofrecer(con, rbd, texto, autor, origen, out, hid=None):
         cuando = f" del {_etiqueta(f)}" if f.get("fecha") else (f" (folio {f['folio']})" if f.get("folio") else "")
         out[clave_txt].append(f"{n}, te mando la bitácora del {nom(rbd)}{cuando}.")
         out[clave_arch].append(_archivo(f, rbd))
+        out[clave_arch] += _fotos(f, rbd)
         if origen == "grupo":
             out["admin"].append(f"Mandé al grupo el verificador del {nom(rbd)} ({_etiqueta(f)}) que pidió {autor}.")
         if hid:
@@ -278,13 +297,15 @@ def _ofrecer(con, rbd, texto, autor, origen, out, hid=None):
         f = lista[int(m.group(1)) - 1]
         out["admin"].append(f"Ahí va la del {_etiqueta(f)}.")
         out["archivos_admin"].append(_archivo(f, rbd))
+        out["archivos_admin"] += _fotos(f, rbd)
         return out
     txt = (f"Del {nom(rbd)} tengo estas bitácoras:\n" + "\n".join(f"{i}. {_etiqueta(f)}" for i, f in enumerate(lista, 1))
            + "\n¿Cuál necesitas? Dime el número (o *todas*).")
     if origen != "grupo":
         out["admin"].append(txt + f"\nEscríbeme: *verificador {nom(rbd)} N*")
         return out
-    opciones = [{"ruta": f["ruta"], "fecha": f["fecha"], "folio": f.get("folio", "")} for f in lista]
+    opciones = [{"ruta": f["ruta"], "fecha": f["fecha"], "folio": f.get("folio", ""), "origen": f.get("origen")}
+                for f in lista]
     if hid:
         con.execute("UPDATE hilos SET paso='verificador', rbd=?, opciones=? WHERE id=?",
                     (rbd, json.dumps(opciones), hid))
@@ -337,6 +358,7 @@ def continuar(con, h, texto, autor):
         return out if out["grupo"] else None
     for o in elegidas:
         out["archivos_grupo"].append(_archivo(o, h["rbd"]))
+        out["archivos_grupo"] += _fotos(o, h["rbd"])
     fechas = ", ".join(_fecha_cl(o["fecha"]) for o in elegidas)
     out["grupo"].append(f"Ahí va{'n' if len(elegidas) > 1 else ''} {'las' if len(elegidas) > 1 else 'la'} del "
                         f"{fechas}." if len(elegidas) <= 3 else f"Ahí van las {len(elegidas)} bitácoras del {nom(h['rbd'])}.")
