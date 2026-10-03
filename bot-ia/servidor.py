@@ -98,7 +98,7 @@ def texto_respuesta(e, problema, crit, res):
         txt = f"Listo, {que} lo ve {quien} {cuando}."
     txt = txt[:1].upper() + txt[1:]
     if "extra" in str(res["modo"]) or res["modo"] == "sobrecupo" or res["bloque"] not in bloques(d):
-        txt += " Va como bloque extra porque la agenda está llena; Manuel lo confirma."
+        txt += " La agenda de ese día está llena, así que va como visita extra; Manuel lo confirma."
     movs = res.get("postergadas") or ([res["movida"]] if res.get("movida") else [])
     for m in movs:
         a = a_fecha(m["a"])
@@ -734,9 +734,8 @@ def texto_agenda(con, desde, hasta, tec=None, titulo="Agenda"):
         if t["tec"] != t_act:
             t_act = t["tec"]
             out.append(nombre_tec(t["tec"]))
-        hora = hora_bloque(t["fecha"], t["bloque"]).split("-")[0].strip() if t["bloque"] <= 3 else "extra"
         clase = t["clase"].lower().replace("correctivo urgente", "correctivo")
-        out.append(f"- {hora} {nom(t['rbd'])} ({clase})")
+        out.append(f"- {hora_bloque(t['fecha'], t['bloque'])}: {nom(t['rbd'])} ({clase})")
     return "\n".join(out)
 
 

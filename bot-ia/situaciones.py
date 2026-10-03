@@ -88,18 +88,18 @@ def ventanas_de(con, rbd, d):
 
 def choca(con, t):
     """¿La visita t cae fuera del horario que dijeron? Devuelve el texto del aviso o ''."""
+    from nucleo import inicio_bloque
     d = datetime.strptime(t["fecha"], "%Y-%m-%d").date()
-    hb = hora_bloque(d, t["bloque"])
-    if "-" not in hb:
-        return ""
-    ini, fin = [x.strip() for x in hb.split("-")]
+    i0 = inicio_bloque(d, t["bloque"])
+    ini = i0.strftime("%H:%M")
+    fin = (datetime.combine(d, i0) + timedelta(hours=2)).strftime("%H:%M")
     for v in ventanas_de(con, t["rbd"], d):
         if v["hasta"] and ini >= v["hasta"]:
-            return f"cierra a las {v['hasta']} y la visita es a las {ini}"
+            return f"cierra a las {v['hasta']} y la visita ({hora_bloque(d, t['bloque'])}) parte cerca de las {ini}"
         if v["hasta"] and fin > v["hasta"] and not v["desde"]:
-            return f"cierra a las {v['hasta']} y la visita termina a las {fin}"
+            return f"cierra a las {v['hasta']} y la visita ({hora_bloque(d, t['bloque'])}) termina cerca de las {fin}"
         if v["desde"] and ini < v["desde"]:
-            return f"se puede entrar desde las {v['desde']} y la visita es a las {ini}"
+            return f"se puede entrar desde las {v['desde']} y la visita ({hora_bloque(d, t['bloque'])}) parte cerca de las {ini}"
     return ""
 
 
@@ -323,7 +323,7 @@ def _rellenar(con, f, texto, autor):
         mias = _colegios_de(autor)
         filas = [t for t in filas if not mias or t["rbd"] in mias] or filas
         return f"{v['nombre']}, hoy vamos a: " + "; ".join(
-            f"{_nom(t['rbd'])} ({nombre_tec(t['tec'])}, {hora_bloque(t['fecha'], t['bloque']).split('-')[0].strip()})"
+            f"{_nom(t['rbd'])} ({nombre_tec(t['tec'])}, {hora_bloque(t['fecha'], t['bloque'])})"
             for t in filas) + "."
     if din == "proxima_visita":
         rbds = _colegios(texto)
@@ -368,8 +368,7 @@ def aviso_manana(con):
     for sup, ts in sorted(por_sup.items()):
         lin.append(f"\n{sup.split()[0]}:")
         for t in ts:
-            lin.append(f"- {_nom(t['rbd'])}, {_entre(d, t['bloque']).replace('entre las ', '').replace(' y las ', ' a ')}"
-                       f" ({nombre_tec(t['tec'])})")
+            lin.append(f"- {_nom(t['rbd'])}, {hora_bloque(d, t['bloque'])} ({nombre_tec(t['tec'])})")
     lin.append("\nSi algún colegio tiene restricción de horario o necesita autorización, avísenme por acá.")
     choques = [f"{_nom(t['rbd'])}: {choca(con, t)}" for t in filas if choca(con, t)]
     return "\n".join(lin), choques

@@ -161,9 +161,11 @@ def indexar(con, forzar=False):
                     origen_f = "descarga"
                 else:
                     origen_f = "carpeta"
+                con.commit()                                      # no dejar la base tomada mientras se lee el próximo PDF
                 con.execute("INSERT OR REPLACE INTO verificadores(ruta,mtime,rbd,fecha,folio,origen,nombre) "
                             "VALUES(?,?,?,?,?,?,?)", (ruta, mt, rbd, fecha, str(folio or ""),
                                                       "archivo" if os.sep + "archivo" + os.sep in ruta else origen_f, a))
+                con.commit()
     for f in con.execute("SELECT ruta FROM verificadores").fetchall():
         if f["ruta"] not in vistos:
             con.execute("DELETE FROM verificadores WHERE ruta=?", (f["ruta"],))

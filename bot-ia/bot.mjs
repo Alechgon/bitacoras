@@ -272,6 +272,15 @@ function jidTecnico (tec) {
   return n ? n + '@s.whatsapp.net' : null
 }
 
+// si algo falla con un mensaje del grupo, te enteras (máximo un aviso cada 10 min, para no llenarte el chat)
+let ultimoAvisoFalla = 0
+function avisarFalla (que) {
+  log('❌', que)
+  if (Date.now() - ultimoAvisoFalla < 600000) return
+  ultimoAvisoFalla = Date.now()
+  encolar(adminJid(), { text: `⚠️ No pude procesar ${que}\nSigo atento a los demás mensajes. Si se repite, revisa con !diagnostico.` }, {}, 1500)
+}
+
 // todo lo que devuelve el servidor pasa por aquí: a ti, al grupo, a técnicos, archivos y preguntas
 async function despachar (r, { jid = null, m = null, original = null, textoOriginal = '' } = {}) {
   if (!r) return
@@ -404,9 +413,11 @@ async function manejar (m) {
   log(`📥 ${m.pushName || '?'}: ${texto.slice(0, 80)}`)
   try {
     const r = await api('/entrada', { origen: 'grupo', texto, autor: m.pushName || 'supervisora', citado: citadoDe(m), ts: tsDe(m) })
+    if (r?.error) avisarFalla(`el mensaje de ${m.pushName || '?'} («${texto.slice(0, 80)}»): ${r.error}`)
     await despachar(r, { jid, m, original: m, textoOriginal: texto })   // borradores a ti; modo directo al grupo
   } catch (e) {
     log('❌ ¿está corriendo servidor.py?', e.message)
+    avisarFalla(`el mensaje de ${m.pushName || '?'} («${texto.slice(0, 80)}»): el servidor no respondió (${e.message})`)
   }
 }
 

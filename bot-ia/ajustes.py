@@ -64,6 +64,12 @@ def migrar():
         return dst
 
     completar(raw, ej)
+    if raw.get("delay_respuesta_seg") == [35, 95]:
+        raw["delay_respuesta_seg"] = [5, 15]
+        cambios.append("delay_respuesta_seg (35-95 -> 5-15 s)")
+    if raw.get("bloque_extra") == 4:
+        raw["bloque_extra"] = 5
+        cambios.append("bloque_extra (4 -> 5)")
     # perfiles: agrega perfiles nuevos completos, sin pisar los tuyos
     for nombre, p in ej.get("perfiles", {}).items():
         raw.setdefault("perfiles", {})

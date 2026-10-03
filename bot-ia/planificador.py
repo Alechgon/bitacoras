@@ -67,7 +67,7 @@ def _dia_tec(con, d, tec):
     out = []
     for b in sorted(set(bloques(d)) | set(filas)):
         t = filas.get(b)
-        etiqueta = f"B{b}" if b <= 3 else "EXTRA"
+        etiqueta = f"B{b}" if b in bloques(d) else "EXTRA"
         if not t:
             out.append(f"   {etiqueta} · libre")
             continue
@@ -337,7 +337,7 @@ def aplicar(con, pv, autor):
                 filas = agenda(con, d, d, tec)
                 if filas:
                     partes.append(f"*{bonita(d).upper()}*\n" + "\n".join(
-                        f"B{t['bloque'] if t['bloque'] <= 3 else 'X'} {hora_bloque(t['fecha'], t['bloque'])} · "
+                        f"{hora_bloque(t['fecha'], t['bloque'])} · "
                         f"{E.get(t['rbd'], {}).get('nombre', t['rbd'])} · {t['clase'].lower()}"
                         + (f" — {t['detalle'].split('||')[-1].strip()[:80]}" if 'CORRECTIVO' in t['clase'] else "")
                         for t in filas))

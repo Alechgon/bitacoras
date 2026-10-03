@@ -64,14 +64,20 @@ def tec_de(texto):
 
 def bloque_de(texto):
     t = norm(texto)
-    m = re.search(r"\b(?:b|bloque|bloq)\s*([1-4])\b", t)
+    m = re.search(r"\b(?:b|bloque|bloq)\s*([1-8])\b", t)
     if m:
         return int(m.group(1))
+    m = re.search(r"\b([1-8])\s*(?:ra|da|ta|era|er|ma|va|a|o)?\s*visita\b", t)        # "2da visita"
+    if m:
+        return int(m.group(1))
+    m = re.search(r"\b(primera|segunda|tercera|cuarta|quinta)\s+visita\b", t)
+    if m:
+        return {"primera": 1, "segunda": 2, "tercera": 3, "cuarta": 4, "quinta": 5}[m.group(1)]
     m = re.search(r"\b(primer|primero|primera|segundo|segunda|tercer|tercero|tercera|cuarto|ultimo|ultima)\s+"
                   r"(bloque|horario|hora|turno)\b", t)
     if m:
         return {"primer": 1, "primero": 1, "primera": 1, "segundo": 2, "segunda": 2, "tercer": 3, "tercero": 3,
-                "tercera": 3, "cuarto": 4, "ultimo": 3, "ultima": 3}[m.group(1)]
+                "tercera": 3, "cuarto": 4, "ultimo": 4, "ultima": 4}[m.group(1)]
     if re.search(r"\b(temprano|primera hora|a primera|en la manana|por la manana|de la manana)\b", t):
         return 1
     if re.search(r"\b(mediodia|medio dia|antes de almuerzo)\b", t):

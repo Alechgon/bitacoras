@@ -63,14 +63,13 @@ def nom(rbd_o_nombre):
 
 
 def _hora(d, b):
-    return hora_bloque(d, b).replace(" - ", " a ")
+    """'1ra visita', '2da visita'… (sin horarios: el número indica el orden)."""
+    return hora_bloque(d, b)
 
 
 def _inicio(d, b):
-    try:
-        return datetime.strptime(hora_bloque(d, b).split("-")[0].strip(), "%H:%M").time()
-    except ValueError:
-        return None
+    from nucleo import inicio_bloque
+    return inicio_bloque(d, b)
 
 
 def _dia(d, d0=None):
@@ -176,8 +175,10 @@ def buscar_hilo(con, texto, autor, citado=""):
     for h in abiertos:
         if _mismo(h["autor"], autor) and not (h["paso"] != "lugar" and otro_colegio(h)):
             return h
+    habla_de_aplazar = re.search(r"\b(aplaz|mover|muev|cambi|corr|se puede|pueden|esa|ese|bloque|visita)", norm(texto))
     for h in abiertos:                       # en la oferta de agenda puede responder cualquier supervisora
-        if h["paso"] == "agenda" and _elegir(texto, json.loads(h["opciones"] or "[]"), h["rbd"])[0]:
+        if h["paso"] == "agenda" and habla_de_aplazar and ia.tipo_por_palabras(texto) == "OTRO" and \
+                _elegir(texto, json.loads(h["opciones"] or "[]"), h["rbd"])[0]:
             return h
     return None
 
@@ -300,11 +301,8 @@ def _dias_oferta():
 
 
 def _entre(d, b):
-    h = hora_bloque(d, b)
-    if "-" not in h:
-        return "en bloque extra"
-    a, z = [x.strip() for x in h.split("-")]
-    return f"entre las {a} y las {z}"
+    """'como 1ra visita' / 'como visita extra'."""
+    return f"como {hora_bloque(d, b)}"
 
 
 def _armar_oferta(con, h):
@@ -324,16 +322,16 @@ def _armar_oferta(con, h):
             for b in sorted(set(bloques(d)) | set(filas)):
                 t = filas.get(b)
                 pasado = d == hoy() and (_inicio(d, b) or ahora.time()) <= ahora.time()
-                hora = _hora(d, b) if b in bloques(d) else "extra"
+                hora = f"Bloque {b}" if b in bloques(d) else "Extra"
                 if t:
                     movible = not pasado and ((t["crit"] or "") != "GAS" or t["rbd"] == h["rbd"])
-                    lineas.append(f"- {nom(t['rbd'])}, {hora}")
+                    lineas.append(f"- {hora}: {nom(t['rbd'])}")
                     opciones.append({"id": t["id"], "rbd": t["rbd"], "nombre": nom(t["rbd"]), "tec": tec,
                                      "fecha": d.isoformat(), "dia": n_dia, "bloque": b, "movible": movible,
                                      "por_que": "ya pasó ese bloque" if pasado else
                                      ("es de gas" if (t["crit"] or "") == "GAS" else "")})
-                elif b <= 3 and not pasado:
-                    lineas.append(f"- libre, {hora}")
+                elif b in bloques(d) and not pasado:
+                    lineas.append(f"- {hora}: libre")
                     opciones.append({"id": None, "rbd": None, "nombre": "bloque libre", "tec": tec,
                                      "fecha": d.isoformat(), "dia": n_dia, "bloque": b, "movible": True, "por_que": ""})
                     if libre is None and (h["crit"] != "GAS" or tec == pref or pref not in tecs):
@@ -360,12 +358,11 @@ def _ofrecer(con, h, out):
         dp = a_fecha(propia["fecha"])
         libre = {"tec": propia["tec"], "fecha": propia["fecha"], "bloque": propia["bloque"], "propia": True}
         cierre = (f"\nEl {nom(h['rbd'])} ya tiene visita {_dia(dp)} con {nombre_tec(propia['tec'])} "
-                  f"{_entre(dp, propia['bloque'])}; si les sirve, lo ven ahí mismo. Si es más urgente, díganme "
+                  f"(bloque {propia['bloque']}); si les sirve, lo ven ahí mismo. Si es más urgente, díganme "
                   f"qué visita se podría aplazar; esa pasa al día hábil siguiente.")
     elif libre:
-        cierre = (f"\n{nombre_tec(libre['tec'])} tiene libre {_dia(a_fecha(libre['fecha']))} "
-                  f"{_entre(a_fecha(libre['fecha']), libre['bloque'])}, si les sirve lo dejo ahí. Si no, "
-                  f"díganme qué visita se podría aplazar; esa pasa al día hábil siguiente.")
+        cierre = (f"\n{nombre_tec(libre['tec'])} tiene libre el bloque {libre['bloque']} {_dia(a_fecha(libre['fecha']))}, "
+                  f"si les sirve lo dejo ahí. Si no, díganme qué visita se podría aplazar; esa pasa al día hábil siguiente.")
     else:
         cierre = ("\nLo puedo sumar, pero habría que aplazar algún establecimiento. ¿Cuál podría ser? "
                   "(Por ejemplo: el del segundo bloque del segundo día.) El que se aplace pasa al día hábil siguiente.")
@@ -526,10 +523,10 @@ def continuar(con, h, texto, autor):
             return aplicar(con, h, autor, opcion=o)
         if libre and re.search(SI, t):
             return aplicar(con, h, autor, libre=libre)
-        if _mismo(h["autor"], autor):
+        if _mismo(h["autor"], autor) and re.search(r"\b(aplaz|mover|muev|cambi|bloque|visita|dia|hoy|manana|esa|ese)", t):
             return _salida(con, h, f"{_n(autor)}, ¿qué visita se podría aplazar? Dime el colegio o el día y el "
                                    f"bloque (o *ninguna*).", out, "no entendí la respuesta")
-        return None
+        return None                          # otra cosa ("gracias", un caso nuevo…): sigue el camino normal
     return None
 
 
@@ -572,7 +569,7 @@ def aplicar(con, h, autor, opcion=None, libre=None, automatico=False, intro=None
         if bl and bl in bloques(a):
             cuando = f"{_dia(a)} {_entre(a, bl)}"
         else:
-            cuando = f"{_dia(a)} como bloque extra"
+            cuando = f"{_dia(a)} como visita extra"
         cuando = (pasa_a(a) + cuando[len(_dia(a)):]) if cuando.startswith(_dia(a)) else cuando
         partes.append(f"El {nom(p['nombre'])} pasa {cuando}" + ("" if mismo_tec else f", con {nombre_tec(p['tec'])}") + ".")
         if p.get("paso_limite"):

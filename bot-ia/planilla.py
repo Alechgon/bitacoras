@@ -117,7 +117,7 @@ def tablas(con):
         for tec in D["META"]["tecnicos"]:
             por_b = {t["bloque"]: t for t in agenda(con, dia, dia, tec)}
             celdas = []
-            for b in (1, 2, 3):
+            for b in (1, 2, 3, 4):
                 t = por_b.get(b)
                 if b not in bloques(dia):
                     celdas.append("—")
@@ -125,7 +125,8 @@ def tablas(con):
                     celdas.append(f"{E.get(t['rbd'], {}).get('nombre', t['rbd'])} · {t['clase'].lower()} ({t['pts']})")
                 else:
                     celdas.append("LIBRE")
-            extra = "; ".join(f"{E.get(t['rbd'], {}).get('nombre', t['rbd'])}" for b, t in por_b.items() if b > 3)
+            extra = "; ".join(f"{E.get(t['rbd'], {}).get('nombre', t['rbd'])}" for b, t in por_b.items()
+                              if b not in bloques(dia))
             filas.append([dia.isoformat(), bonita(dia), nombre_tec(tec), *celdas, extra,
                           sum(1 for c in celdas if c == "LIBRE")])
     out.append({"hoja": "Cronograma", "titulo": "Cronograma · próximas 4 semanas (agenda viva del bot)",
@@ -133,7 +134,7 @@ def tablas(con):
                        datetime.now().strftime("%d-%m-%Y %H:%M"),
                 "cols": [_col("Fecha", 92, al="center"), _col("Día", 80, al="center"), _col("Técnico", 90),
                          _col("Bloque 1", 260, wrap=True), _col("Bloque 2", 260, wrap=True),
-                         _col("Bloque 3", 260, wrap=True), _col("Extra", 200, wrap=True),
+                         _col("Bloque 3", 260, wrap=True), _col("Bloque 4", 260, wrap=True), _col("Extra", 200, wrap=True),
                          _col("Libres", 60, al="center")],
                 "filas": filas})
 

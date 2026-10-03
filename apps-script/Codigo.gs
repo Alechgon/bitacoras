@@ -202,6 +202,7 @@ function bot(b) {
       reglaTexto(hc, 4, 'LIBRE', C.verdeBg, C.verde);
       reglaTexto(hc, 5, 'LIBRE', C.verdeBg, C.verde);
       reglaTexto(hc, 6, 'LIBRE', C.verdeBg, C.verde);
+      reglaTexto(hc, 7, 'LIBRE', C.verdeBg, C.verde);
     }
     var hm = ss.getSheetByName('Metas por establecimiento');
     if (hm) {

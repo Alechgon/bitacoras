@@ -78,14 +78,50 @@ def habiles_entre(desde, hasta):
         d += timedelta(days=1)
 
 
+ORDINAL = {1: "1ra", 2: "2da", 3: "3ra", 4: "4ta", 5: "5ta", 6: "6ta", 7: "7ma", 8: "8va"}
+
+
+def n_bloques(d):
+    """Cuántas visitas por técnico y día (sin horarios: el número indica el orden/urgencia)."""
+    c = cfg().get("bloques_por_dia", {})
+    return int(c.get("viernes", 2) if a_fecha(d).weekday() == 4 else c.get("lunes_a_jueves", 4))
+
+
+def etiqueta_bloque(b):
+    return f"{ORDINAL.get(int(b), str(b) + 'a')} visita"
+
+
 def bloques(d):
-    M = datos()["META"]
-    b = M["bloquesV"] if d.weekday() == 4 else M["bloquesLJ"]
-    return {int(k): v for k, v in b.items()}
+    """{1: '1ra visita', 2: '2da visita', ...} según el día."""
+    return {i: etiqueta_bloque(i) for i in range(1, n_bloques(d) + 1)}
+
+
+def bloque_extra(d):
+    return n_bloques(d) + 1
 
 
 def hora_bloque(d, b):
-    return bloques(a_fecha(d)).get(int(b), "bloque extra")
+    """Ya no hay horarios: devuelve '1ra visita', '2da visita'… (o 'visita extra')."""
+    return etiqueta_bloque(b) if int(b) in bloques(a_fecha(d)) else "visita extra"
+
+
+def inicio_bloque(d, b):
+    """Hora aproximada en que parte esa visita (solo para saber si ya pasó o si choca con un cierre)."""
+    from datetime import time as _t
+    M = datos()["META"]
+    ref = M["bloquesV"] if a_fecha(d).weekday() == 4 else M["bloquesLJ"]
+    ini = {}
+    for k, v in ref.items():
+        try:
+            ini[int(k)] = datetime.strptime(str(v).split("-")[0].strip(), "%H:%M")
+        except ValueError:
+            pass
+    b = int(b)
+    if b in ini:
+        return ini[b].time()
+    base = max(ini) if ini else 1
+    h = (ini[base] if ini else datetime.strptime("08:30", "%H:%M")) + timedelta(minutes=150 * (b - base))
+    return _t(min(h.hour, 23), h.minute)
 
 
 def bonita(d):
@@ -99,8 +135,13 @@ def nombre_tec(t):
 
 # ================================================================ cuaderno (SQLite)
 def db():
-    con = sqlite3.connect(DB_PATH)
+    con = sqlite3.connect(DB_PATH, timeout=30)       # si otro hilo está escribiendo, espera en vez de fallar
     con.row_factory = sqlite3.Row
+    try:
+        con.execute("PRAGMA journal_mode=WAL")       # leer y escribir a la vez sin trabarse
+        con.execute("PRAGMA busy_timeout=30000")
+    except sqlite3.OperationalError:
+        pass
     con.create_function("REGEXP", 2, lambda p, v: 1 if (v and re.search(p, v, re.I)) else 0)
     con.executescript("""
     CREATE TABLE IF NOT EXISTS tarjetas(
@@ -479,8 +520,8 @@ def agendar(con, rbd, crit, problema, prio, autor, hallazgo_id=None, desde=None)
     # --- 3) bloque extra
     tec = pref if pref in tecs else tecs[0]
     d = inicio if crit == "GAS" else limite
-    tid, modo = colocar(tec, d, c.get("bloque_extra", 4), sobrecupo=True)
-    return resultado(tid, modo, tec, d, c.get("bloque_extra", 4))
+    tid, modo = colocar(tec, d, bloque_extra(d), sobrecupo=True)
+    return resultado(tid, modo, tec, d, bloque_extra(d))
 
 
 def _fusionar(con, t, crit, pts, texto_corr, hallazgo_id):
@@ -532,12 +573,12 @@ def postergar(con, t, desde, evitar=None):
     if cfg().get("postergar", "dia_siguiente") == "dia_siguiente":
         # tu regla: lo que se corre, se corre UN día hábil nomás (tú después vas ordenando)
         nd = sumar_habiles(a_fecha(t["fecha"]), 1)
-        b0 = t["bloque"] if t["bloque"] <= 3 else 1
+        b0 = t["bloque"] if t["bloque"] <= n_bloques(nd) else 1
         opciones = [(t["tec"], b0)] + [(t["tec"], x) for x in libres(con, t["tec"], nd) if x != b0] + \
                    [(x, b0) for x in tecs[1:]]
         elegido = next(((tc, bl) for tc, bl in opciones if bl in libres(con, tc, nd)
                         and not (evitar and (tc, nd, bl) in evitar)), None)
-        tc, bl = elegido or (t["tec"], int(cfg().get("bloque_extra", 4)))
+        tc, bl = elegido or (t["tec"], bloque_extra(nd))
         con.execute("UPDATE tarjetas SET fecha=?, bloque=?, tec=?, aplaz=aplaz+1, modificada=1 WHERE id=?",
                     (nd.isoformat(), bl, tc, t["id"]))
         log(con, f"Postergada un día {nom} ({t['clase']}) de {t['fecha']} b{t['bloque']} a {nd} b{bl} {tc}")
@@ -606,10 +647,10 @@ def colocar_forzado(con, rbd, crit, problema, prio, autor, hallazgo_id, tec=None
                                 "AND COALESCE(crit,'')<>'GAS' AND id<>? ORDER BY "
                                 "CASE WHEN clase IN ('VISITA','PREVENTIVA') THEN 0 ELSE 1 END, pts ASC",
                                 (tec, d.isoformat(), tarjeta_id or "")).fetchall()
-            b = cands[0]["bloque"] if cands else cfg().get("bloque_extra", 4)
+            b = cands[0]["bloque"] if cands else bloque_extra(d)
         ocupante = con.execute("SELECT * FROM tarjetas WHERE tec=? AND fecha=? AND bloque=? AND estado='programada' "
                                "AND id<>?", (tec, d.isoformat(), b, tarjeta_id or "")).fetchone()
-        if ocupante and b <= 3:
+        if ocupante and b <= n_bloques(d):
             # libera el bloque (la propia se mueve después, así su hueco viejo queda disponible)
             con.execute("UPDATE tarjetas SET bloque=99 WHERE id=?", (ocupante["id"],))
             ocup = dict(ocupante)
@@ -618,7 +659,7 @@ def colocar_forzado(con, rbd, crit, problema, prio, autor, hallazgo_id, tec=None
                 postergadas.append(mov)
             else:
                 con.execute("UPDATE tarjetas SET bloque=?, fecha=?, modificada=1 WHERE id=?",
-                            (cfg().get("bloque_extra", 4), d.isoformat(), ocupante["id"]))
+                            (bloque_extra(d), d.isoformat(), ocupante["id"]))
     antes = a_fecha(propia["fecha"]) if propia else None
     if propia:
         _fusionar(con, propia, crit or "OTRO", pts, texto_corr, hallazgo_id) if propia["hallazgo_id"] != hallazgo_id else None
@@ -640,4 +681,4 @@ def colocar_forzado(con, rbd, crit, problema, prio, autor, hallazgo_id, tec=None
         p = postergadas[0]
         movida = {"nombre": p["nombre"], "de": p["de"], "a": p["a"], "tec": p["tec"]}
     return dict(tarjeta=tid, tec=tec, fecha=d, bloque=b, pts=pts, detalle_pts=detalle_pts, limite=d,
-                modo=modo + ("+extra" if b > 3 else ""), movida=movida, antes=antes, postergadas=postergadas)
+                modo=modo + ("+extra" if b > n_bloques(d) else ""), movida=movida, antes=antes, postergadas=postergadas)

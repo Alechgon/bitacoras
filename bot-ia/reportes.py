@@ -80,7 +80,7 @@ def generar(dias=10):
         fila += 1
         ag = agenda(con, h, fin, t)
         vals = [D["META"]["tecnicos"][t]["nombre"], len(ag), sum("CORRECTIVO" in x["clase"] for x in ag),
-                sum("CORRECTIVO" not in x["clase"] for x in ag), sum(x["bloque"] > 3 for x in ag)]
+                sum("CORRECTIVO" not in x["clase"] for x in ag), sum(x["bloque"] not in bloques(a_fecha(x["fecha"])) for x in ag)]
         for j, v in enumerate(vals, start=1):
             celda(ws, fila, j, v)
     fila += 2
@@ -113,7 +113,7 @@ def generar(dias=10):
         primera = r + 1
         for b, horario in filas_dia:
             r += 1
-            celda(wg, r, 2, f"B{b} {horario}" if b in bl else "EXTRA", al=CENTRO)
+            celda(wg, r, 2, f"Bloque {b}" if b in bl else "EXTRA", al=CENTRO)
             for j, t in enumerate(tecs, start=3):
                 xs = [x for x in agenda(con, d, d, t) if x["bloque"] == b]
                 txt = "\n".join(f"{E.get(x['rbd'], {}).get('nombre', x['rbd'])} ({x['pts']})\n{x['clase']}" +

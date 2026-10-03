@@ -98,8 +98,8 @@
   },
   "_tiempos": "Segundos de espera antes de responder (al azar entre los dos), para no parecer robot.",
   "delay_respuesta_seg": [
-    35,
-    95
+    5,
+    15
   ],
   "delay_comando_seg": [
     3,
@@ -147,7 +147,7 @@
     "va junaeb",
     "viene junaeb"
   ],
-  "bloque_extra": 4,
+  "bloque_extra": 5,
   "_identificacion": "Qué tan parecido debe ser un nombre (0-100) para dar por seguro el establecimiento, y desde cuánto ofrece opciones.",
   "identificacion": {
     "seguro": 82,
@@ -244,5 +244,10 @@
   "aviso_previo": {
     "activa": true,
     "hora": "16:30"
+  },
+  "_bloques": "Visitas por técnico y día, sin horarios: bloque 1 = 1ra visita (lo más urgente), bloque 2 = 2da… Lo que no cabe va como visita extra.",
+  "bloques_por_dia": {
+    "lunes_a_jueves": 4,
+    "viernes": 2
   }
 }
