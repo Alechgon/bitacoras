@@ -26,12 +26,98 @@ def _slug(s):
     return re.sub(r"[^A-Z0-9]+", "_", s).strip("_")[:40]
 
 
+ACCIONES = r"(Mantenci[oó]n|Reparaci[oó]n|Cambio|Instalaci[oó]n|Retiro|Revisi[oó]n|Limpieza|Reemplazo|Ajuste)"
+
+
 def leer_pdf(ruta):
-    """Devuelve dict con cabecera + lista de items. Lanza ValueError si no es una bitácora."""
-    try:
-        import pdfplumber
-    except ImportError:
-        raise ValueError("falta el lector de PDF; corre de nuevo bot-ia/instalar.sh")
+    """
+    Devuelve dict con cabecera (fecha en ISO aaaa-mm-dd) + lista de items. Lanza ValueError si no es una bitácora.
+    Primero con pdfplumber (lee las tablas); si no está instalado o falla, con pypdf + el catálogo de ítems del panel.
+    """
+    errores = []
+    for lector in (_leer_pdfplumber, _leer_pypdf):
+        try:
+            cab = lector(ruta)
+        except ImportError as e:
+            errores.append(f"{lector.__name__}: falta {e.name}")
+            continue
+        except ValueError:
+            raise
+        except Exception as e:
+            errores.append(f"{lector.__name__}: {str(e)[:80]}")
+            continue
+        if not cab["items"] and lector is _leer_pdfplumber:
+            try:                                   # tablas que pdfplumber no separó: el texto plano a veces sí
+                alt = _leer_pypdf(ruta)
+                if alt["items"]:
+                    cab["items"] = alt["items"]
+            except Exception:
+                pass
+        return cab
+    raise ValueError("no pude leer el PDF (" + "; ".join(errores) + "). Corre de nuevo bot-ia/instalar.sh")
+
+
+def _cabecera(texto):
+    """Folio, fecha (ISO), hora, RBD, establecimiento, dirección, comuna, técnico y motivo desde el texto del PDF."""
+    def buscar1(pat, d=""):
+        m = re.search(pat, texto, re.I | re.M)
+        return m.group(1).strip() if m else d
+    cab = {}
+    cab["folio"] = buscar1(r"FOLIO\s*\n?\s*(\d+)") or buscar1(r"FOLIO\s+(\d+)")
+    cab["fecha_texto"] = buscar1(r"FECHA:\s*([\d/.-]+)")
+    cab["fecha"] = _fecha_cl(cab["fecha_texto"]) or (a_fecha(cab["fecha_texto"]).isoformat()
+                                                    if a_fecha(cab["fecha_texto"]) else "")
+    cab["hora"] = buscar1(r"HORA:\s*([\d:]+)")
+    cab["rbd"] = buscar1(r"RBD:\s*(\d+)")
+    cab["establecimiento"] = buscar1(r"ESTABLECIMIENTO:\s*(.+?)\s*$")
+    cab["direccion"] = buscar1(r"DIRECCION:\s*(.+?)\s+COMUNA")
+    cab["comuna"] = buscar1(r"COMUNA:\s*(.+?)\s*$")
+    cab["tecnico"] = buscar1(r"Nombre:\s*(.+?)\s*$").split(" Nombre:")[0].strip()
+    cab["motivo"] = _detectar_motivo(texto)
+    if not cab["rbd"] and not cab["folio"]:
+        raise ValueError("No parece una bitácora de Datácora (sin folio ni RBD).")
+    return cab
+
+
+def _leer_pypdf(ruta):
+    """Lector de respaldo: texto plano + catálogo de ítems (CATS de datos.js) para cortar fila por fila."""
+    from pypdf import PdfReader
+    texto = "\n".join((p.extract_text() or "") for p in PdfReader(ruta).pages)
+    cab = _cabecera(texto)
+    plano = re.sub(r"\s+", " ", texto)
+    cats = datos().get("CATS") or {}
+    cabeceras = [(m.start(), m.end(), m.group(1)) for m in
+                 re.finditer(r"\b(Calor|Electricidad|Fr[ií]o|Vectores|Agua|Infraestructura)\s+Cocina\s+Bodega\s+"
+                             r"Ba[nñ]o\s+Patio\s+Otro\s+Cantidad\s+Acci[oó]n\s+Observaci[oó]n", plano, re.I)]
+    items = []
+    for k, (ini, fin, nombre_cat) in enumerate(cabeceras):
+        hasta = cabeceras[k + 1][0] if k + 1 < len(cabeceras) else len(plano)
+        seccion = plano[fin:hasta]
+        cat = "Frio" if norm(nombre_cat) == "frio" else nombre_cat.title()
+        catalogo = cats.get(cat) or cats.get(nombre_cat) or []
+        pos = []
+        for it in catalogo:
+            pat = r"\s*".join(re.escape(ch) for ch in it.replace(" ", ""))   # el PDF corta los nombres en líneas
+            m = re.search(pat, seccion, re.I)
+            if m:
+                pos.append((m.start(), m.end(), it))
+        pos.sort()
+        for i, (a, b, it) in enumerate(pos):
+            trozo = seccion[b:pos[i + 1][0] if i + 1 < len(pos) else len(seccion)]
+            filas = list(re.finditer(rf"(?:(\d+)\s+)?(\d+)\s+{ACCIONES}\b", trozo, re.I))
+            nombre_pat = r"\s*".join(re.escape(ch) for ch in it.replace(" ", ""))
+            for j, m in enumerate(filas):           # el mismo ítem en cocina y en bodega = dos filas
+                obs = trozo[m.end(): filas[j + 1].start() if j + 1 < len(filas) else len(trozo)]
+                obs = re.sub(rf"{nombre_pat}\s*$", "", obs.strip(), flags=re.I)
+                obs = re.sub(r"(Firma|Nombre:|Encargado|T[eé]cnico).*$", "", obs).strip()
+                items.append({"categoria": cat, "item": it, "ubicacion": "", "cantidad": m.group(2),
+                              "accion": m.group(3).capitalize(), "observacion": obs[:500]})
+    cab["items"] = items
+    return cab
+
+
+def _leer_pdfplumber(ruta):
+    import pdfplumber
     cab, items = {}, []
     with pdfplumber.open(ruta) as pdf:
         texto_total = []
@@ -59,23 +145,8 @@ def leer_pdf(ruta):
                         items.append({"categoria": categoria, "item": item, "ubicacion": ubic,
                                       "cantidad": cant, "accion": accion, "observacion": obs})
         texto = "\n".join(texto_total)
-
-    def buscar1(pat, d=""):
-        m = re.search(pat, texto, re.I | re.M)
-        return m.group(1).strip() if m else d
-
-    cab["folio"] = buscar1(r"FOLIO\s*\n?\s*(\d+)") or buscar1(r"FOLIO\s+(\d+)")
-    cab["fecha"] = buscar1(r"FECHA:\s*([\d/.-]+)")
-    cab["hora"] = buscar1(r"HORA:\s*([\d:]+)")
-    cab["rbd"] = buscar1(r"RBD:\s*(\d+)")
-    cab["establecimiento"] = buscar1(r"ESTABLECIMIENTO:\s*(.+?)\s*$")
-    cab["direccion"] = buscar1(r"DIRECCION:\s*(.+?)\s+COMUNA")
-    cab["comuna"] = buscar1(r"COMUNA:\s*(.+?)\s*$")
-    cab["tecnico"] = buscar1(r"Nombre:\s*(.+?)\s*$").split(" Nombre:")[0].strip()
-    cab["motivo"] = _detectar_motivo(texto)
+    cab = _cabecera(texto)
     cab["items"] = items
-    if not cab["rbd"] and not cab["folio"]:
-        raise ValueError("No parece una bitácora de Datácora (sin folio ni RBD).")
     return cab
 
 
@@ -116,25 +187,41 @@ def archivar(ruta_origen, nombre_texto="", fecha_texto=""):
     shutil.copy(ruta_origen, destino)
 
     con = db()
-    con.execute("CREATE TABLE IF NOT EXISTS bitacoras(folio TEXT PRIMARY KEY, rbd INTEGER, establecimiento TEXT, "
-                "fecha TEXT, hora TEXT, comuna TEXT, motivo TEXT, tecnico TEXT, archivo TEXT, "
-                "cargado TEXT DEFAULT (datetime('now','localtime')), n_items INTEGER)")
-    con.execute("CREATE TABLE IF NOT EXISTS bitacora_items(id INTEGER PRIMARY KEY AUTOINCREMENT, folio TEXT, "
-                "rbd INTEGER, categoria TEXT, item TEXT, ubicacion TEXT, cantidad TEXT, accion TEXT, observacion TEXT)")
+    cab["fecha"] = fecha.isoformat()
+    cab["folio"] = folio
+    indexar_cab(con, cab, destino, nombre)
+    log(con, f"Bitácora folio {folio} archivada: {nombre} RBD {rbd}, {len(cab['items'])} ítems")
+    con.commit()
+    try:                                      # si esa visita estaba en la agenda, queda hecha con la fecha de la bitácora
+        import realizados
+        realizados.desde_bitacora(con, rbd, fecha, cab.get("tecnico"))
+    except Exception as e:
+        print("[bitacoras] no pude marcar la visita:", e)
+    return {"folio": folio, "rbd": rbd, "nombre": nombre, "fecha": fecha, "n_items": len(cab["items"]),
+            "archivo": destino, "tecnico": cab["tecnico"], "avisos": avisos, "items": cab["items"]}
+
+
+def indexar_cab(con, cab, archivo, nombre=None):
+    """Guarda (o actualiza) una bitácora leída y sus ítems en la base. No hace commit: lo hace quien llama."""
+    rbd = int(cab["rbd"]) if str(cab.get("rbd") or "").isdigit() else None
+    folio = str(cab.get("folio") or "SF")
+    nombre = nombre or datos()["E"].get(rbd, {}).get("nombre") or cab.get("establecimiento") or f"RBD_{rbd}"
+    fecha = a_fecha(cab.get("fecha")) or a_fecha(_fecha_cl(cab.get("fecha_texto", "")))
+    previo = con.execute("SELECT archivo FROM bitacoras WHERE folio=?", (folio,)).fetchone()
+    if previo and previo["archivo"] and os.path.exists(previo["archivo"]) and \
+            os.sep + "archivo" + os.sep in previo["archivo"] and os.sep + "archivo" + os.sep not in archivo:
+        archivo = previo["archivo"]           # la copia ordenada en archivo/ manda sobre la de la carpeta
     con.execute("DELETE FROM bitacora_items WHERE folio=?", (folio,))
     con.execute("INSERT OR REPLACE INTO bitacoras(folio,rbd,establecimiento,fecha,hora,comuna,motivo,tecnico,"
                 "archivo,n_items) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                (folio, rbd, nombre, fecha.isoformat(), cab["hora"], cab["comuna"], cab["motivo"],
-                 cab["tecnico"], destino, len(cab["items"])))
-    for it in cab["items"]:
+                (folio, rbd, nombre, fecha.isoformat() if fecha else "", cab.get("hora", ""), cab.get("comuna", ""),
+                 cab.get("motivo", ""), cab.get("tecnico", ""), archivo, len(cab.get("items", []))))
+    for it in cab.get("items", []):
         con.execute("INSERT INTO bitacora_items(folio,rbd,categoria,item,ubicacion,cantidad,accion,observacion) "
                     "VALUES(?,?,?,?,?,?,?,?)",
-                    (folio, rbd, it["categoria"], it["item"], it["ubicacion"], it["cantidad"], it["accion"],
-                     it["observacion"]))
-    log(con, f"Bitácora folio {folio} archivada: {nombre} RBD {rbd}, {len(cab['items'])} ítems")
-    con.commit()
-    return {"folio": folio, "rbd": rbd, "nombre": nombre, "fecha": fecha, "n_items": len(cab["items"]),
-            "archivo": destino, "tecnico": cab["tecnico"], "avisos": avisos, "items": cab["items"]}
+                    (folio, rbd, it.get("categoria"), it.get("item"), it.get("ubicacion"), str(it.get("cantidad") or ""),
+                     it.get("accion"), it.get("observacion")))
+    return folio
 
 
 def _fecha_cl(s):

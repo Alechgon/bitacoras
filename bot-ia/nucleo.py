@@ -211,13 +211,37 @@ def db():
       VALUES(NEW.id, NEW.rbd, NEW.clase, NEW.fecha, NEW.tec, NEW.bloque, 'nueva', 0,
              COALESCE((SELECT v FROM meta WHERE k='motivo'), 'bot'));
     END;
+    -- cada mensaje del grupo (entrante y saliente), por persona, para la planilla y para no dejar a nadie sin respuesta
+    CREATE TABLE IF NOT EXISTS chat(id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cuando TEXT DEFAULT (datetime('now','localtime')), numero TEXT, nombre TEXT, rol TEXT, sup TEXT,
+        direccion TEXT, texto TEXT, intencion TEXT, rbd INTEGER, sesion_id INTEGER, para TEXT, wa_id TEXT,
+        requiere INTEGER DEFAULT 0, respondido TEXT, alertado INTEGER DEFAULT 0, borrador_id INTEGER);
+    CREATE TABLE IF NOT EXISTS sesiones(id INTEGER PRIMARY KEY AUTOINCREMENT, numero TEXT, nombre TEXT,
+        inicio TEXT, ultimo TEXT, fin TEXT, estado TEXT DEFAULT 'abierta', entrantes INTEGER DEFAULT 0,
+        salientes INTEGER DEFAULT 0, temas TEXT DEFAULT '', cierre TEXT);
+    CREATE TABLE IF NOT EXISTS personas(numero TEXT PRIMARY KEY, nombre TEXT, rol TEXT, sup TEXT,
+        alias TEXT DEFAULT '', aprendido TEXT DEFAULT (datetime('now','localtime')), fuente TEXT);
+    -- reporte en vivo desde tu WhatsApp: "Camilo 1" (llegó a su 1ra visita), "Camilo 1" otra vez (salió)
+    CREATE TABLE IF NOT EXISTS en_vivo(id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, tec TEXT, bloque INTEGER,
+        rbd INTEGER, tarjeta_id TEXT, llegada TEXT, salida TEXT, nota TEXT);
+    -- frío que no llega a temperatura, trampas de grasa y limpieza de cámara: se juntan y te los paso
+    CREATE TABLE IF NOT EXISTS seguimientos(id INTEGER PRIMARY KEY AUTOINCREMENT,
+        creado TEXT DEFAULT (datetime('now','localtime')), actualizado TEXT DEFAULT (datetime('now','localtime')),
+        tipo TEXT, rbd INTEGER, equipo TEXT, autor TEXT, texto TEXT, estado TEXT DEFAULT 'abierto',
+        visto TEXT, proxima TEXT, nota TEXT DEFAULT '', foto TEXT, placa TEXT, pide_placa INTEGER DEFAULT 0,
+        preguntas TEXT DEFAULT '[]', veces INTEGER DEFAULT 1, espera TEXT);
     """)
     for alter in ("ALTER TABLE borradores ADD COLUMN recordado INTEGER DEFAULT 0",
                   "ALTER TABLE borradores ADD COLUMN tipo TEXT DEFAULT 'agendar'",
+                  "ALTER TABLE borradores ADD COLUMN hilo_id INTEGER",
                   "ALTER TABLE hallazgos ADD COLUMN foto TEXT",
                   "ALTER TABLE hilos ADD COLUMN confirmado INTEGER DEFAULT 0",
                   "ALTER TABLE hilos ADD COLUMN detallado INTEGER DEFAULT 0",
-                  "ALTER TABLE hallazgos ADD COLUMN insistencias INTEGER DEFAULT 0"):
+                  "ALTER TABLE hallazgos ADD COLUMN insistencias INTEGER DEFAULT 0",
+                  "ALTER TABLE tarjetas ADD COLUMN hecho TEXT",
+                  "ALTER TABLE tarjetas ADD COLUMN hecho_por TEXT",
+                  "ALTER TABLE verificadores ADD COLUMN error TEXT",
+                  "ALTER TABLE verificadores ADD COLUMN items INTEGER"):
         try:
             con.execute(alter)            # migración: bases creadas con versiones anteriores
         except sqlite3.OperationalError:
@@ -561,18 +585,19 @@ def metas(con):
 
 
 # ================================================================ colocar a mano (tus órdenes y el plan del día)
-def postergar(con, t, desde, evitar=None):
+def postergar(con, t, desde, evitar=None, destino=None):
     """
     Mueve la tarjeta t al primer bloque libre desde 'desde' (mismo técnico; si no, el otro).
     Busca dentro de su límite y, si no cabe, hasta 10 días hábiles más (avisando).
+    destino = día exacto al que pasa (ej. lo que no se alcanzó a hacer el viernes pasa al próximo hábil desde hoy).
     Devuelve dict(de, a, bloque, tec, paso_limite) o None.
     """
     lim = a_fecha(t["limite"]) or desde
     tecs = [t["tec"]] + [x for x in datos()["META"]["tecnicos"] if x != t["tec"]]
     nom = datos()["E"].get(t["rbd"], {}).get("nombre", t["rbd"])
-    if cfg().get("postergar", "dia_siguiente") == "dia_siguiente":
+    if destino or cfg().get("postergar", "dia_siguiente") == "dia_siguiente":
         # tu regla: lo que se corre, se corre UN día hábil nomás (tú después vas ordenando)
-        nd = sumar_habiles(a_fecha(t["fecha"]), 1)
+        nd = sig_habil(a_fecha(destino)) if destino else sumar_habiles(a_fecha(t["fecha"]), 1)
         b0 = t["bloque"] if t["bloque"] <= n_bloques(nd) else 1
         opciones = [(t["tec"], b0)] + [(t["tec"], x) for x in libres(con, t["tec"], nd) if x != b0] + \
                    [(x, b0) for x in tecs[1:]]

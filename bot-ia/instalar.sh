@@ -16,9 +16,10 @@ pkg install -y nodejs-lts python git termux-api >/dev/null
 echo "🐍 2/5 Librerías de Python (Excel y PDF)..."
 # Pillow y cryptography vienen precompilados en Termux; pdfplumber se instala sin
 # pypdfium2 (no tiene versión para Android y no se usa: solo leemos texto y tablas).
+# pypdf es el lector de respaldo de bitácoras (si pdfplumber no separa una tabla).
 pkg install -y python-pillow python-cryptography >/dev/null 2>&1 || true
 pip install -q --upgrade openpyxl charset-normalizer
-pip install -q --upgrade --no-deps pdfplumber pdfminer.six || echo "   ⚠️ No pude instalar el lector de PDF: el bot funciona igual, sin archivo de bitácoras."
+pip install -q --upgrade --no-deps pdfplumber pdfminer.six pypdf || echo "   ⚠️ No pude instalar el lector de PDF: el bot funciona igual, sin archivo de bitácoras."
 
 echo "🟢 3/5 Librerías de WhatsApp..."
 npm install --omit=optional --no-audit --no-fund --silent

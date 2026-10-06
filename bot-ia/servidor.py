@@ -14,14 +14,20 @@ sys.modules.setdefault("servidor", sys.modules[__name__])   # un solo módulo (y
 import bitacoras
 import consultas
 import conversacion
+import emergencias
+import en_vivo
 import ia
 import memoria
+import personas
 import planificador
 import planilla
 import privado
+import realizados
 import reportes
+import seguimientos
 import situaciones
 import verificadores
+import voz
 from nucleo import (a_fecha, agenda, agendar, bloques, bonita, buscar, cfg, datos, db, en_texto, es_habil, es_prioridad,
                     hora_bloque, hoy, log, metas, nombre_tec, norm, sumar_habiles)
 
@@ -300,7 +306,83 @@ def _pegar_respuesta(con, p, texto, autor):
     return out
 
 
-def entrada(origen, texto, autor, forzar_directo=False, citado="", foto=None, foto_resumen="", ahora=None):
+def _completar(con, chat_id, intencion, rbd, r):
+    """Marca en la transcripción qué era el mensaje y si se le dio respuesta (para el aviso de 'nadie respondió')."""
+    if not chat_id:
+        return
+    atendido = bool((r or {}).get("grupo") or (r or {}).get("borradores") or (r or {}).get("pedidos") or
+                    (r or {}).get("envios_grupo") or (r or {}).get("archivos_grupo"))
+    try:
+        personas.completar(con, chat_id, intencion, rbd, respondido=atendido,
+                           borrador_id=((r or {}).get("borradores") or [None])[0])
+    except Exception as e:
+        print("[personas] completar:", e)
+
+
+def _humanizar_grupo(out, persona=None):
+    """Reescribe en el tono de Manuel lo que va al grupo, si lo activaste (voz.humanizar_grupo). Nunca toca datos."""
+    if not out or not cfg().get("voz", {}).get("humanizar_grupo", False):
+        return out
+    para = (persona or {}).get("nombre", "") if persona else ""
+    for k in ("grupo",):
+        if out.get(k):
+            out[k] = [voz.humanizar(t, para=para, situacion="mensaje al grupo de supervisoras") for t in out[k]]
+    return out
+
+
+def _emergencia_grupo(con, origen, texto, autor, analisis, foto, modo_borrador=True):
+    """
+    Gas (SEC) o urgencia no-gas: respuesta natural (sin cuadro). Devuelve la salida (borrador para ti) o None.
+    - gas: se agenda al tiro y el texto dice qué técnico va ahora (comuna/distancia).
+    - no gas: ofrece coordinar al bloque siguiente; si aceptan en el grupo, se posterga esa visita un día.
+    """
+    hs = [h for h in (analisis.get("hallazgos") or []) if h.get("rbd") or h.get("nombre_mencionado")]
+    if len(hs) != 1:
+        return None
+    h = hs[0]
+    rbd, _ = resolver(h, texto)
+    if not rbd:
+        return None
+    crit = h.get("tipo") if h.get("tipo") in ia.PAL or h.get("tipo") == "OTRO" else ia.tipo_por_palabras(texto)
+    if not emergencias.es_emergencia(crit, texto):
+        return None
+    dias = int(cfg().get("borrador", {}).get("dias_duplicado", 7))
+    desde = (datetime.now() - timedelta(days=dias)).strftime("%Y-%m-%d")
+    if con.execute("SELECT 1 FROM hallazgos WHERE rbd=? AND crit=? AND estado IN ('agendado','resuelto') AND recibido>=?",
+                   (rbd, crit, desde)).fetchone():
+        return None                                  # ya lo estábamos viendo: que siga el flujo normal
+    problema = (h.get("problema") or texto)[:120]
+    hid = con.execute("INSERT INTO hallazgos(recibido,autor,texto,rbd,problema,crit,prio,estado,motor,foto) "
+                      "VALUES(?,?,?,?,?,?,1,?,?,?)",
+                      (datetime.now().strftime("%Y-%m-%d %H:%M"), autor, texto, rbd, problema, crit,
+                       "agendado" if crit == "GAS" else "registrado", "emergencia", foto)).lastrowid
+    if crit == "GAS":
+        resp, res, tec = emergencias.responder_gas(con, rbd, problema, crit, autor, hid)
+        con.execute("UPDATE hallazgos SET pts=?, tarjeta_id=?, respuesta=? WHERE id=?",
+                    (res["pts"], res["tarjeta"], resp, hid))
+        out = _salida(con, origen, autor, texto, [(resp, rbd, crit, hid, res["tarjeta"], "agendar")], modo_borrador)
+        if out.get("admin"):
+            out["admin"].insert(0, f"🔥 *Gas en {voz.nombre(rbd)}* (SEC): lo agendé al tiro. Revisa el borrador.")
+        return out
+    # no gas urgente: oferta de coordinación
+    r = emergencias.abrir(con, rbd, problema, crit, autor, hid)
+    hil = con.execute("INSERT INTO hilos(autor,texto,problema,crit,rbd,paso,intencion,motor,estado,opciones,"
+                      "hallazgo_id) VALUES(?,?,?,?,?,'emergencia','agendar','emergencia',?,?,?)",
+                      (autor, texto, problema, crit, rbd, "propuesto" if modo_borrador else "abierto",
+                       json.dumps(r["opcion"]), hid)).lastrowid
+    out = _salida(con, origen, autor, texto, [(r["texto"], rbd, crit, hid, None, "agendar")], modo_borrador)
+    bid = (out.get("borradores") or [None])[0]
+    if bid:
+        con.execute("UPDATE borradores SET hilo_id=? WHERE id=?", (hil, bid))
+    if out.get("admin"):
+        out["admin"].insert(0, f"⚠️ *Urgencia en {voz.nombre(rbd)}* ({crit}). Te propuse coordinar al bloque "
+                               f"siguiente; revisa el borrador. Si lo apruebas y en el grupo dicen que sí, lo agendo "
+                               f"y posterga la visita un día.")
+    return out
+
+
+def entrada(origen, texto, autor, forzar_directo=False, citado="", foto=None, foto_resumen="", ahora=None,
+            solo_registrar=False, numero="", wa_id=""):
     """
     Punto de entrada de TODO mensaje. Estructura fija:
       1. Clasificar en 5 intenciones: agendar · requerimiento · pregunta · observacion · charla
@@ -309,19 +391,48 @@ def entrada(origen, texto, autor, forzar_directo=False, citado="", foto=None, fo
          pregunta       -> se responde con historial, bitácoras y agenda
          observacion    -> se anota en el historial del establecimiento, sin responder
          charla         -> nada
-      3. Lo que va al grupo pasa por ti (modo borrador) salvo lo que tengas liberado.
+      3. Antes de la IA: frío/cámara/grasa (seguimientos) y emergencias de gas/urgentes (respuesta natural).
+      4. Lo que va al grupo pasa por ti (modo borrador) salvo lo que tengas liberado.
+      solo_registrar = solo transcribir el mensaje a la planilla sin responder (Manuel en el grupo sin "!").
     """
     c = cfg()
     vacio = {"grupo": [], "admin": [], "borradores": [], "intencion": "charla", "archivos_admin": [],
              "archivos_grupo": []}
-    if origen == "grupo" and any(i.lower() in autor.lower() for i in c.get("ignorar", []) if i):
+    # transcripción: cada mensaje del grupo queda guardado por persona (hilo con inicio/cierre)
+    chat_id, persona = None, None
+    if origen == "grupo":
+        with LOCK:
+            con = db()
+            persona = personas.identificar(con, numero, autor)
+            chat_id = personas.registrar_entrante(con, persona, texto, wa_id=wa_id, intencion=None)
+            con.commit()
+    if solo_registrar:
         return vacio
+    # red de seguridad: a quien esté en "ignorar" no se le responde, salvo que venga activado con "!" (forzar_directo)
+    if origen == "grupo" and not forzar_directo and any(i.lower() in (autor or "").lower()
+                                                        for i in c.get("ignorar", []) if i):
+        return vacio
+    # frío que no llega a temperatura / trampas de grasa / limpieza de cámara, y "para cuándo"
+    if origen == "grupo" or origen == "admin":
+        with LOCK:
+            con = db()
+            tp, dato = seguimientos.detectar(con, texto, autor)
+            if tp:
+                r = seguimientos.actuar(con, tp, dato, texto, autor, origen)
+                if r is not None:
+                    _completar(con, chat_id, "seguimiento", (en_texto(texto) or [None])[0], r)
+                    con.execute("INSERT INTO mensajes(origen,autor,texto,intencion,rbd,resultado,motor) "
+                                "VALUES(?,?,?,?,?,?,?)", (origen, autor, texto[:1000], "seguimiento",
+                                (en_texto(texto) or [None])[0], tp, "regla"))
+                    con.commit()
+                    return {**vacio, **r, "intencion": "seguimiento"}
     if origen == "grupo":
         with LOCK:
             con = db()
             p = _respuesta_a_pedido(con, texto, autor, citado)
             if p:
                 r = _pegar_respuesta(con, p, texto, autor)
+                _completar(con, chat_id, "respuesta_info", p["rbd"], r)
                 con.execute("INSERT INTO mensajes(origen,autor,texto,intencion,rbd,resultado,motor) VALUES(?,?,?,?,?,?,?)",
                             (origen, autor, texto[:1000], "respuesta_info", p["rbd"], f"caso #{p['borrador_id']}", "regla"))
                 con.commit()
@@ -330,15 +441,17 @@ def entrada(origen, texto, autor, forzar_directo=False, citado="", foto=None, fo
             if hl:
                 r = conversacion.continuar(con, hl, texto, autor)
                 if r is not None:
+                    _completar(con, chat_id, "conversacion", hl["rbd"], r)
                     con.execute("INSERT INTO mensajes(origen,autor,texto,intencion,rbd,resultado,motor) "
                                 "VALUES(?,?,?,?,?,?,?)", (origen, autor, texto[:1000], "conversacion", hl["rbd"],
                                                           f"conversación #{hl['id']}", "regla"))
                     con.commit()
-                    return {**vacio, **r, "intencion": "conversacion"}
+                    return {**vacio, **_humanizar_grupo(r, persona), "intencion": "conversacion"}
     if verificadores.es_pedido(texto):          # "necesito el verificador del Nemesio Antúnez"
         with LOCK:
             con = db()
             r = verificadores.pedir(con, texto, autor, origen)
+            _completar(con, chat_id, "verificador", r.get("rbd"), r)
             con.execute("INSERT INTO mensajes(origen,autor,texto,intencion,rbd,resultado,motor) VALUES(?,?,?,?,?,?,?)",
                         (origen, autor, texto[:1000], "verificador", None, "verificador", "regla"))
             con.commit()
@@ -352,11 +465,12 @@ def entrada(origen, texto, autor, forzar_directo=False, citado="", foto=None, fo
             if r is not None and r.pop("_seguir", False):
                 previo, r = r, None
             if r is not None:
+                _completar(con, chat_id, tipo_sit, (situaciones._colegios(texto) or [None])[0], r)
                 con.execute("INSERT INTO mensajes(origen,autor,texto,intencion,rbd,resultado,motor) VALUES(?,?,?,?,?,?,?)",
                             (origen, autor, texto[:1000], tipo_sit, (situaciones._colegios(texto) or [None])[0],
                              tipo_sit, "regla"))
                 con.commit()
-                return {**vacio, **r, "intencion": tipo_sit}
+                return {**vacio, **_humanizar_grupo(r, persona), "intencion": tipo_sit}
     contexto = ""
     if citado:
         contexto += f"El mensaje responde a: «{citado[:400]}»\n"
@@ -397,9 +511,17 @@ def entrada(origen, texto, autor, forzar_directo=False, citado="", foto=None, fo
             if it == "agendar" and sin_falla_nueva and _registrados_para_agendar(con, texto, citado, autor):
                 analisis["hallazgos"] = []          # 'agendar' a secas o citando: va lo ya registrado
             charla = None
-            if origen == "grupo" and len(analisis.get("hallazgos") or []) == 1 and not foto:
+            urg = _emergencia_grupo(con, origen, texto, autor, analisis, foto, modo_borrador) \
+                if origen == "grupo" else None
+            if urg is not None:                     # gas o urgencia: respuesta natural (sin cuadro), directo al grupo
+                items = []
+                out = {**vacio, **urg}
+                resultado = "emergencia"
+            elif origen == "grupo" and len(analisis.get("hallazgos") or []) == 1 and not foto:
                 charla = conversacion.iniciar(con, texto, autor, analisis["hallazgos"][0], it, motor)
-            if charla is not None:                  # el bot conversa en el grupo antes de agendar
+            if urg is not None:
+                pass
+            elif charla is not None:                # el bot conversa en el grupo antes de agendar
                 items = []
                 out = {**vacio, **charla}
             elif analisis.get("hallazgos"):
@@ -417,14 +539,16 @@ def entrada(origen, texto, autor, forzar_directo=False, citado="", foto=None, fo
                 if not filas and it == "agendar":
                     items = [("¿Qué agendo? Citen el mensaje de la falla y escriban *agendar*, o escriban "
                               "*agendar* con el establecimiento y el problema.", None, None, None, None, "aviso")]
-            if charla is None:
+            if urg is None and charla is None:
                 out = _salida(con, origen, autor, texto, items, modo_borrador)
-            resultado = "conversación" if charla is not None else f"{len(items)} caso(s)"
+            if urg is None:
+                resultado = "conversación" if charla is not None else f"{len(items)} caso(s)"
         else:
             if origen == "admin":
                 out["admin"].append("🤖 Te leo. Escríbeme un caso, una pregunta o *!ayuda* para ver comandos.")
             resultado = "nada"
         out["intencion"] = it
+        _completar(con, chat_id, it, rbd_log, out)
         con.execute("INSERT INTO mensajes(origen,autor,texto,intencion,rbd,resultado,motor) VALUES(?,?,?,?,?,?,?)",
                     (origen, autor, texto[:1000], it, rbd_log, resultado, motor))
         con.commit()
@@ -434,7 +558,32 @@ def entrada(origen, texto, autor, forzar_directo=False, citado="", foto=None, fo
         for k, v in previo.items():
             if isinstance(v, list):
                 out[k] = v + out.get(k, [])
-    return out
+    return _humanizar_grupo(out, persona)
+
+
+COMANDOS = {"ayuda", "help", "comandos", "hoy", "manana", "semana", "agenda", "metas", "pendientes", "ficha", "plan",
+            "supervisora", "sup", "supervisoras", "verificadores", "bitacoras", "situaciones", "reglasgrupo", "faq",
+            "preguntas", "hilos", "conversaciones", "cerrar", "reglas", "regla", "reporte", "consulta", "consultar",
+            "historial", "buscar", "casos", "caso", "hecho", "es", "config", "perfil", "diagnostico", "diag",
+            "simular", "memoria", "planilla", "mover", "anular", "modo", "hechos", "envivo", "ahora", "equiposfrio",
+            "frio", "seguimientos", "camaras", "personas", "persona", "pasalas", "id"}
+
+
+def manuel_grupo(texto, autor="Manuel", citado="", ts=None, wa=None, numero="", wa_id=""):
+    """
+    Manuel escribió en el GRUPO con "!". Si es un comando (!hoy, !plan…), lo corre; si es contenido
+    ("! hay fuga de gas en el haití"), lo procesa como mensaje directo al grupo (sin pasar por borrador).
+    """
+    raw = (texto or "").strip()
+    norm_cmd = re.sub(r"^!\s+", "!", raw)                       # "! hoy" -> "!hoy"
+    m = re.match(r"^!([a-záéíóúñ]+)", norm_cmd.lower())
+    if m and m.group(1).replace("ñ", "n") in COMANDOS:
+        return {"_comando": procesar_comando(norm_cmd, autor, es_admin=True, privado=False, wa=wa or {})}
+    limpio = re.sub(r"(^|[\n.;])\s*!\s*", r"\1", raw).strip()   # quita los "!" de cada oración
+    if not limpio:
+        return {}
+    return entrada("grupo", limpio, autor, forzar_directo=True, citado=citado,
+                   ahora=datetime.fromtimestamp(ts) if ts else None, numero=numero, wa_id=wa_id)
 
 
 def foto(ruta, autor, origen, caption="", citado=""):
@@ -446,6 +595,15 @@ def foto(ruta, autor, origen, caption="", citado=""):
     c = cfg()
     if origen == "grupo" and any(i.lower() in autor.lower() for i in c.get("ignorar", []) if i):
         return {"grupo": [], "admin": [], "borradores": []}
+    # ¿es la foto de la placa de un equipo de frío que pedí?
+    with LOCK:
+        con = db()
+        r = seguimientos.foto(con, ruta, autor, caption)
+        if r is not None:
+            con.execute("INSERT INTO fotos(autor,ruta,caption,analisis) VALUES(?,?,?,?)",
+                        (autor, ruta, caption, json.dumps({"placa": True}, ensure_ascii=False)))
+            con.commit()
+            return {"grupo": [], "admin": [], "borradores": [], "archivos_admin": [], **r}
     an = ia.analizar_foto(ruta, autor, caption) or {}
     resumen = "; ".join(x for x in [an.get("que_se_ve"), (f"falla: {an['falla']}" if an.get("falla") else ""),
                                      (f"gravedad {an['gravedad']}" if an.get("gravedad") else ""),
@@ -604,6 +762,9 @@ def aprobar(decision, autor, bid=None, memo=None):
                 memoria.registrar_de_borrador(con, b, "ok", detalle=_nota_publica(b["nota_interna"]), texto_final=resp,
                                               tec=t["tec"] if t else "", fecha_visita=t["fecha"] if t else "",
                                               bloque=t["bloque"] if t else "")
+            if b["hilo_id"]:                       # oferta de emergencia: ahora las supervisoras pueden decir "sí"
+                con.execute("UPDATE hilos SET estado='abierto', actualizado=datetime('now','localtime') "
+                            "WHERE id=? AND estado='propuesto'", (b["hilo_id"],))
             con.commit()
             out["grupo"].append(resp)
             out["enviar_borrador"] = b["id"]       # para que bot.mjs adjunte PDFs y cite el original
@@ -617,6 +778,8 @@ def aprobar(decision, autor, bid=None, memo=None):
                 con.execute("UPDATE hallazgos SET estado='descartado' WHERE id=?", (b["hallazgo_id"],))
             con.execute("UPDATE borradores SET estado='descartado' WHERE id=?", (b["id"],))
             con.execute("UPDATE pedidos_info SET estado='cerrado' WHERE borrador_id=? AND estado='esperando'", (b["id"],))
+            if b["hilo_id"]:
+                con.execute("UPDATE hilos SET estado='descartado' WHERE id=?", (b["hilo_id"],))
             memoria.registrar_de_borrador(con, b, "no")
             log(con, f"Borrador #{b['id']} descartado por {autor}")
             con.commit()
@@ -700,6 +863,22 @@ A las 16:30 aviso al grupo a qué colegios vamos el día siguiente
 1 hoy camilo b3, 2 mañana, 3 no → vista previa
 ok plan → se aplica y avisa a grupo y técnicos
 
+*📍 En vivo (desde tu WhatsApp)*
+Camilo 1 → llegó a su 1ra visita · Camilo 1 otra vez → salió (queda hecha) · Camilo 2 → 2da
+Camilo 2 silvia salas → fue a otro colegio en ese bloque
+!envivo → dónde anda cada técnico ahora
+
+*✅ Lo que se hizo (desde tu WhatsApp)*
+rodrigo hizo hoy japón, suiza y lecaros → en ese orden
+hoy se hicieron X, Y · el 03/10 camilo hizo… · se hicieron todas
+pásalas → lo que quedó pendiente pasa un día · deshacer hechos
+!hechos → lo hecho y lo pendiente de hoy
+
+*❄️ Frío y cámaras (proveedor)*
+Se gestionan solos: frío que no llega a temperatura pide foto de la placa; cámara/grasa no.
+!equiposfrio · !seguimientos → la lista
+Tú respondes: 1 se vio el 03/10 · 2 va el jueves · 4 cerrado · 1: nota
+
 *👩 Supervisoras*
 !supervisora carla → sus colegios, casos y visitas
 !supervisoras → resumen de las tres
@@ -757,7 +936,8 @@ def procesar_comando(texto, autor, es_admin, privado=False, wa=None):
             r = planilla.sincronizar(forzar=True)
             return {"texto": f"📊 *Planilla de Google*: {r}\n{planilla.estado_texto()}\n"
                              f"Hojas: Panel, Programa, Cronograma, Metas por establecimiento, Movimientos, "
-                             f"Correctivos, Hallazgos WhatsApp, Conversaciones, Decisiones, Reglas y más."}
+                             f"Realizados, Chat por persona, Seguimiento frío y cámaras, Hallazgos WhatsApp, "
+                             f"Conversaciones, Decisiones, Reglas y más."}
         if cmd == "!simular":
             if not args:
                 return {"texto": "Uso: !simular <mensaje como si fuera una supervisora>"}
@@ -829,6 +1009,26 @@ def procesar_comando(texto, autor, es_admin, privado=False, wa=None):
                 return {"texto": "\n\n".join(texto_supervisora(con, s_, corto=True) for s_ in sups)}
             if cmd in ("!verificadores", "!bitacoras"):
                 return {"texto": "📁 " + verificadores.resumen(con)}
+            if cmd in ("!hechos", "!realizados"):
+                d = a_fecha(" ".join(args)) if args else None
+                return {"texto": realizados.texto_hoy(con, d)}
+            if cmd in ("!envivo", "!ahora", "!donde"):
+                return {"texto": en_vivo.texto_ahora(con) + "\n\n" + en_vivo.texto_reporte_hoy(con)}
+            if cmd in ("!equiposfrio", "!frio", "!frío"):
+                return {"texto": seguimientos.texto_lista(con, "frio")}
+            if cmd in ("!seguimientos", "!camaras", "!cámaras", "!grasa"):
+                return {"texto": seguimientos.texto_lista(con)}
+            if cmd == "!personas":
+                return {"texto": personas.texto_personas(con)}
+            if cmd == "!persona" and es_admin and len(args) >= 2:
+                try:
+                    p = personas.guardar_persona(con, args[0], args[1], args[2] if len(args) > 2 else "supervisora")
+                    return {"texto": f"Anotado: {p['nombre']} ({p['rol']}" +
+                                     (f", {p['sup']}" if p['sup'] else "") + f") · …{p['numero'][-4:]}."}
+                except ValueError as e:
+                    return {"texto": f"❌ {e}"}
+            if cmd == "!pasalas" and es_admin:
+                return {"texto": realizados.pasalas(con, autor)}
             if cmd in ("!situaciones", "!reglasgrupo"):
                 return {"texto": situaciones.texto_reglas()}
             if cmd in ("!faq", "!preguntas"):
@@ -1144,6 +1344,12 @@ def tick():
         rv = conversacion.vencidos(con)
         out["admin"] += rv["admin"]
         out["envios_grupo"] += rv["envios_grupo"]
+        # alguien escribió algo que pedía respuesta y nadie (ni el bot ni tú) le contestó
+        try:
+            for aviso in personas.vigilar(con):
+                out["admin"].append("👀 " + aviso)
+        except Exception as e:
+            print("[personas] vigilar:", e)
         # aviso al grupo de a qué colegios vamos el día hábil siguiente (para avisar a las PAE)
         av = c.get("aviso_previo", {})
         if av.get("activa", True) and es_habil(ahora.date()) and _tick_estado.get("aviso") != hoy_s and \
@@ -1305,7 +1511,9 @@ class H(BaseHTTPRequestHandler):
                 ts = data.get("ts")
                 return self._json(200, entrada(data.get("origen", "grupo"), data.get("texto", ""),
                                                data.get("autor", "supervisora"), citado=data.get("citado", ""),
-                                               ahora=datetime.fromtimestamp(ts) if ts else None))
+                                               ahora=datetime.fromtimestamp(ts) if ts else None,
+                                               solo_registrar=bool(data.get("solo_registrar")),
+                                               numero=data.get("numero", ""), wa_id=data.get("wa_id", "")))
             if self.path == "/foto":           # foto del grupo o de tu privado
                 return self._json(200, foto(data.get("ruta", ""), data.get("autor", ""), data.get("origen", "grupo"),
                                             data.get("caption", ""), data.get("citado", "")))
@@ -1342,6 +1550,21 @@ class H(BaseHTTPRequestHandler):
                 return self._json(200, procesar_comando(data.get("texto", ""), data.get("autor", ""),
                                                         bool(data.get("es_admin")), bool(data.get("privado")),
                                                         data.get("wa") or {}))
+            if self.path == "/manuel_grupo":   # Manuel escribe en el grupo con "!"
+                ts = data.get("ts")
+                return self._json(200, manuel_grupo(data.get("texto", ""), data.get("autor", "Manuel"),
+                                                    data.get("citado", ""), ts, data.get("wa") or {},
+                                                    data.get("numero", ""), data.get("wa_id", "")))
+            if self.path == "/saliente":       # bot.mjs avisa lo que mandó al grupo (para la transcripción)
+                with LOCK:
+                    con = db()
+                    if data.get("humano"):
+                        personas.humano_responde(con, {"nombre": data.get("quien", "Manuel")}, data.get("texto", ""),
+                                                 data.get("numero", ""), data.get("cita", ""))
+                    else:
+                        personas.registrar_saliente(con, data.get("texto", ""), data.get("numero", ""),
+                                                    data.get("cita", ""), data.get("quien", "Bot"))
+                return self._json(200, {"ok": True})
             if self.path == "/tick":
                 return self._json(200, tick())
             self._json(404, {"error": "no existe"})

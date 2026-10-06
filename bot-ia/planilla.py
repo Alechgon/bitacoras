@@ -239,6 +239,56 @@ def tablas(con):
                          _col("RBD", 70, al="center"), _col("Establecimiento", 200), _col("Mensaje", 380, wrap=True),
                          _col("Resultado", 140), _col("Motor", 120)],
                 "filas": filas})
+
+    # Chat por persona: la conversación de cada supervisora separada, con inicio y cierre
+    try:
+        import personas
+        filas = []
+        for p in personas.personas_vistas(con):
+            etiqueta = f"{p['nombre']}" + (f" · {p['sup']}" if p["sup"] and p["sup"] != p["nombre"] else "") + \
+                       (f" · {p['rol']}" if p["rol"] not in ("supervisora", "bot") else "") + f" · {p['n']} mensajes"
+            filas.append(["", "", f"━━━ {etiqueta} ━━━", "", "", ""])
+            filas += personas.filas_chat(con, p["numero"], limite=400)
+        out.append({"hoja": "Chat por persona", "titulo": "Conversaciones del grupo, separadas por persona",
+                    "sub": "Cada hilo con su inicio y cierre; «SIN RESPUESTA» marca lo que quedó sin contestar · " +
+                           datetime.now().strftime("%d-%m-%Y %H:%M"),
+                    "cols": [_col("Cuándo", 120), _col("Quién", 130), _col("Mensaje", 420, wrap=True),
+                             _col("Intención", 100), _col("Establecimiento", 180), _col("Estado", 110, al="center")],
+                    "filas": filas})
+    except Exception as e:
+        print("[planilla] chat por persona:", e)
+
+    # Realizados: lo que se marcó hecho (por tus reportes, en vivo o bitácoras)
+    filas = [[t["hecho"] or "", t["fecha"], nombre_tec(t["tec"]), t["bloque"], t["rbd"],
+              E.get(t["rbd"], {}).get("nombre", ""), t["clase"], t["hecho_por"] or ""]
+             for t in con.execute("SELECT * FROM tarjetas WHERE estado='realizada' AND fecha>=? ORDER BY fecha DESC, "
+                                  "tec, bloque", ((hoy() - timedelta(days=45)).isoformat(),)).fetchall()]
+    out.append({"hoja": "Realizados", "titulo": "Visitas hechas (últimos 45 días)",
+                "sub": "Marcadas por tus reportes, el seguimiento en vivo o las bitácoras de Datácora · " +
+                       datetime.now().strftime("%d-%m-%Y %H:%M"),
+                "cols": [_col("Marcada", 130), _col("Fecha visita", 92, al="center"), _col("Técnico", 90),
+                         _col("Orden", 56, al="center"), _col("RBD", 70, al="center"), _col("Establecimiento", 230),
+                         _col("Clase", 150), _col("Cómo se supo", 150)],
+                "filas": filas})
+
+    # Seguimiento de frío / cámaras (proveedor)
+    try:
+        import seguimientos
+        filas = []
+        for s in con.execute("SELECT * FROM seguimientos ORDER BY estado, id DESC").fetchall():
+            filas.append([s["creado"], seguimientos.ETIQUETA.get(s["tipo"], s["tipo"]),
+                          E.get(s["rbd"], {}).get("nombre", "") if s["rbd"] else "¿?", s["equipo"] or "",
+                          (s["autor"] or "").split()[0] if s["autor"] else "", s["veces"], s["estado"],
+                          s["visto"] or "", s["proxima"] or "", (s["placa"] or "")[:60], s["nota"] or ""])
+        out.append({"hoja": "Seguimiento frío y cámaras", "titulo": "Frío que no llega a temperatura y limpieza de cámaras",
+                    "sub": "Lo gestiona el proveedor, no el técnico · " + datetime.now().strftime("%d-%m-%Y %H:%M"),
+                    "cols": [_col("Reportado", 120), _col("Tipo", 150), _col("Establecimiento", 220),
+                             _col("Equipo", 150), _col("Quién avisó", 110), _col("Veces", 56, al="center"),
+                             _col("Estado", 90), _col("Visto", 92, al="center"), _col("Va el", 92, al="center"),
+                             _col("Placa", 220, wrap=True), _col("Nota", 260, wrap=True)],
+                    "filas": filas})
+    except Exception as e:
+        print("[planilla] seguimientos:", e)
     return out
 
 

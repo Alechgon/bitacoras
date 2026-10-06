@@ -17,7 +17,7 @@ En el grupo:
     Bot:   Ahí va la del 12-09-2026.   [PDF adjunto]
 Si hay una sola, la manda de una. Si no hay ninguna, te avisa a ti.
 """
-import json, os, re, time
+import json, os, re, threading, time
 from datetime import date, datetime
 
 from nucleo import BASE, buscar, cfg, datos, en_texto, log, norm
@@ -127,12 +127,31 @@ def _rbd_de_nombre(ruta):
     return top[0][1] if top and top[0][0] >= 80 else None
 
 
+_candado_indice = threading.Lock()
+
+
 def indexar(con, forzar=False):
-    """Revisa las carpetas (como mucho una vez por minuto) y anota cada PDF con su colegio y fecha."""
+    """
+    Revisa las carpetas (como mucho una vez por minuto) y anota cada PDF con su colegio y fecha.
+    Cada PDF nuevo se LEE COMPLETO: cabecera (folio, RBD, fecha, técnico) + todos los ítems con observaciones,
+    y queda en las bitácoras del bot, así cualquier pregunta ("¿se revisó el gas del Silvia Salas?") lo encuentra.
+    El PDF manda sobre el nombre del archivo. Un solo índice a la vez y commits cortos (la base nunca queda tomada).
+    """
     if not forzar and time.time() - _ultimo_indice["t"] < 60:
         return
-    _ultimo_indice["t"] = time.time()
+    if not _candado_indice.acquire(blocking=False):
+        return                                           # ya hay otro índice corriendo
+    try:
+        _ultimo_indice["t"] = time.time()
+        _indexar(con)
+    finally:
+        _candado_indice.release()
+
+
+def _indexar(con):
+    import bitacoras
     vistos = set()
+    leer = conf().get("leer_pdf", True)
     for c in carpetas():
         for raiz, _, archivos in os.walk(c):
             for a in archivos:
@@ -140,32 +159,40 @@ def indexar(con, forzar=False):
                     continue
                 ruta = os.path.join(raiz, a)
                 vistos.add(ruta)
-                mt = os.path.getmtime(ruta)
+                try:
+                    mt = os.path.getmtime(ruta)
+                except OSError:
+                    continue
                 fila = con.execute("SELECT mtime FROM verificadores WHERE ruta=?", (ruta,)).fetchone()
                 if fila and fila["mtime"] == mt:
                     continue
                 rbd, fecha = _rbd_de_nombre(ruta), _fecha_de_nombre(a)
                 m = re.search(r"folio[\s_-]*(\d+)", a, re.I)
                 folio = m.group(1) if m else ""
-                if (not rbd or not fecha) and conf().get("leer_pdf", True):
-                    try:                                          # el PDF de Datácora trae RBD, fecha y folio adentro
-                        import bitacoras
-                        cab = bitacoras.leer_pdf(ruta)
-                        rbd = rbd or (int(cab["rbd"]) if str(cab.get("rbd") or "").isdigit() else None)
-                        fecha = fecha or (cab.get("fecha") or None)
-                        folio = folio or (cab.get("folio") or "")
-                    except Exception:
-                        pass
+                error, n_items, cab = "", None, None
+                if leer:
+                    try:
+                        cab = bitacoras.leer_pdf(ruta)            # fuera de cualquier transacción (puede tardar)
+                    except Exception as e:
+                        error = str(e)[:200]
+                if cab:
+                    r_pdf = int(cab["rbd"]) if str(cab.get("rbd") or "").isdigit() else None
+                    rbd = r_pdf if r_pdf in datos()["E"] else rbd
+                    fecha = cab.get("fecha") or fecha
+                    folio = cab.get("folio") or folio
+                    n_items = len(cab.get("items", []))
+                origen_f = "carpeta"
                 if not fecha:                                     # último recurso: el día que se descargó
                     fecha = datetime.fromtimestamp(mt).date().isoformat()
                     origen_f = "descarga"
-                else:
-                    origen_f = "carpeta"
-                con.commit()                                      # no dejar la base tomada mientras se lee el próximo PDF
-                con.execute("INSERT OR REPLACE INTO verificadores(ruta,mtime,rbd,fecha,folio,origen,nombre) "
-                            "VALUES(?,?,?,?,?,?,?)", (ruta, mt, rbd, fecha, str(folio or ""),
-                                                      "archivo" if os.sep + "archivo" + os.sep in ruta else origen_f, a))
-                con.commit()
+                if cab and rbd:
+                    cab["rbd"], cab["fecha"], cab["folio"] = str(rbd), fecha, folio
+                    bitacoras.indexar_cab(con, cab, ruta)
+                con.execute("INSERT OR REPLACE INTO verificadores(ruta,mtime,rbd,fecha,folio,origen,nombre,error,items) "
+                            "VALUES(?,?,?,?,?,?,?,?,?)",
+                            (ruta, mt, rbd, fecha, str(folio or ""),
+                             "archivo" if os.sep + "archivo" + os.sep in ruta else origen_f, a, error, n_items))
+                con.commit()                                      # una bitácora por transacción
     for f in con.execute("SELECT ruta FROM verificadores").fetchall():
         if f["ruta"] not in vistos:
             con.execute("DELETE FROM verificadores WHERE ruta=?", (f["ruta"],))
@@ -375,9 +402,14 @@ def resumen(con):
     indexar(con, forzar=True)
     total = con.execute("SELECT COUNT(*) FROM verificadores").fetchone()[0]
     sin = con.execute("SELECT nombre FROM verificadores WHERE rbd IS NULL OR fecha IS NULL").fetchall()
+    leidos = con.execute("SELECT COUNT(*), COALESCE(SUM(items),0) FROM verificadores WHERE items IS NOT NULL").fetchone()
+    malos = con.execute("SELECT nombre, error FROM verificadores WHERE COALESCE(error,'')<>''").fetchall()
     cs = carpetas()
     txt = (f"{total} PDF en {len(cs)} carpeta(s): " + ", ".join(cs) if cs else
            "No encuentro la carpeta datacora. En Termux corre una vez: termux-setup-storage (y acepta el permiso).")
+    txt += f"\n{leidos[0]} leídos completos ({leidos[1]} ítems con trabajo, ya consultables)."
+    if malos:
+        txt += "\nNo pude leer: " + ", ".join(f"{m['nombre']} ({m['error'][:40]})" for m in malos[:5])
     if sin:
         txt += "\nSin colegio o fecha reconocidos (renómbralos «Colegio dd-mm-aaaa.pdf»): " + \
                ", ".join(f["nombre"] for f in sin[:8])

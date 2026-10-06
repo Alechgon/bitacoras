@@ -56,10 +56,8 @@ def _n(autor):
 
 def nom(rbd_o_nombre):
     """Nombre del colegio como lo escribe una persona: 'Liceo Confederación Suiza', no 'LICEO CONFEDERACION SUIZA'."""
-    n = datos()["E"].get(rbd_o_nombre, {}).get("nombre", rbd_o_nombre) if isinstance(rbd_o_nombre, int) else rbd_o_nombre
-    t = " ".join(w if re.fullmatch(r"[A-Z]\d+|E\d+|[IVX]+", w) else w.capitalize() for w in str(n).split())
-    t = re.sub(r"(?<=\s)(De|Del|La|Las|Los|El|Y)\b", lambda m: m.group(0).lower(), t)
-    return t
+    import voz
+    return voz.nombre(rbd_o_nombre)
 
 
 def _hora(d, b):
@@ -179,6 +177,12 @@ def buscar_hilo(con, texto, autor, citado=""):
     for h in abiertos:                       # en la oferta de agenda puede responder cualquier supervisora
         if h["paso"] == "agenda" and habla_de_aplazar and ia.tipo_por_palabras(texto) == "OTRO" and \
                 _elegir(texto, json.loads(h["opciones"] or "[]"), h["rbd"])[0]:
+            return h
+    # oferta de emergencia ("¿lo coordino?"): cualquier supervisora puede decir sí o no
+    acepta_o_no = re.search(SI, norm(texto)) or re.search(NINGUNA, norm(texto)) or re.match(NO_RX, norm(texto)) or \
+        re.search(r"\b(ya les digo|avisa|avisale|coordina|coordinalo|hazlo|dale|porfa)\b", norm(texto))
+    for h in abiertos:
+        if h["paso"] == "emergencia" and acepta_o_no and ia.tipo_por_palabras(texto) in ("OTRO", h["crit"]):
             return h
     return None
 
@@ -442,6 +446,25 @@ def continuar(con, h, texto, autor):
     if h["paso"] in ("verificador", "verif_lugar"):
         import verificadores
         return verificadores.continuar(con, h, texto, autor)
+    if h["paso"] == "emergencia":
+        import emergencias
+        opcion = json.loads(h["opciones"] or "{}")
+        if re.search(NINGUNA, t) or re.match(NO_RX, t):
+            _guardar(con, h["id"], estado="cerrado", paso="hecho", resultado="no se coordinó")
+            con.commit()
+            out["grupo"].append(f"ok {_n(autor)}, lo dejo en la agenda y cuando se pueda lo vemos.")
+            out["admin"].append(f"Urgencia {nom(h['rbd'])}: {autor} dijo que no coordinemos. Queda en *!plan*.")
+            return out
+        if re.search(SI, t) or re.search(r"\b(ya les digo|avisa|avisale|coordina|coordinalo|hazlo|dale|porfa)\b", t):
+            resp, res = emergencias.aceptar(con, opcion, autor)
+            _guardar(con, h["id"], estado="cerrado", paso="hecho",
+                     resultado=f"coordinada → {res['tec']} {res['fecha']} b{res['bloque']}")
+            con.commit()
+            out["grupo"].append(resp)
+            out["admin"].append(f"*Urgencia {nom(h['rbd'])}*: {autor} aceptó. {nombre_tec(res['tec'])} "
+                                f"{bonita(res['fecha'])} B{res['bloque']}.\n«{resp}»")
+            return out
+        return None
     if h["paso"] == "confirmar":
         otros = [r for r in en_texto(texto) if r != h["rbd"]]
         if not otros and re.match(NO_RX, t):

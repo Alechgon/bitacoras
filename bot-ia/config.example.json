@@ -245,6 +245,60 @@
     "activa": true,
     "hora": "16:30"
   },
+  "_emergencias": "Respuesta natural a una urgencia (sin cuadros, minúscula). Gas: criterio SEC, se agenda al tiro y dice qué técnico va ahora por comuna/distancia. No gas urgente: dice qué se atiende ahora y ofrece coordinar al bloque siguiente con el técnico de la misma comuna (si aceptan, posterga su visita un día).",
+  "emergencias": {
+    "activa": true,
+    "tipos": ["GAS", "FRIO", "AGUA", "ELEC"]
+  },
+  "_en_vivo": "Reporte en vivo desde tu WhatsApp: 'Camilo 1' = llegó a su 1ra visita; 'Camilo 1' otra vez = salió (queda hecha); 'Camilo 2' = 2da. Con eso sé dónde anda cada técnico, en qué comuna y cuánto se demora. empate_km: si dos técnicos quedan a menos de estos km, se turnan uno y uno.",
+  "en_vivo": {
+    "activa": true,
+    "alias": {},
+    "empate_km": 1.5,
+    "minutos_visita": 100,
+    "minutos_traslado": 25
+  },
+  "_realizados": "Desde tu WhatsApp cuentas lo que se hizo ('rodrigo hizo hoy japón y suiza', 'hoy se hicieron X, Y', 'el 03/10 camilo hizo…'). Si nombras al técnico, el orden que dices es el orden del día. Lo pendiente se corre un día con 'pásalas'. Actualiza el cronograma en la planilla y el panel al tiro. desde_bitacoras: una bitácora reciente de Datácora también marca su visita como hecha.",
+  "realizados": {
+    "activa": true,
+    "orden_lista": "siempre",
+    "parecido_min": 80,
+    "adelantar_hasta_dias": 60,
+    "desde_bitacoras": true,
+    "bitacora_max_dias": 10,
+    "publicar_al_tiro": true,
+    "ayer_habil": true
+  },
+  "_seguimientos": "Lo que ve un proveedor, no el técnico. Frío que no llega a temperatura: 'gracias, lo gestionaré', te mando la lista de equipos de frío y pido foto de la placa. Trampas de grasa / limpieza de cámara: igual pero sin pedir foto. 'Para cuándo': 'confirmo con el proveedor y te comento en breve'. Desde tu WhatsApp respondes con el número ('1 se vio el 03/10', '2 va el jueves', '4 cerrado') y le aviso a quien preguntó.",
+  "seguimientos": {
+    "activa": true,
+    "respuesta": "gracias {nombre}, lo gestionaré.",
+    "respuesta_para_cuando": "confirmo con el proveedor y te comento en breve",
+    "pedir_placa": true,
+    "texto_placa": "¿me podrías mandar una foto de la placa del equipo? es una plaquita metálica que casi siempre está por atrás.",
+    "placa_horas": 24,
+    "avisar_al_saber": true
+  },
+  "_vigilancia": "Que no se le quede nadie sin responder: si alguien escribe algo que pide respuesta y en avisar_min nadie (ni el bot ni tú) contesta, te aviso una vez. Las conversaciones se cierran solas tras cerrar_min de inactividad. horario: solo avisa dentro de este rango en días hábiles.",
+  "vigilancia": {
+    "activa": true,
+    "avisar_min": 20,
+    "cerrar_min": 90,
+    "horario": ["08:00", "18:30"]
+  },
+  "_personas": "Identifica quién escribe en el grupo por su número o nombre de WhatsApp. Puedes fijarlos a mano: !persona 56912345678 Carla supervisora. Si pones aquí {\"56991401812\": {\"nombre\": \"Annahi\", \"rol\": \"supervisora\"}} los reconoce de una.",
+  "personas": {},
+  "nombre_encargado": "Manuel",
+  "_voz": "Cómo habla el bot: acentúa nombres de colegios (República, Haití…), antepone 'Jardín' a los jardines y, si lo activas, reescribe lo que va al grupo con tu tono aprendido de cuando le dices 'dile esto mejor'. humanizar_grupo en false deja los textos tal cual (ya son naturales).",
+  "voz": {
+    "humanizar": true,
+    "humanizar_grupo": false,
+    "minusculas": true,
+    "jardin_antes": true,
+    "ejemplos": 6,
+    "max_seg": 12,
+    "acentos": {}
+  },
   "_bloques": "Visitas por técnico y día, sin horarios: bloque 1 = 1ra visita (lo más urgente), bloque 2 = 2da… Lo que no cabe va como visita extra.",
   "bloques_por_dia": {
     "lunes_a_jueves": 4,

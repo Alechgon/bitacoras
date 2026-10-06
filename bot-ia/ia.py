@@ -234,7 +234,8 @@ def sin_ia(texto, contexto=""):
     hits = en_texto(texto) or (en_texto(contexto) if contexto else [])
     tipo = tipo_por_palabras(texto)
     agendar = pide_agendar(texto)
-    aviso_falla = re.search(EMERGENCIA_RX, t) and "?" not in texto
+    # una falla clara (gas, frío, agua, luz, equipo) sin signo de pregunta NO es una pregunta
+    aviso_falla = (re.search(EMERGENCIA_RX, t) or tipo != "OTRO") and "?" not in texto
     if not agendar and not aviso_falla and re.search(PREGUNTA_RX, t):
         return {"intencion": "pregunta", "es_reporte": False, "hallazgos": [],
                 "pregunta": {"rbd": hits[0] if hits else None, "nombre_mencionado": "", "tema": "",
@@ -321,18 +322,37 @@ Responde SOLO este JSON:
 No inventes: si no se distingue, dilo en que_se_ve y deja falla vacía."""
 
 
+PROMPT_PLACA = """Es la foto de la placa (etiqueta metálica o adhesiva) de un equipo de frío de una cocina escolar
+(refrigerador, congelador, visicooler, cámara). Lee lo que se alcance a ver y responde SOLO este JSON:
+{"es_placa": true/false, "marca": "", "modelo": "", "serie": "", "refrigerante": "ej R134a, R600a o vacío",
+ "carga_gas": "", "voltaje": "", "potencia": "", "fabricacion": "año o fecha si aparece", "otros": "otro dato útil"}
+Si no es una placa (es una cocina, una persona, la falla), es_placa=false. No inventes: deja vacío lo que no se lea."""
+
+
+def leer_placa(ruta):
+    """Gemini con visión lee marca, modelo, serie y gas de la placa de un equipo de frío. dict o None."""
+    return _vision(ruta, PROMPT_PLACA, forzar=True)
+
+
 def analizar_foto(ruta, autor="", caption=""):
     """Gemini con visión. Devuelve dict o None si no hay IA o falla."""
+    texto = PROMPT_FOTO.format(autor=autor or "una supervisora",
+                               caption=f'con el texto: "{caption}"' if caption else "(sin texto).")
+    r = _vision(ruta, texto)
+    if r and r.get("tipo") not in PAL and r.get("tipo") != "OTRO":
+        r["tipo"] = tipo_por_palabras(r.get("falla", "") + " " + r.get("que_se_ve", ""))
+    return r
+
+
+def _vision(ruta, texto, forzar=False):
     import base64, mimetypes
     c = cfg()
     key = c.get("gemini_api_key", "")
-    if not key or key.startswith("PEGA") or not c.get("fotos", {}).get("analizar", True):
+    if not key or key.startswith("PEGA") or (not forzar and not c.get("fotos", {}).get("analizar", True)):
         return None
     mime = mimetypes.guess_type(ruta)[0] or "image/jpeg"
     with open(ruta, "rb") as f:
         b64 = base64.b64encode(f.read()).decode()
-    texto = PROMPT_FOTO.format(autor=autor or "una supervisora",
-                               caption=f'con el texto: "{caption}"' if caption else "(sin texto).")
     cuerpo = {"contents": [{"role": "user", "parts": [{"inline_data": {"mime_type": mime, "data": b64}},
                                                       {"text": texto}]}],
               "generationConfig": {"responseMimeType": "application/json", "temperature": 0.1}}
@@ -342,10 +362,7 @@ def analizar_foto(ruta, autor="", caption=""):
                 data = _llamar(srv, modelo, cuerpo, key, timeout=40)
                 _bueno["servidor"] = srv
                 txt = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-                r = json.loads(re.sub(r"^```(?:json)?|```$", "", txt).strip())
-                if r.get("tipo") not in PAL and r.get("tipo") != "OTRO":
-                    r["tipo"] = tipo_por_palabras(r.get("falla", "") + " " + r.get("que_se_ve", ""))
-                return r
+                return json.loads(re.sub(r"^```(?:json)?|```$", "", txt).strip())
             except Exception as e:
                 print(f"[ia] foto {srv}/{modelo}: {str(e)[:120]}")
     return None

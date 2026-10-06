@@ -293,7 +293,10 @@ async function despachar (r, { jid = null, m = null, original = null, textoOrigi
   for (const p of (r.pedidos || [])) enviarPedido(p)
   if (r.grupo?.length) {
     const g = jid?.endsWith('@g.us') ? jid : grupoDestino()
-    if (g) encolar(g, { text: r.grupo.join('\n\n') }, (m && jid === g) ? { quoted: m } : {})
+    if (g) {
+      encolar(g, { text: r.grupo.join('\n\n') }, (m && jid === g) ? { quoted: m } : {})
+      for (const t of r.grupo) api('/saliente', { texto: t, quien: 'Bot', cita: m?.key?.id || '' }).catch(() => {})
+    }
   }
   if (r.archivos_grupo?.length) {
     const g = jid?.endsWith('@g.us') ? jid : grupoDestino()
@@ -339,6 +342,32 @@ async function manejar (m) {
     return
   }
   if (privadoAdmin && estado.admin_chat !== jid) { estado.admin_chat = jid; guardarEstado() }
+
+  const numero = soloDigitos(m.key.participant || m.key.participantPn || m.key.participantAlt || m.key.remoteJid)
+
+  // ---------------- Manuel en el grupo: solo se le responde si antepone "!" (incluidos comandos)
+  if (enGrupo && admin && texto) {
+    if (!texto.startsWith('!')) {
+      // no se le responde; igual se transcribe, y si citó a alguien cuenta como que él le respondió
+      api('/entrada', { origen: 'grupo', texto, autor: m.pushName || 'Manuel', numero, wa_id: m.key.id, citado: citadoDe(m), ts: tsDe(m), solo_registrar: true }).catch(() => {})
+      const cit = ctxDe(m)?.stanzaId
+      if (cit) api('/saliente', { humano: true, quien: m.pushName || 'Manuel', texto, cita: cit }).catch(() => {})
+      return
+    }
+    try {
+      const r = await api('/manuel_grupo', { texto, autor: m.pushName || 'Manuel', numero, wa_id: m.key.id, citado: citadoDe(m), ts: tsDe(m), wa: infoWA() })
+      if (r && r._comando) {
+        const rc = r._comando
+        const [dmin, dmax] = c.delay_comando_seg || [3, 8]
+        if (rc.texto) encolar(jid, { text: rc.texto }, { quoted: m }, azar(dmin, dmax) * 1000)
+        if (rc.archivo) enviarArchivo(jid, rc.archivo)
+        await despachar({ ...rc, texto: undefined, archivo: undefined }, { jid, m })
+      } else {
+        await despachar(r, { jid, m, original: m, textoOriginal: texto })
+      }
+    } catch (e) { log('❌ manuel grupo:', e.message) }
+    return
+  }
 
   // ---------------- comandos
   if (texto.startsWith('!')) {
@@ -412,7 +441,7 @@ async function manejar (m) {
   // ---------------- grupo de supervisoras
   log(`📥 ${m.pushName || '?'}: ${texto.slice(0, 80)}`)
   try {
-    const r = await api('/entrada', { origen: 'grupo', texto, autor: m.pushName || 'supervisora', citado: citadoDe(m), ts: tsDe(m) })
+    const r = await api('/entrada', { origen: 'grupo', texto, autor: m.pushName || 'supervisora', numero, wa_id: m.key.id, citado: citadoDe(m), ts: tsDe(m) })
     if (r?.error) avisarFalla(`el mensaje de ${m.pushName || '?'} («${texto.slice(0, 80)}»): ${r.error}`)
     await despachar(r, { jid, m, original: m, textoOriginal: texto })   // borradores a ti; modo directo al grupo
   } catch (e) {

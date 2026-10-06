@@ -284,6 +284,29 @@ def manejar(texto, autor, citado_bid=None, citado="", ts=None):
     con = db()
     raw = (texto or "").strip()
     out = _vacio()
+    ahora = datetime.fromtimestamp(ts) if ts else None
+    # reporte en vivo desde tu main: "Camilo 1", "rodrigo 2 silvia salas", "camilo salió"
+    import en_vivo
+    rep = en_vivo.es_reporte(raw)
+    if rep:
+        out["admin"].append(en_vivo.registrar(con, rep, autor, ahora))
+        return out
+    # lo que se hizo: "rodrigo hizo hoy japón, suiza", "hoy se hicieron X, Y", "el 03/10 camilo hizo..."
+    import realizados
+    if realizados.es_deshacer(raw):
+        out["admin"].append(realizados.deshacer(con, autor))
+        return out
+    if realizados.es_pasalas(raw):
+        out["admin"].append(realizados.pasalas(con, autor))
+        return out
+    if realizados.es_reporte(raw):
+        out["admin"].append(realizados.aplicar(con, raw, autor))
+        return out
+    # tus respuestas a seguimientos de frío/cámara: "1 se vio el 03/10", "2 va el jueves", "4 cerrado"
+    import seguimientos
+    st = seguimientos.es_tuyo(con, raw, citado)
+    if st:
+        return _mezclar(out, seguimientos.aplicar_tuyo(con, st, autor))
     # reglas que te propuse
     m = re.match(r"^\s*regla\s*r?(\d+)\s*(si|sí|ok|dale|activa|activar|acepto|no|nop|rechaza|rechazar)\b", raw, re.I)
     if m:
