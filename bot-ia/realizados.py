@@ -232,7 +232,7 @@ def interpretar(texto, base=None):
         todas = bool(re.search(TODAS, seg))
         if items or todas:
             grupos.append({"tec": tec, "todas": todas and not items, "items": items,
-                           "ordenado": bool(tec) and (explicito_orden or conf().get("orden_lista", "siempre") == "siempre")})
+                           "ordenado": bool(tec) and (explicito_orden or conf().get("orden_lista", "numero") == "siempre")})
         elif tec is None and not items:
             continue
     return {"fecha": fecha, "grupos": grupos, "no_reconocidos": [x for x in no_rec if not _es_tec_o_ruido(x)]}
@@ -412,10 +412,13 @@ def aplicar(con, texto, autor="Manuel", base=None):
             resultado.append((g["tec"], res_g, False))
             continue
         con_orden = [it for it in g["items"] if it["orden"]]
+        # el orden del día solo lo fijan los números (o decir "en ese orden"); si no, cada visita queda en su bloque
+        todos_num = bool(g["tec"]) and con_orden and len(con_orden) == len(g["items"])
+        reordenar = g["tec"] and (g["ordenado"] or todos_num)
         for it in g["items"]:
-            bl = it["orden"] if (it["orden"] and not g["tec"]) else None
+            bl = it["orden"] if (it["orden"] and not reordenar) else None    # número explícito → ese bloque
             res_g.append(marcar(con, it["rbd"], d, g["tec"], bl, fuente=f"reporte de {autor}"))
-        if g["tec"] and (g["ordenado"] or con_orden):
+        if reordenar:
             fijos = {r["id"]: it["orden"] for it, r in zip(g["items"], res_g) if it["orden"]}
             secuencia = [r["id"] for r in res_g] if g["ordenado"] else []
             _reordenar_dia(con, g["tec"], d, secuencia, fijos)

@@ -258,10 +258,10 @@
     "minutos_visita": 100,
     "minutos_traslado": 25
   },
-  "_realizados": "Desde tu WhatsApp cuentas lo que se hizo ('rodrigo hizo hoy japón y suiza', 'hoy se hicieron X, Y', 'el 03/10 camilo hizo…'). Si nombras al técnico, el orden que dices es el orden del día. Lo pendiente se corre un día con 'pásalas'. Actualiza el cronograma en la planilla y el panel al tiro. desde_bitacoras: una bitácora reciente de Datácora también marca su visita como hecha.",
+  "_realizados": "Desde tu WhatsApp cuentas lo que se hizo ('rodrigo hizo hoy japón y suiza', 'hoy se hicieron X, Y', 'el 03/10 camilo hizo…'). Por defecto el orden del día lo fijan solo los números que pongas ('1 japón 2 suiza'); sin número, cada visita queda en su bloque. Pon orden_lista en 'siempre' si quieres que el orden en que los nombras mande aunque no pongas número. Lo pendiente se corre un día con 'pásalas'. Actualiza el cronograma en la planilla y el panel al tiro. desde_bitacoras: una bitácora reciente de Datácora también marca su visita como hecha.",
   "realizados": {
     "activa": true,
-    "orden_lista": "siempre",
+    "orden_lista": "numero",
     "parecido_min": 80,
     "adelantar_hasta_dias": 60,
     "desde_bitacoras": true,
