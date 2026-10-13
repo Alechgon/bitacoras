@@ -17,15 +17,39 @@
   </header>
 
   <nav class="tabs">
-    <button class="tab activo" data-t="solicitudes">Solicitudes <span id="cuentaNuevas" class="badge"></span></button>
+    <button class="tab activo" data-t="actividad">Actividad</button>
+    <button class="tab" data-t="solicitudes">Solicitudes <span id="cuentaNuevas" class="badge"></span></button>
     <button class="tab" data-t="grupos">Grupos</button>
     <button class="tab" data-t="palabras">Palabras</button>
     <button class="tab" data-t="config">Configuración</button>
   </nav>
 
   <main>
+    <!-- ---------------- Actividad (en vivo) ---------------- -->
+    <section id="actividad" class="pag activo">
+      <div class="ahora">
+        <span id="pulso" class="pulso"></span>
+        <div>
+          <div id="ahoraTxt" class="ahoraTxt">—</div>
+          <div id="ahoraSub" class="dim"></div>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><b id="sRevisados">0</b><span>revisiones</span></div>
+        <div class="stat"><b id="sVistos">0</b><span>publicaciones vistas</span></div>
+        <div class="stat"><b id="sPegas">0</b><span>pegas encontradas</span></div>
+        <div class="stat"><b id="sVuelta">0</b><span>vueltas completas</span></div>
+      </div>
+      <div class="barra"><h3 style="margin:0">Bitácora — todo lo que hace</h3>
+        <button id="btnLimpiarBita" class="btn chico fantasma">Limpiar</button></div>
+      <div id="bitacora" class="bitacora"></div>
+      <h3>Lo último que miró</h3>
+      <p class="ayuda">Las publicaciones que leyó (aunque no fueran pega), para que veas que está mirando de verdad.</p>
+      <div id="mirados" class="mirados"></div>
+    </section>
+
     <!-- ---------------- Solicitudes ---------------- -->
-    <section id="solicitudes" class="pag activo">
+    <section id="solicitudes" class="pag">
       <div class="barra">
         <div class="filtros">
           <button class="filtro activo" data-f="nuevo">Nuevas</button>

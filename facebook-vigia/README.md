@@ -55,15 +55,20 @@ copy([...document.querySelectorAll('a[href*="/groups/"]')]
 
 5. Vuelve al panel → pestaña **Grupos** → pega (Ctrl+V) → **Guardar grupos**.
 
-## 4) Usar (pestaña Solicitudes)
+## 4) Usar (pestaña Actividad y Solicitudes)
 
 - Toca **Activar** (arriba). De ahí en adelante, con Chrome abierto, el vigía va recorriendo.
-- Cuando encuentra a alguien pidiendo, te llega una **notificación** y aparece la tarjeta:
-  - El post, de qué se trata, comuna y urgencia.
-  - El **mensaje sugerido** (lo puedes editar).
-  - **Abrir post** (para ir a comentarle/mandarle mensaje tú), **Copiar mensaje**,
-    **Contactado** o **Descartar**.
+- **Pestaña Actividad**: te muestra EN VIVO qué está haciendo (buscando una palabra en tal grupo, o
+  mirando el inicio), la **cuenta regresiva** para la próxima búsqueda, cuántas publicaciones lleva
+  vistas, cuántas pegas encontró, la **bitácora** de todo con la hora, y las últimas publicaciones que
+  miró (aunque no fueran pega). Así ves que está vivo aunque entre búsqueda y búsqueda espere un rato.
+- **Pestaña Solicitudes**: cuando encuentra a alguien pidiendo, te llega una **notificación** y aparece
+  la tarjeta con el post, de qué se trata, comuna y urgencia, y el **mensaje sugerido** (editable), con
+  botones **Abrir post**, **Copiar mensaje**, **Contactado**, **Descartar**.
 - El contador rojo en el ícono = cuántas nuevas tienes sin ver.
+
+> Entre cada búsqueda espera unos **2 minutos** (configurable). Es a propósito, para que Facebook te vea
+> como persona y no te bloquee. En la pestaña Actividad ves la cuenta regresiva, así sabes que sigue andando.
 
 ## 5) Palabras (pestaña Palabras)
 

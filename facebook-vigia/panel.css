@@ -81,3 +81,27 @@ textarea{resize:vertical}
 .apr .f{flex:1;font-size:13px}
 .apr .v{font-size:11px;color:var(--gris)}
 @media(max-width:600px){.grid2{grid-template-columns:1fr}}
+/* actividad */
+.ahora{display:flex;gap:12px;align-items:center;background:var(--card);border:1px solid var(--linea);
+  border-radius:var(--radio);padding:14px 16px;box-shadow:var(--sombra)}
+.ahoraTxt{font-weight:800;font-size:16px}
+.pulso{width:12px;height:12px;border-radius:50%;background:var(--gris);flex:none}
+.pulso.on{background:var(--verde);box-shadow:0 0 0 0 rgba(22,163,74,.5);animation:lat 1.6s infinite}
+.pulso.busca{background:var(--azul);box-shadow:0 0 0 0 rgba(24,119,242,.5);animation:lat 1s infinite}
+@keyframes lat{0%{box-shadow:0 0 0 0 rgba(22,163,74,.5)}70%{box-shadow:0 0 0 10px rgba(22,163,74,0)}100%{box-shadow:0 0 0 0 rgba(22,163,74,0)}}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}
+.stat{background:var(--card);border:1px solid var(--linea);border-radius:10px;padding:12px;text-align:center}
+.stat b{display:block;font-size:22px}
+.stat span{font-size:11.5px;color:var(--gris)}
+.bitacora{display:flex;flex-direction:column;gap:2px;max-height:300px;overflow:auto;background:var(--card);
+  border:1px solid var(--linea);border-radius:10px;padding:8px 10px}
+.bl{display:flex;gap:8px;font-size:12.5px;padding:3px 0;border-bottom:1px solid var(--linea)}
+.bl:last-child{border-bottom:0}
+.bl .h{color:var(--gris);flex:none;font-variant-numeric:tabular-nums}
+.bl.error .x{color:var(--rojo)}
+.mirados{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.mir{display:flex;gap:8px;align-items:flex-start;background:var(--card);border:1px solid var(--linea);
+  border-radius:10px;padding:8px 10px;font-size:12.5px}
+.mir .v{flex:none;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px}
+.mir .v.pega{background:#e7f6ec;color:var(--verde)} .mir .v.no{background:var(--fondo);color:var(--gris)}
+@media(max-width:600px){.stats{grid-template-columns:repeat(2,1fr)}}

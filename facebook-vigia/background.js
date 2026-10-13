@@ -23,7 +23,7 @@ const CONFIG_DEF = {
              "se corto la luz", "sin luz", "fuga de gas", "califont", "enchufe", "cortocircuito",
              "instalacion electrica", "cambiar", "reparar", "arreglar luz"],
   keywords_aprendidas: [],    // [{frase, veces, estado: 'propuesta'|'activa'|'descartada'}]
-  minutos_entre: 4,           // cada cuánto hace una búsqueda (con un poco de azar encima)
+  minutos_entre: 2,           // cada cuánto hace una búsqueda (con un poco de azar encima)
   solo_recientes_dias: 10,
   ver_recientes: true,        // en cada grupo, mirar primero el feed cronológico (lo más nuevo)
   feed_activo: true,          // leer el inicio/grupos mientras navegas (riesgo cero)
@@ -46,6 +46,8 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (!c) await set({ config: CONFIG_DEF });
   if (!(await get("leads", null))) await set({ leads: [] });
   if (!(await get("vistos", null))) await set({ vistos: {} });
+  if (!(await get("bitacora", null))) await set({ bitacora: [] });
+  if (!(await get("mirados", null))) await set({ mirados: [] });
   programarRonda();
   await actualizarBadge();
 });
@@ -88,21 +90,40 @@ async function marcarVisto(link) {
   await set({ vistos: v });
 }
 
+// ----------------------------------------------------------------- bitácora (lo que va haciendo)
+async function anota(tipo, texto) {
+  const b = await get("bitacora", []);
+  b.unshift({ t: Date.now(), tipo, texto });
+  await set({ bitacora: b.slice(0, 400) });
+}
+async function anotaMirado(e) {
+  const m = await get("mirados", []);
+  m.unshift(e);
+  await set({ mirados: m.slice(0, 80) });
+}
+async function fijarActual(actual) {
+  const st = await estado();
+  await set({ estado: { ...st, actual } });
+}
+
 // ----------------------------------------------------------------- rondas (búsqueda grupo x palabra)
 function programarRonda() {
   chrome.alarms.create("ronda", { delayInMinutes: 0.2, periodInMinutes: 1 });
 }
+programarRonda();   // asegura el reloj cada vez que arranca el service worker (aunque Chrome lo haya dormido)
 chrome.alarms.onAlarm.addListener((a) => { if (a.name === "ronda") tick().catch(e => console.warn("[vigía] tick", e)); });
 
 async function tick() {
   const c = await cfg();
   const st = await estado();
-  if (!c.activo || !c.rondas_activa) return;
-  if (!dentroHorario(c)) return;
-  if (!c.grupos.length || !(c.keywords.length + c.keywords_aprendidas.filter(x => x.estado === "activa").length)) return;
+  if (!c.activo || !c.rondas_activa) { if (st.actual?.accion !== "pausado") await fijarActual({ accion: "pausado" }); return; }
+  if (!dentroHorario(c)) { await fijarActual({ accion: "fuera_horario" }); return; }
+  if (!c.grupos.length || !(c.keywords.length + c.keywords_aprendidas.filter(x => x.estado === "activa").length)) {
+    await fijarActual({ accion: "sin_datos" }); return;
+  }
   // respeta el espaciado (minutos_entre) con un poco de azar para no caer en patrón
   const espera = (c.minutos_entre * 60000) * (0.8 + Math.random() * 0.6);
-  if (Date.now() - (st.ultima || 0) < espera) return;
+  if (Date.now() - (st.ultima || 0) < espera) return;    // todavía esperando: el panel muestra la cuenta regresiva
   // si quedó un tab de ronda abierto de antes, ciérralo
   if (st.vigiaTab) { try { await chrome.tabs.remove(st.vigiaTab); } catch {} }
 
@@ -121,17 +142,27 @@ async function tick() {
 
   let tab;
   try { tab = await chrome.tabs.create({ url, active: false }); }
-  catch (e) { console.warn("[vigía] no pude abrir tab", e); return; }
+  catch (e) { console.warn("[vigía] no pude abrir tab", e); await anota("error", "no pude abrir la pestaña: " + e.message); return; }
 
   const nk = (k + 1) % palabras.length;
   const ng = nk === 0 ? (g + 1) % c.grupos.length : g;
+  const proxPal = palabras[nk];
+  const proximo = { grupo: c.grupos[ng]?.nombre || c.grupos[ng]?.id || "", palabra: proxPal === RECIENTES ? "lo reciente" : proxPal };
+  const accion = palabra === RECIENTES ? "recientes" : "buscando";
   await set({ estado: { ...st, g: ng, k: nk, vuelta: st.vuelta + (ng === 0 && nk === 0 ? 1 : 0), ultima: Date.now(),
-                        vigiaTab: tab.id, pendiente: { grupo: grupo.nombre || gid, palabra: etiqueta, t: Date.now() } } });
+                        vigiaTab: tab.id, pendiente: { grupo: grupo.nombre || gid, palabra: etiqueta, t: Date.now() },
+                        actual: { accion, grupo: grupo.nombre || gid, palabra: etiqueta, desde: Date.now() }, proximo } });
+  await anota("ronda", palabra === RECIENTES
+    ? `Miré lo reciente de ${grupo.nombre || gid}`
+    : `Busqué “${palabra}” en ${grupo.nombre || gid}`);
 
   // red de seguridad: si en 25 s el content no mandó nada, cierra igual
   setTimeout(async () => {
     const s2 = await estado();
-    if (s2.vigiaTab === tab.id) { try { await chrome.tabs.remove(tab.id); } catch {} await set({ estado: { ...s2, vigiaTab: null, pendiente: null } }); }
+    if (s2.vigiaTab === tab.id) {
+      try { await chrome.tabs.remove(tab.id); } catch {}
+      await set({ estado: { ...s2, vigiaTab: null, pendiente: null, actual: { accion: "esperando", desde: Date.now() } } });
+    }
   }, 25000);
 }
 
@@ -145,7 +176,7 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
       await procesarLote(msg.posts || [], ctx);
       if (esRonda) {                      // ya leímos la búsqueda: cerrar el tab y seguir
         try { await chrome.tabs.remove(st.vigiaTab); } catch {}
-        await set({ estado: { ...st, vigiaTab: null, pendiente: null } });
+        await set({ estado: { ...(await estado()), vigiaTab: null, pendiente: null, actual: { accion: "esperando", desde: Date.now() } } });
       }
       responder?.({ ok: true });
       return;
@@ -163,17 +194,30 @@ function nombreGrupo(c, url) {
 
 async function procesarLote(posts, ctx) {
   const c = await cfg();
+  let nuevos = 0, leads = 0;
   for (const p of posts) {
     const link = permalink(p);
     if (await yaVisto(link)) continue;
     await marcarVisto(link);
     if (!p.texto || p.texto.length < 8) continue;
+    nuevos++;
     let r = null;
     try { r = await clasificar(c, p.texto); } catch (e) { console.warn("[vigía] clasificar", e); }
-    if (!r || !r.es_solicitud) continue;
-    await guardarLead(p, r, ctx);
-    await aprender(r.frases_clave || []);
+    const esLead = !!(r && r.es_solicitud);
+    await anotaMirado({ t: Date.now(), grupo: ctx.grupo || "", via: ctx.feed ? "inicio" : (ctx.palabra || ""),
+                        autor: p.autor || "", snippet: ((r && r.resumen) || p.texto).slice(0, 100), veredicto: esLead ? "pega" : "no" });
+    if (esLead) { leads++; await guardarLead(p, r, ctx); await aprender(r.frases_clave || []); }
   }
+  // contadores + bitácora
+  const st = await estado();
+  await set({ estado: { ...st, posts_vistos: (st.posts_vistos || 0) + nuevos, solicitudes: (st.solicitudes || 0) + leads,
+                        revisados: (st.revisados || 0) + (ctx.feed ? 0 : 1), ultimo_feed: ctx.feed ? Date.now() : st.ultimo_feed } });
+  if (ctx.feed) {
+    if (leads || nuevos) await anota("inicio", `En el inicio${ctx.grupo ? " (" + ctx.grupo + ")" : ""}: ${nuevos} vistas, ${leads} pega`);
+  } else {
+    await anota("resultado", `${ctx.grupo} · ${ctx.palabra === "lo reciente" ? "recientes" : "“" + (ctx.palabra || "") + "”"} → ${nuevos} vistas, ${leads} pega`);
+  }
+  return { nuevos, leads };
 }
 
 async function guardarLead(p, r, ctx) {
@@ -241,8 +285,12 @@ async function comandoPanel(msg) {
     case "estado": {
       const leads = await get("leads", []);
       const st = await estado();
-      return { config: c, leads, estado: st, total_palabras: c.keywords.length + c.keywords_aprendidas.filter(x => x.estado === "activa").length };
+      const bitacora = await get("bitacora", []);
+      const mirados = await get("mirados", []);
+      return { config: c, leads, estado: st, bitacora, mirados,
+               total_palabras: c.keywords.length + c.keywords_aprendidas.filter(x => x.estado === "activa").length };
     }
+    case "limpiar_bitacora": await set({ bitacora: [], mirados: [] }); return { ok: true };
     case "set_config": await set({ config: { ...c, ...msg.config } }); programarRonda(); return { ok: true };
     case "probar": return await probar(c);
     case "lead_estado": {
