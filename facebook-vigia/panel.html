@@ -4,15 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Vigía de pegas</title>
+  <link rel="icon" href="iconos/32.png">
   <link rel="stylesheet" href="panel.css">
 </head>
 <body>
   <header>
-    <div class="marca">⚡ Vigía de pegas <span class="sub">Facebook → tus solicitudes</span></div>
+    <div class="marca"><img src="iconos/32.png" alt="" width="22" height="22"> Vigía de pegas <span class="sub">v2 · Facebook → tus solicitudes</span></div>
     <div class="acciones">
       <span id="estadoChip" class="chip">—</span>
       <button id="btnActivo" class="btn primario">Activar</button>
-      <button id="btnRonda" class="btn">Buscar ahora</button>
+      <button id="btnRonda" class="btn" title="Mira un grupo apenas sea seguro (respeta los límites)">Mirar ahora</button>
     </div>
   </header>
 
@@ -25,30 +26,46 @@
   </nav>
 
   <main>
-    <!-- ---------------- Actividad (en vivo) ---------------- -->
+    <!-- ======================= Actividad ======================= -->
     <section id="actividad" class="pag activo">
+      <div id="bannerPausa" class="banner" hidden>
+        <div><b>🛡️ En pausa de seguridad</b><div id="pausaTxt" class="dim"></div></div>
+        <button id="btnReanudar" class="btn chico">Reanudar ahora</button>
+      </div>
+
       <div class="ahora">
         <span id="pulso" class="pulso"></span>
-        <div>
+        <div class="ahoraCuerpo">
           <div id="ahoraTxt" class="ahoraTxt">—</div>
           <div id="ahoraSub" class="dim"></div>
         </div>
       </div>
-      <div class="stats">
-        <div class="stat"><b id="sRevisados">0</b><span>revisiones</span></div>
-        <div class="stat"><b id="sVistos">0</b><span>publicaciones vistas</span></div>
-        <div class="stat"><b id="sPegas">0</b><span>pegas encontradas</span></div>
-        <div class="stat"><b id="sVuelta">0</b><span>vueltas completas</span></div>
+
+      <div id="salud" class="salud"></div>
+
+      <div class="uso">
+        <div class="usoFila"><span>Esta hora</span><div class="barraUso"><i id="bHora"></i></div><b id="tHora">—</b></div>
+        <div class="usoFila"><span>Hoy</span><div class="barraUso"><i id="bDia"></i></div><b id="tDia">—</b></div>
+        <div class="usoFila"><span>Búsquedas hoy</span><div class="barraUso"><i id="bBusq"></i></div><b id="tBusq">—</b></div>
       </div>
+
+      <div class="stats">
+        <div class="stat"><b id="sGrupos">0</b><span>grupos revisados hoy</span></div>
+        <div class="stat"><b id="sVistos">0</b><span>publicaciones leídas</span></div>
+        <div class="stat"><b id="sPegas">0</b><span>pegas encontradas</span></div>
+        <div class="stat"><b id="sCola">0</b><span>en fila para la IA</span></div>
+      </div>
+
       <div class="barra"><h3 style="margin:0">Bitácora — todo lo que hace</h3>
         <button id="btnLimpiarBita" class="btn chico fantasma">Limpiar</button></div>
       <div id="bitacora" class="bitacora"></div>
-      <h3>Lo último que miró</h3>
-      <p class="ayuda">Las publicaciones que leyó (aunque no fueran pega), para que veas que está mirando de verdad.</p>
+
+      <h3>Lo último que leyó</h3>
+      <p class="ayuda">Cada publicación que leyó y qué decidió: <b>PEGA</b>, <b>no</b> (no es solicitud) o <b>vieja</b> (más antigua que lo que configuraste).</p>
       <div id="mirados" class="mirados"></div>
     </section>
 
-    <!-- ---------------- Solicitudes ---------------- -->
+    <!-- ======================= Solicitudes ======================= -->
     <section id="solicitudes" class="pag">
       <div class="barra">
         <div class="filtros">
@@ -57,65 +74,140 @@
           <button class="filtro" data-f="descartado">Descartadas</button>
           <button class="filtro" data-f="todos">Todas</button>
         </div>
-        <button id="btnLimpiar" class="btn chico fantasma">Borrar descartadas</button>
+        <div class="acciones">
+          <button id="btnCsv" class="btn chico">Exportar a Excel</button>
+          <button id="btnLimpiar" class="btn chico fantasma">Borrar descartadas</button>
+        </div>
       </div>
       <div id="listaLeads" class="leads"></div>
       <p id="vacioLeads" class="vacio">Todavía no hay solicitudes. Cuando el vigía encuentre a alguien pidiendo
-        eléctrico o gasfíter, aparece aquí con el mensaje listo.</p>
+        eléctrico o gasfíter, aparece aquí con el mensaje listo para que le escribas.</p>
     </section>
 
-    <!-- ---------------- Grupos ---------------- -->
+    <!-- ======================= Grupos ======================= -->
     <section id="grupos" class="pag">
       <h2>Tus grupos</h2>
-      <p class="ayuda">Pega los links de tus grupos, uno por línea. Puedes poner un nombre después de una barra:
-        <code>https://facebook.com/groups/123456 | Pegas Santiago</code>. Para sacarlos todos de una, mira el README.</p>
-      <textarea id="txtGrupos" rows="12" placeholder="https://www.facebook.com/groups/..."></textarea>
+      <p class="ayuda">Pega los links, uno por línea. Puedes ponerle nombre con una barra:
+        <code>https://facebook.com/groups/123456 | Pegas Santiago</code>.</p>
+      <details class="ayudaBox"><summary>¿Cómo saco los 400 de una vez?</summary>
+        <ol>
+          <li>En Chrome entra a <b>facebook.com/groups/joins/</b> y baja hasta el final para que carguen todos.</li>
+          <li>Aprieta <b>F12</b> → pestaña <b>Console</b>. Si Chrome te pide escribir <code>allow pasting</code>, escríbelo y Enter.</li>
+          <li>Pega esto y Enter (te copia la lista):</li>
+        </ol>
+        <pre id="snippet">copy([...new Set([...document.querySelectorAll('a[href*="/groups/"]')].map(a=>(a.href.match(/facebook\.com\/groups\/([^/?#]+)/)||[])[1]).filter(x=>x&&!/^(joins|feed|discover|create|search|notifications|your_groups)$/.test(x)))].map(x=>'https://www.facebook.com/groups/'+x).join('\n'))</pre>
+        <button id="btnCopiarSnippet" class="btn chico">Copiar ese código</button>
+        <p class="dim">Después vuelve acá, pega con Ctrl+V en el cuadro y toca Guardar.</p>
+      </details>
+      <textarea id="txtGrupos" rows="10" placeholder="https://www.facebook.com/groups/..."></textarea>
       <div class="row"><button id="btnGrupos" class="btn primario">Guardar grupos</button>
         <span id="nGrupos" class="dim"></span></div>
+
+      <h3>Cómo le va a cada grupo</h3>
+      <p class="ayuda">Los grupos donde salen más pegas los mira más seguido. Los que no tienen acceso los salta 7 días.</p>
+      <div class="tablaWrap"><table class="tabla">
+        <thead><tr><th>Grupo</th><th>Visitas</th><th>Última</th><th>Leídas</th><th>Pegas</th><th>Estado</th></tr></thead>
+        <tbody id="tablaGrupos"></tbody>
+      </table></div>
     </section>
 
-    <!-- ---------------- Palabras ---------------- -->
+    <!-- ======================= Palabras ======================= -->
     <section id="palabras" class="pag">
-      <h2>Palabras que busca</h2>
-      <p class="ayuda">Escribe para agregar (puedes varias separadas por coma). Haz clic en una para quitarla.</p>
+      <h2>Palabras que busca dentro de cada grupo</h2>
+      <p class="ayuda">Escribe para agregar (varias separadas por coma). Haz clic en una para quitarla.
+        Las búsquedas son lo que más vigila Facebook, por eso hace <b id="nCada">1 de cada 3</b> visitas como búsqueda
+        (el resto mira lo más nuevo del grupo) y va rotando las palabras.</p>
       <div class="row">
         <input id="inpKw" type="text" placeholder="ej: califont, se cortó la luz, cambio de enchufe">
         <button id="btnKw" class="btn">Agregar</button>
       </div>
       <div id="chipsKw" class="chips"></div>
       <h3>Aprendidas por el vigía</h3>
-      <p class="ayuda">Frases que vio repetirse en solicitudes reales. Apruébalas para que también las busque.</p>
+      <p class="ayuda">Frases que vio en solicitudes reales. Si una se repite 3 veces la activa sola; tú puedes activarla antes o decirle que no.</p>
       <div id="aprendidas" class="aprendidas"></div>
     </section>
 
-    <!-- ---------------- Config ---------------- -->
+    <!-- ======================= Configuración ======================= -->
     <section id="config" class="pag">
       <h2>Configuración</h2>
-      <div class="campo"><label>Llave de Gemini</label>
-        <input id="cGemini" type="password" placeholder="AQ.… o AIza…">
-        <button id="btnProbar" class="btn chico">Probar</button><span id="probarMsg" class="dim"></span></div>
-      <div class="grid2">
-        <div class="campo"><label>Tu nombre</label><input id="cNombre" type="text" placeholder="Manuel"></div>
-        <div class="campo"><label>Tu fono (opcional)</label><input id="cFono" type="text" placeholder="+56 9 ..."></div>
-        <div class="campo"><label>Qué ofreces</label><input id="cRubro" type="text" placeholder="electricidad y gasfitería"></div>
-        <div class="campo"><label>Zona donde trabajas</label><input id="cZona" type="text" placeholder="Santiago, Estación Central..."></div>
+
+      <div class="caja">
+        <h3>IA (Gemini)</h3>
+        <div class="campo"><label>Llave de Gemini (la misma del bot de SOSER)</label>
+          <div class="row"><input id="cGemini" type="password" placeholder="AQ.… o AIza…">
+          <button id="btnProbar" class="btn chico">Probar</button></div>
+          <span id="probarMsg" class="dim"></span></div>
+        <p class="ayuda">Sin llave igual funciona, pero decide con reglas simples y el mensaje es una plantilla.</p>
       </div>
-      <div class="campo"><label>Tono / plantilla del mensaje (opcional)</label>
-        <textarea id="cPlantilla" rows="2" placeholder="Hola! vi que necesitas... yo hago ese tipo de trabajos..."></textarea></div>
-      <div class="grid2">
-        <div class="campo"><label>Minutos entre cada búsqueda</label><input id="cMin" type="number" min="2" max="60"></div>
-        <div class="campo"><label>Horario (de–a)</label>
-          <div class="row"><input id="cH1" type="time"><input id="cH2" type="time"></div></div>
+
+      <div class="caja">
+        <h3>Tus datos (para el mensaje)</h3>
+        <div class="grid2">
+          <div class="campo"><label>Tu nombre</label><input id="cNombre" type="text" placeholder="Manuel"></div>
+          <div class="campo"><label>Tu fono (opcional)</label><input id="cFono" type="text" placeholder="+56 9 ..."></div>
+          <div class="campo"><label>Qué ofreces</label><input id="cRubro" type="text" placeholder="electricidad y gasfitería"></div>
+          <div class="campo"><label>Zona donde trabajas</label><input id="cZona" type="text" placeholder="Santiago, Ñuñoa, Macul..."></div>
+        </div>
+        <div class="campo"><label>Tono del mensaje (opcional)</label>
+          <textarea id="cPlantilla" rows="2" placeholder="Hola! vi que necesitas... yo hago ese tipo de trabajos..."></textarea></div>
       </div>
-      <label class="check"><input id="cFeed" type="checkbox"> Leer el inicio/grupos mientras navego (riesgo cero)</label>
-      <label class="check"><input id="cRondas" type="checkbox"> Hacer búsquedas automáticas grupo por grupo</label>
-      <label class="check"><input id="cRecientes" type="checkbox"> En cada grupo, mirar primero las publicaciones recientes</label>
-      <div class="campo"><label>Webhook opcional (para avisar a tu WhatsApp más adelante)</label>
-        <input id="cWebhook" type="text" placeholder="https://..."></div>
-      <div class="row"><button id="btnConfig" class="btn primario">Guardar configuración</button>
+
+      <div class="caja">
+        <h3>Seguridad de tu cuenta</h3>
+        <div class="campo"><label>Ritmo</label>
+          <select id="cPerfil"></select>
+          <p id="perfilTxt" class="ayuda"></p></div>
+        <div class="grid2">
+          <div class="campo"><label>Horario (de – a)</label>
+            <div class="row"><input id="cH1" type="time"><input id="cH2" type="time"></div></div>
+          <div class="campo"><label>Si Facebook avisa algo, pausar (horas)</label><input id="cPausaH" type="number" min="1" max="72"></div>
+        </div>
+        <p class="ayuda">Siempre: una sola pestaña, nunca hace clic ni escribe, descansa entre sesiones, y si Facebook
+          muestra login, verificación o “vas muy rápido”, se pausa solo y te avisa.</p>
+      </div>
+
+      <div class="caja">
+        <h3>Qué hace</h3>
+        <label class="check"><input id="cRondas" type="checkbox"> Recorrer mis grupos solo</label>
+        <label class="check sub"><input id="cRecientes" type="checkbox"> En cada grupo, mirar lo más nuevo</label>
+        <label class="check sub"><input id="cBuscar" type="checkbox"> Buscar las palabras dentro del grupo — 1 de cada
+          <input id="cCada" type="number" min="1" max="10" class="mini"> visitas</label>
+        <label class="check sub"><input id="cBusqRec" type="checkbox"> Pedir los resultados de búsqueda más recientes primero <span class="dim">(experimental)</span></label>
+        <label class="check"><input id="cFeed" type="checkbox"> Leer el inicio y los grupos mientras navego yo (riesgo cero)</label>
+        <div class="grid2">
+          <div class="campo"><label>No tomar publicaciones de más de (días)</label><input id="cDias" type="number" min="1" max="60"></div>
+        </div>
+        <label class="check"><input id="cVentana" type="checkbox"> Usar una ventanita aparte en vez de una pestaña escondida</label>
+        <p class="ayuda">Actívalo si en la bitácora sale seguido “la página cargó pero no mostró publicaciones”
+          (el vigía también lo activa solo si pasa 3 veces).</p>
+      </div>
+
+      <div class="caja">
+        <h3>Avisos al celular</h3>
+        <p class="ayuda">Gratis con la app <b>ntfy</b> (Android/iPhone): 1) instala ntfy, 2) toca <b>Generar</b> acá,
+          3) en la app toca <b>+</b> y escribe ese mismo nombre, 4) toca <b>Probar</b>. Al tocar el aviso en el
+          celular se abre la publicación. Usa un nombre difícil (el generado), porque quien lo sepa ve los avisos.</p>
+        <div class="row"><input id="cNtfy" type="text" placeholder="vigia-xxxxxxxx">
+          <button id="btnNtfyGen" class="btn chico">Generar</button>
+          <button id="btnNtfyProbar" class="btn chico">Probar</button></div>
+        <span id="ntfyMsg" class="dim"></span>
+        <div class="campo"><label>Webhook (opcional, avanzado)</label><input id="cWebhook" type="text" placeholder="https://..."></div>
+      </div>
+
+      <div class="row fija"><button id="btnConfig" class="btn primario">Guardar configuración</button>
         <span id="configMsg" class="dim"></span></div>
-      <p class="ayuda nota">⚠️ Mientras más lento (más minutos entre búsquedas), más seguro para tu cuenta.
-        Esto corre solo cuando Chrome está abierto y tu Facebook con sesión iniciada.</p>
+
+      <div class="caja">
+        <h3>Respaldo</h3>
+        <p class="ayuda">Descarga un archivo con tus grupos, palabras, solicitudes y estadísticas (sin la llave).
+          Sirve para no perder nada si cambias de PC o reinstalas.</p>
+        <div class="row">
+          <button id="btnRespaldo" class="btn chico">Descargar respaldo</button>
+          <label class="btn chico">Cargar respaldo<input id="inpRespaldo" type="file" accept=".json" hidden></label>
+          <button id="btnOlvidar" class="btn chico fantasma">Volver a revisar todo lo ya visto</button>
+        </div>
+        <span id="respMsg" class="dim"></span>
+      </div>
     </section>
   </main>
 
@@ -124,14 +216,17 @@
       <div class="cab">
         <span class="tipo"></span>
         <span class="urg"></span>
+        <span class="sinia" hidden>sin IA</span>
         <span class="meta"></span>
       </div>
       <div class="autor"></div>
       <div class="texto"></div>
-      <label class="lbl">Mensaje para escribirle:</label>
+      <div class="otros dim" hidden></div>
+      <label class="lbl">Mensaje para escribirle (puedes editarlo):</label>
       <textarea class="msg" rows="3"></textarea>
       <div class="botones">
-        <a class="btn chico abrir" target="_blank">Abrir post</a>
+        <button class="btn chico primario copiarAbrir">Copiar y abrir post</button>
+        <a class="btn chico abrir" target="_blank" rel="noopener">Abrir post</a>
         <button class="btn chico copiar">Copiar mensaje</button>
         <button class="btn chico ok">Contactado</button>
         <button class="btn chico fantasma desc">Descartar</button>

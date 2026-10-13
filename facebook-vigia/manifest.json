@@ -1,13 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Vigía de pegas — Facebook",
-  "version": "1.0.0",
-  "description": "Revisa tus grupos buscando quién pide eléctrico o gasfíter, clasifica con IA y te arma la lista con el mensaje listo. Tú respondes.",
-  "permissions": ["storage", "alarms", "tabs", "notifications"],
+  "version": "2.0.0",
+  "description": "Mira tus grupos buscando quién pide eléctrico o gasfíter, con ritmo de persona y pausas de seguridad. Tú respondes.",
+  "icons": { "16": "iconos/16.png", "32": "iconos/32.png", "48": "iconos/48.png", "128": "iconos/128.png" },
+  "permissions": ["storage", "unlimitedStorage", "alarms", "tabs", "notifications"],
   "host_permissions": [
     "*://*.facebook.com/*",
     "https://generativelanguage.googleapis.com/*",
-    "https://aiplatform.googleapis.com/*"
+    "https://aiplatform.googleapis.com/*",
+    "https://ntfy.sh/*"
   ],
   "background": { "service_worker": "background.js", "type": "module" },
   "content_scripts": [
@@ -18,8 +20,8 @@
       "all_frames": false
     }
   ],
-  "action": { "default_title": "Vigía de pegas — abrir panel" },
-  "web_accessible_resources": [
-    { "resources": ["panel.html"], "matches": ["*://*.facebook.com/*"] }
-  ]
+  "action": {
+    "default_title": "Vigía de pegas — abrir panel",
+    "default_icon": { "16": "iconos/16.png", "32": "iconos/32.png", "48": "iconos/48.png" }
+  }
 }

@@ -1,98 +1,216 @@
-// content.js — el "lector". Corre dentro de Facebook (en tu sesión) y saca los posts que se ven:
-//  - En una página de BÚSQUEDA de grupo (la que abre el vigía), lee los resultados y los manda.
-//  - En el INICIO o dentro de un grupo mientras TÚ navegas, lee lo que va apareciendo (riesgo cero).
-// No hace clic en nada ni escribe: solo mira el texto que ya está en pantalla.
+// content.js — el "lector". Corre dentro de Facebook, en tu sesión, y SOLO MIRA.
+//
+// Dos modos (se lo pregunta al background al cargar):
+//  - VIGÍA: la pestaña fija del vigía abrió un grupo (lo reciente o una búsqueda). Espera que cargue,
+//    baja un poco la página como lo haría una persona, junta las publicaciones y avisa "listo".
+//    Antes revisa si Facebook mostró login, verificación, bloqueo o "sin acceso" → el background se pausa solo.
+//  - INICIO: estás navegando tú (inicio o grupos). Cada pocos segundos lee lo nuevo que aparece.
+// Nunca comenta, nunca da like, nunca escribe.
 
 (() => {
-  if (window.__vigiaCargado) return;
-  window.__vigiaCargado = true;
+  if (window.__vigia2) return;
+  window.__vigia2 = true;
 
-  const vistosEnPagina = new Set();
-  const esVigia = () => location.hash.includes("vigia");          // esta pestaña la abrió el vigía
-  const esBusqueda = () => /\/groups\/[^/]+\/search/i.test(location.pathname + location.search) || /\/search\//.test(location.pathname);
+  const SEL = '[role="article"], div[aria-posinset], div[data-pagelet^="FeedUnit"]';
+  const dormir = (ms) => new Promise(r => setTimeout(r, ms));
+  const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const enviar = (m) => new Promise(res => { try { chrome.runtime.sendMessage(m, r => { void chrome.runtime.lastError; res(r); }); } catch { res(null); } });
 
-  // ------- sacar un post de un contenedor <article>
-  function limpiarTexto(t) {
-    let s = (t || "").replace(/ /g, " ");
-    // corta la "cola" de Facebook (reacciones/comentarios) para quedarnos con el mensaje
-    s = s.split(/\n(?:Me gusta|Like|Me encanta)\b/)[0];
-    s = s.replace(/\n(Comentar|Comment|Compartir|Share|Ver más|See more|Ver traducci[oó]n|Responder|Reply)\b.*/gis, "");
-    s = s.replace(/\n{2,}/g, "\n").trim();
-    return s.slice(0, 1800);
+  // ---------------------------------------------------------------- ¿qué página es?
+  function textoDialogos() {
+    return [...document.querySelectorAll('[role="dialog"], [role="alertdialog"], [role="alert"]')]
+      .map(d => d.innerText || "").join("\n");
+  }
+  function estadoPagina(nPosts) {
+    const p = location.pathname.toLowerCase();
+    if (p.startsWith("/login") || p.includes("login.php") ||
+        (document.querySelector('input[name="pass"]') && document.querySelector('input[name="email"]'))) return "login";
+    if (p.includes("/checkpoint")) return "checkpoint";
+    const dlg = norm(textoDialogos());
+    const BLOQUEO = /(bloquead[oa]s? temporalmente|temporarily blocked|uso indebido de esta funcion|misusing (this|a) feature|demasiado rapido|going too fast|no puedes usar esta funcion|you can.?t use this feature)/;
+    if (BLOQUEO.test(dlg)) return "bloqueo";
+    if (nPosts > 0) return "ok";
+    const txt = norm((document.body?.innerText || "").slice(0, 6000));
+    if (/(confirma tu identidad|confirm your identity|suspendimos tu cuenta|we suspended your account|tu cuenta esta bloqueada|your account (has been|is) locked)/.test(txt)) return "checkpoint";
+    if (BLOQUEO.test(txt)) return "bloqueo";
+    if (/(este contenido no esta disponible|this content isn.?t available|contenido no disponible|esta pagina no esta disponible|this page isn.?t available|unete al grupo para ver|join (this )?group to see|este grupo es privado|this group is private)/.test(txt)) return "sin_acceso";
+    if (/(no se encontraron resultados|no results found|no hay resultados|no encontramos resultados|we didn.?t find any results)/.test(txt)) return "sin_resultados";
+    return "vacio";
   }
 
-  function sacarPost(art) {
-    const texto = limpiarTexto(art.innerText || "");
-    if (texto.length < 12) return null;
+  // ---------------------------------------------------------------- sacar publicaciones
+  function principales(sel) {
+    return [...document.querySelectorAll(sel)].filter(el => !el.parentElement || !el.parentElement.closest(sel));   // fuera comentarios anidados
+  }
+  function articulosPrincipales() {
+    const a = principales(SEL);
+    return a.length ? a : principales('[role="feed"] > div');      // plan B si Facebook cambia las marcas
+  }
 
-    let autor = "", autor_url = "";
-    // el autor suele ser el primer enlace a un perfil, arriba del post
-    const perfil = art.querySelector('h2 a[href], h3 a[href], h4 a[href], a[href*="/user/"], strong a[href]');
-    if (perfil) {
-      autor = (perfil.innerText || "").trim().split("\n")[0];
-      autor_url = abs(perfil.getAttribute("href"));
-    }
+  function limpiar(t) {
+    let s = String(t || "").replace(/ /g, " ");
+    s = s.split(/\n(?:Me gusta|Like|Me encanta|Todas las reacciones|All reactions)\b/)[0];
+    s = s.replace(/\n(Comentar|Comment|Compartir|Share|Ver más|See more|Ver traducción|See translation|Responder|Reply)\b.*/gis, "");
+    return s.replace(/\n{2,}/g, "\n").trim();
+  }
 
-    // permalink del post: el enlace que apunta a /posts/ /permalink/ o trae story_fbid
-    let url = "";
-    const anclas = art.querySelectorAll('a[href]');
-    for (const a of anclas) {
+  function textoDe(art) {
+    const msg = art.querySelector('[data-ad-comet-preview="message"], [data-ad-preview="message"]');
+    if (msg && msg.innerText.trim().length > 5) return limpiar(msg.innerText);
+    const bloques = [...art.querySelectorAll('div[dir="auto"], span[dir="auto"]')]
+      .map(x => (x.innerText || "").trim()).filter(t => t.length > 15);
+    if (bloques.length) return limpiar(bloques.sort((a, b) => b.length - a.length)[0]);
+    return limpiar(art.innerText);
+  }
+
+  function autorDe(art) {
+    const a = art.querySelector('a[href*="/user/"], h2 a[href], h3 a[href], h4 a[href], strong a[href]');
+    if (!a) return { autor: "", autor_url: "" };
+    const nombre = (a.innerText || a.getAttribute("aria-label") || "").trim().split("\n")[0];
+    return { autor: nombre.slice(0, 80), autor_url: abs(a.getAttribute("href")) };
+  }
+
+  function linkDe(art) {
+    for (const a of art.querySelectorAll("a[href]")) {
       const h = a.getAttribute("href") || "";
-      if (/\/posts\/|\/permalink\/|story_fbid=|\/groups\/[^/]+\/posts\//i.test(h)) { url = abs(h); break; }
+      if (/\/groups\/[^/]+\/(posts|permalink)\/\d+|story_fbid=|\/posts\/[\w]+|\/permalink\.php/i.test(h)) {
+        const u = abs(h);
+        return u.includes("story_fbid") ? u.split("&__")[0] : u.split("?")[0];
+      }
     }
-    if (!url) {                 // a veces el link del post es el de la hora (aria sobre un time)
-      const t = art.querySelector('a[role="link"][href*="/groups/"]');
-      if (t) url = abs(t.getAttribute("href"));
-    }
-    url = (url || "").split("?")[0];
-
-    return { autor, autor_url, texto, url };
+    return "";
   }
 
-  function abs(h) {
-    if (!h) return "";
-    try { return new URL(h, location.origin).href; } catch { return h; }
+  function abs(h) { if (!h) return ""; try { return new URL(h, location.origin).href; } catch { return h; } }
+
+  // "2 h", "35 min", "3 d", "Ayer", "Justo ahora", "12 de octubre" → horas (o null si no se sabe)
+  const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  function edadHoras(art, texto) {
+    let cab = norm(art.innerText || "");
+    const corte = texto ? cab.indexOf(norm(texto).slice(0, 25)) : -1;
+    cab = (corte > 0 ? cab.slice(0, corte) : cab.slice(0, 220));
+    let m;
+    if (/\b(justo ahora|ahora mismo|just now|hace un momento)\b/.test(cab)) return 0;
+    if ((m = cab.match(/\b(\d{1,2})\s*(min|mins|minutos?|m)\b/))) return +m[1] / 60;
+    if ((m = cab.match(/\b(\d{1,2})\s*(h|hr|hrs|horas?)\b/))) return +m[1];
+    if (/\b(ayer|yesterday)\b/.test(cab)) return 30;
+    if ((m = cab.match(/\b(\d{1,2})\s*(d|dias?|days?)\b/))) return +m[1] * 24;
+    if ((m = cab.match(/\b(\d{1,2})\s*(sem|semanas?|w|wk)\b/))) return +m[1] * 168;
+    if ((m = cab.match(/\b(\d{1,2}) de (enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/))) {
+      const hoy = new Date();
+      let f = new Date(hoy.getFullYear(), MESES.indexOf(m[2]), +m[1]);
+      if (f > hoy) f = new Date(hoy.getFullYear() - 1, MESES.indexOf(m[2]), +m[1]);
+      return Math.max(0, (hoy - f) / 3600000);
+    }
+    return null;
   }
 
-  function barrer() {
-    const arts = document.querySelectorAll('[role="article"]');
-    const nuevos = [];
-    for (const art of arts) {
-      if (art.__vigia) continue;
-      art.__vigia = true;
-      const p = sacarPost(art);
-      if (!p) continue;
-      const clave = (p.url || (p.autor + "|" + p.texto.slice(0, 60)));
-      if (vistosEnPagina.has(clave)) continue;
-      vistosEnPagina.add(clave);
-      nuevos.push(p);
-    }
-    if (nuevos.length) {
-      try { chrome.runtime.sendMessage({ tipo: "posts", posts: nuevos }); } catch {}
-    }
-    return nuevos.length;
+  function huella(s) {           // id corto para publicaciones sin link
+    let h = 0; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) | 0;
+    return "h" + (h >>> 0).toString(36);
   }
 
-  // ------- pestaña del vigía (búsqueda o feed reciente): barrer un par de veces y listo
-  if (esVigia() || esBusqueda()) {
+  function extraer() {
+    const out = [];
+    for (const art of articulosPrincipales()) {
+      const texto = textoDe(art).slice(0, 1800);
+      if (texto.length < 12) continue;
+      const { autor, autor_url } = autorDe(art);
+      const url = linkDe(art);
+      const id = url || huella(autor + "|" + texto.slice(0, 140));
+      out.push({ id, url, autor, autor_url, texto, edad_h: edadHoras(art, texto) });
+    }
+    return out;
+  }
+
+  // Facebook a veces deja el link de la publicación vacío hasta que pasas el mouse por la hora.
+  // Se "pasa el mouse" (solo un evento, sin clic) para que lo complete.
+  async function completarLinks() {
+    let n = 0;
+    for (const art of articulosPrincipales()) {
+      if (linkDe(art)) continue;
+      const cands = [...art.querySelectorAll('a[role="link"]')].filter(a => {
+        const h = a.getAttribute("href");
+        return !h || h === "#" || h.startsWith("#");
+      }).slice(0, 3);
+      for (const a of cands) {
+        for (const ev of ["mouseover", "mouseenter", "focus"]) a.dispatchEvent(new Event(ev, { bubbles: true }));
+        n++;
+      }
+    }
+    if (n) await dormir(700);
+  }
+
+  // ---------------------------------------------------------------- modo vigía
+  async function modoVigia() {
+    const t0 = Date.now();
+    const posts = new Map();
+    let ultimoCambio = Date.now(), bajadas = 0;
+    while (Date.now() - t0 < 22000) {
+      await dormir(1500);
+      const est = estadoPagina(posts.size);
+      if (est === "login" || est === "checkpoint" || est === "bloqueo") return listo([], est);
+      for (const p of extraer()) if (!posts.has(p.id)) { posts.set(p.id, p); ultimoCambio = Date.now(); }
+      if (posts.size && Date.now() - ultimoCambio > (posts.size >= 3 ? 4500 : 9000)) break;
+      // si después de unos segundos no aparece más, baja un poco (como quien lee)
+      if (Date.now() - t0 > 5000 && bajadas < 3 && Date.now() - ultimoCambio > 2500) {
+        const pasos = 3 + Math.floor(Math.random() * 3);              // de a poco, como la ruedita del mouse
+        for (let i = 0; i < pasos; i++) { window.scrollBy(0, 160 + Math.random() * 140); await dormir(120 + Math.random() * 200); }
+        bajadas++;
+      }
+      if (!posts.size && Date.now() - t0 > 12000) {
+        const e2 = estadoPagina(0);
+        if (e2 === "sin_acceso" || e2 === "sin_resultados") return listo([], e2);
+      }
+    }
+    if (posts.size) {
+      await completarLinks();
+      for (const p of extraer()) if (posts.has(p.id) === false && p.url) {
+        // la misma publicación ahora con link: reemplaza la versión sin link
+        for (const [k, v] of posts) if (!v.url && v.texto === p.texto) { posts.delete(k); posts.set(p.id, p); }
+      }
+    }
+    listo([...posts.values()].slice(0, 30), posts.size ? "ok" : estadoPagina(0));
+  }
+
+  function listo(lista, estado) {
+    enviar({ tipo: "vigia_listo", posts: lista, pagina: {
+      estado, url: location.href, titulo: document.title.slice(0, 80),
+      visible: document.visibilityState, articulos: document.querySelectorAll(SEL).length } });
+  }
+
+  // ---------------------------------------------------------------- modo inicio (tú navegando)
+  function rutaUtil() {
+    const p = location.pathname;
+    return p === "/" || p.startsWith("/groups") || p.startsWith("/home.php") || p.startsWith("/search");
+  }
+  function modoInicio() {
+    const enviados = new Set();
+    const barrer = () => {
+      if (!rutaUtil()) return;
+      const est = estadoPagina(1);
+      if (est === "bloqueo" || est === "checkpoint") { enviar({ tipo: "alerta_pagina", estado: est, url: location.href }); return; }
+      const nuevos = extraer().filter(p => !enviados.has(p.id));
+      nuevos.forEach(p => enviados.add(p.id));
+      if (nuevos.length) enviar({ tipo: "feed_posts", posts: nuevos, url: location.href });
+    };
     setTimeout(barrer, 2500);
-    setTimeout(barrer, 6000);
-    setTimeout(() => { try { chrome.runtime.sendMessage({ tipo: "posts", posts: [] }); } catch {} }, 9000);
-    return;
+    setInterval(barrer, 6000);
   }
 
-  // ------- feed/grupo mientras navegas: barrer cada pocos segundos lo nuevo que aparezca
-  let timer = null;
-  function activarFeed() {
-    chrome.storage.local.get("config", ({ config }) => {
-      if (config && config.feed_activo === false) return;
-      if (timer) return;
-      barrer();
-      timer = setInterval(barrer, 5000);
-      // si cambia la URL (Facebook es SPA), limpiar lo visto para el nuevo contexto
-      let ultima = location.href;
-      setInterval(() => { if (location.href !== ultima) { ultima = location.href; vistosEnPagina.clear(); } }, 3000);
-    });
-  }
-  activarFeed();
+  // ---------------------------------------------------------------- arranque
+  (async () => {
+    let r = await enviar({ tipo: "quien_soy", url: location.href });
+    if (!r?.vigia && /\/groups\/[^/]+\/(search|\?|$)|sorting_setting/.test(location.pathname + location.search)) {
+      await dormir(2000);                                  // por si el vigía recién marcó esta pestaña
+      r = await enviar({ tipo: "quien_soy", url: location.href });
+    }
+    if (r?.vigia) return modoVigia();
+    if (r?.inicio) return modoInicio();
+    // por ahora nada: vuelve a preguntar cada minuto (por si activas el vigía después)
+    const iv = setInterval(async () => {
+      const r2 = await enviar({ tipo: "quien_soy", url: location.href });
+      if (r2?.inicio) { clearInterval(iv); modoInicio(); }
+    }, 60000);
+  })();
 })();

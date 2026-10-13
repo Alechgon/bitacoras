@@ -1,98 +1,123 @@
-# Vigía de pegas — Facebook
+# Vigía de pegas — Facebook (v2)
 
-Extensión de Chrome que revisa tus grupos de Facebook buscando a quien **pide** trabajos de
-electricidad o gasfitería, lo clasifica con IA (Gemini), y te arma una **lista de solicitudes** con
-el mensaje listo para que **tú** le escribas. También lee el inicio/los grupos mientras navegas.
+Extensión de Chrome que mira tus grupos de Facebook buscando a quien **pide** trabajos de
+electricidad o gasfitería, y te arma una **lista de solicitudes** con el mensaje listo para que
+**tú** le escribas. También lee lo que aparece mientras navegas tú por Facebook.
 
-> **Importante (léelo).** Facebook no permite robots que comenten o manden mensajes solos: eso te
-> banea la cuenta (la misma donde tienes los 400 grupos). Por eso esta herramienta **no comenta ni
-> escribe nada**: solo mira lo que ya está en pantalla y te avisa. Tú respondes a mano, personalizado.
-> Igual, para que Facebook te vea como persona, va **lento** (configurable). No lo pongas a mil.
+**Lo que NO hace, a propósito:** no comenta, no da like, no manda mensajes, no hace clic. Solo mira
+lo que ya está en pantalla. Eso es lo que hace que Facebook bloquee cuentas, y en esa cuenta tienes
+tus 400 grupos.
 
 ---
 
-## 1) Instalar (una vez)
+## 1) Instalar (o actualizar desde la v1)
 
-1. En el PC (donde tienes Chrome con tu Facebook iniciado), descarga/clona esta carpeta
-   `facebook-vigia/` (está en tu repo `github.com/alechgon/bitacoras`).
-2. Abre Chrome y entra a `chrome://extensions`.
-3. Arriba a la derecha, activa **Modo de desarrollador**.
-4. Botón **Cargar descomprimida** → elige la carpeta `facebook-vigia`.
-5. Aparece "⚡ Vigía de pegas". Fija el ícono en la barra (el puzzle → chincheta).
-6. Haz clic en el ícono → se abre el **panel**.
+1. Descomprime el ZIP en una carpeta que no vayas a borrar, por ejemplo `Documentos\facebook-vigia`.
+   - **Si ya tenías la v1:** reemplaza los archivos de la carpeta vieja por estos (misma carpeta).
+2. En Chrome entra a `chrome://extensions` y activa **Modo de desarrollador** (arriba a la derecha).
+3. - **Primera vez:** botón **Cargar descomprimida** → elige la carpeta `facebook-vigia`.
+   - **Actualizando:** en la tarjeta “Vigía de pegas” toca la flechita circular ⟳ (Recargar).
+     Tus grupos, llave y solicitudes se conservan.
+4. Fija el ícono ⚡ en la barra (pieza de puzzle → chincheta) y tócalo: se abre el **panel**.
 
 ## 2) Configurar (pestaña Configuración)
 
-- **Llave de Gemini**: la misma de tu bot de SOSER (la `AQ.…`). Pégala y toca **Probar** (debe decir ✓).
-- **Tu nombre, fono, qué ofreces, zona**: con esto la IA te redacta el mensaje más personal.
-- **Minutos entre cada búsqueda**: por defecto 4. Más alto = más seguro. Déjalo en 4–6.
-- **Horario**: a qué horas puede andar buscando (ej. 08:00 a 23:00).
-- Deja marcado **Leer el inicio mientras navego** (eso es gratis y sin riesgo) y
-  **Hacer búsquedas automáticas** (eso es lo que recorre los grupos).
-- Guarda.
+- **Llave de Gemini:** la misma del bot de SOSER. Toca **Probar** (debe salir ✓). Sin llave igual
+  funciona, pero decide con reglas simples y el mensaje es una plantilla.
+- **Tus datos:** nombre, fono (opcional), qué ofreces y zona. La IA los usa para redactar.
+- **Ritmo:** deja **Seguro** las primeras semanas (ver tabla abajo).
+- **Horario:** por defecto 07:30 a 23:30. Fuera de eso no entra a Facebook.
+- **Avisos al celular (gratis):** instala la app **ntfy** en tu celular → en el panel toca **Generar**
+  → en la app toca **+** y escribe ese mismo nombre → toca **Probar**. Cada pega te llega al celular y
+  al tocarla se abre la publicación.
+- **Guardar configuración.**
 
 ## 3) Cargar tus grupos (pestaña Grupos)
 
-Pega los links de tus grupos, uno por línea. Opcional ponerle nombre con una barra:
+Pega los links, uno por línea (opcional ponerle nombre: `link | Nombre`). Para sacar los 400 de una:
 
-```
-https://www.facebook.com/groups/123456789 | Pegas y servicios Santiago
-https://www.facebook.com/groups/mielectricidadcl
-```
+1. Entra a **facebook.com/groups/joins/** y baja hasta el final (que carguen todos).
+2. **F12** → pestaña **Console**. Si Chrome pide escribir `allow pasting`, escríbelo y Enter.
+3. En el panel, en Grupos → “¿Cómo saco los 400 de una vez?” → **Copiar ese código**. Pégalo en la
+   consola y Enter: te copia la lista.
+4. Vuelve al panel, pega en el cuadro (Ctrl+V) y **Guardar grupos**.
 
-### Sacar los 400 de una
-1. En Chrome, entra a **https://www.facebook.com/groups/joins/** (tus grupos).
-2. Baja hasta que carguen todos (sigue bajando, Facebook los muestra de a poco).
-3. Abre la consola: tecla **F12** → pestaña **Console**.
-4. Pega esto y Enter; te copia la lista al portapapeles:
+## 4) Usar
 
-```js
-copy([...document.querySelectorAll('a[href*="/groups/"]')]
-  .map(a => a.href.match(/facebook\.com\/groups\/[^/?#]+/))
-  .filter(Boolean).map(m => 'https://www.' + m[0])
-  .filter((v,i,x) => x.indexOf(v) === i).join('\n'));
-```
+Toca **Activar** (arriba). Desde ahí, con Chrome abierto, trabaja solo.
 
-5. Vuelve al panel → pestaña **Grupos** → pega (Ctrl+V) → **Guardar grupos**.
+- **Actividad:** qué está haciendo en este momento (mirando tal grupo, buscando tal palabra,
+  esperando con cuenta regresiva, descansando, en pausa), cuánto lleva esta hora y hoy contra el máximo,
+  la **bitácora** de todo con la hora, y cada publicación que leyó con lo que decidió (PEGA / no / vieja).
+- **Solicitudes:** cada pega con el texto, tipo, urgencia, comuna, hace cuánto se publicó y el mensaje
+  sugerido (lo puedes editar). Botón **Copiar y abrir post**: copia el mensaje y abre la publicación para
+  que lo pegues. Después marca **Contactado**. **Exportar a Excel** baja la lista.
+- **Grupos:** cuántas veces miró cada grupo, cuántas pegas dio y si tiene problemas (sin acceso, etc.).
+- **Palabras:** las que busca dentro de los grupos y las que va **aprendiendo** de las pegas reales.
 
-## 4) Usar (pestaña Actividad y Solicitudes)
+Verás una **pestaña fija** (a la izquierda, chiquitita) que dice “Vigía en reposo”: es la que usa para
+mirar. Déjala abierta.
 
-- Toca **Activar** (arriba). De ahí en adelante, con Chrome abierto, el vigía va recorriendo.
-- **Pestaña Actividad**: te muestra EN VIVO qué está haciendo (buscando una palabra en tal grupo, o
-  mirando el inicio), la **cuenta regresiva** para la próxima búsqueda, cuántas publicaciones lleva
-  vistas, cuántas pegas encontró, la **bitácora** de todo con la hora, y las últimas publicaciones que
-  miró (aunque no fueran pega). Así ves que está vivo aunque entre búsqueda y búsqueda espere un rato.
-- **Pestaña Solicitudes**: cuando encuentra a alguien pidiendo, te llega una **notificación** y aparece
-  la tarjeta con el post, de qué se trata, comuna y urgencia, y el **mensaje sugerido** (editable), con
-  botones **Abrir post**, **Copiar mensaje**, **Contactado**, **Descartar**.
-- El contador rojo en el ícono = cuántas nuevas tienes sin ver.
+## 5) Cómo cuida tu cuenta
 
-> Entre cada búsqueda espera unos **2 minutos** (configurable). Es a propósito, para que Facebook te vea
-> como persona y no te bloquee. En la pestaña Actividad ves la cuenta regresiva, así sabes que sigue andando.
+| Ritmo  | Una mirada cada | Máx/hora | Máx/día | Búsquedas máx (hora/día) | Descanso |
+|--------|-----------------|----------|---------|--------------------------|----------|
+| Seguro | ~3 min          | 12       | 100     | 4 / 30                   | ~15 min cada ~25 min |
+| Normal | ~2 min          | 20       | 170     | 6 / 50                   | ~12 min cada ~40 min |
+| Rápido | ~1,2 min        | 32       | 280     | 10 / 80                  | ~10 min cada ~60 min |
 
-## 5) Palabras (pestaña Palabras)
+Además, siempre:
+- **Una sola pestaña**, fija y silenciada; nunca abre varias a la vez.
+- Tiempos **con azar** (nunca exacto), a veces se “distrae” más rato, y baja la página de a poco.
+- Las **búsquedas** (lo que más vigila Facebook) son solo 1 de cada 3 visitas; el resto mira lo más
+  nuevo del grupo.
+- Prioriza los grupos donde más pegas salen y salta 7 días los que no tienen acceso.
+- **Pausa automática** si Facebook muestra: pedir iniciar sesión (20 min), verificación de seguridad o
+  “bloqueado / vas muy rápido” (24 h, configurable). Ahí además vuelve el ritmo a **Seguro** y te avisa
+  (Chrome + celular). Si ves un aviso así mientras navegas tú, también se pausa.
 
-- Las palabras que busca, una a una, en cada grupo. Agrega/quita las que quieras.
-- **Aprendidas**: cuando la IA ve que una frase se repite en solicitudes reales (ej. "me quedó sin luz"),
-  te la propone acá; tú la **Activas** y desde ahí también la busca. Así va mejorando sola.
+**Si Facebook te muestra un aviso:** resuélvelo tú a mano, no toques “Reanudar” y deja que termine la
+pausa. Si se repite, baja el horario o deja menos grupos.
+
+**¿Cuánto demora en recorrer 400 grupos?** En Seguro, ~100 visitas al día → una vuelta completa en
+~4 días, pero los grupos que dan pegas los mira mucho más seguido, y lo que tú ves navegando también
+se revisa al tiro. Después de 1–2 semanas sin avisos puedes pasar a **Normal**.
+
+## 6) Dejarlo andando
+
+- Chrome tiene que estar **abierto** y con tu Facebook **con sesión iniciada**.
+- Que el PC **no se suspenda**: Configuración de Windows → Sistema → “Inicio/apagado y batería” (o
+  “Energía”) → Pantalla y suspensión → suspender: **Nunca** (cuando está enchufado). La pantalla sí se
+  puede apagar.
+- Para que Chrome parta solo al prender el PC: tecla **Windows + R** → escribe `shell:startup` → Enter →
+  en esa carpeta crea un acceso directo a Google Chrome.
+
+## 7) Problemas comunes
+
+- **“Falta cargar grupos” / no hace nada:** revisa que diga Grupos ✓ arriba de la Actividad y que esté
+  **Activo**.
+- **“La página cargó pero no mostró publicaciones” muchas veces:** en Configuración marca “Usar una
+  ventanita aparte” (si pasa 3 veces seguidas lo activa solo). La ventanita puede quedar detrás.
+- **“Facebook pide iniciar sesión”:** entra a Facebook en Chrome con tu cuenta; vuelve solo en 20 min.
+- **La IA dice “demasiadas consultas”:** se espera sola y sigue; nada se pierde (queda en la fila).
+- **Facebook cambió y ya no pesca publicaciones:** avísame y ajusto `content.js`.
+- **Cambias de PC:** Configuración → **Descargar respaldo**; en el otro PC, **Cargar respaldo** (la llave
+  se pone de nuevo, no va en el archivo).
 
 ---
 
-## Cómo funciona por dentro (resumen técnico)
+## Por dentro (técnico)
 
-- `content.js` lee los `[role="article"]` (los posts) de la página de búsqueda del grupo y del feed,
-  saca autor + texto + link, y se los manda al `background.js`. No hace clics.
-- `background.js` lleva el ritmo: cada X minutos entra a
-  `facebook.com/groups/<id>/search/?q=<palabra>` de un grupo, lee, cierra, y avanza a la siguiente
-  palabra/grupo. Deduplica por link, clasifica con `gemini.js`, guarda la solicitud y te avisa.
-- `gemini.js` decide si es una solicitud real, de qué tipo, y redacta el mensaje.
-- Todo se guarda en el navegador (storage de la extensión). Nada sale a ningún servidor tuyo, salvo
-  que pongas un *webhook* opcional (para avisar a tu WhatsApp más adelante).
+- `background.js` — el capataz: horario, sesiones/descansos, topes por hora/día (ventana móvil),
+  elección de grupo por prioridad, una pestaña fija reutilizada, pausas de seguridad, fila → filtro →
+  IA → solicitudes, avisos (Chrome, ntfy, webhook) y aprendizaje de frases. Todo cambio al
+  almacenamiento pasa por un candado para que nada se pise.
+- `content.js` — el lector: detecta login / verificación / bloqueo / sin acceso / sin resultados,
+  junta las publicaciones (autor, texto, link, antigüedad), baja la página de a poco. Solo mira.
+- `filtro.js` — reglas locales: decide qué vale la pena mandar a la IA y clasifica si no hay llave.
+- `gemini.js` — clasifica de a lotes de 8 (llave `AQ.` → Vertex, `AIza` → AI Studio), maneja el 429.
+- `panel.*` — la pantalla. Lee el almacenamiento directo y se actualiza sola.
+- `reposo.*` — lo que muestra la pestaña del vigía entre una mirada y otra.
 
-## Avisos
-
-- Solo corre con **Chrome abierto** y tu Facebook con sesión. Si cierras Chrome, se pausa.
-- Los selectores de Facebook cambian de vez en cuando; si algún día deja de pescar posts, avísame y
-  ajusto `content.js`.
-- Mientras más grupos y más palabras, más lento el barrido completo (es a propósito). Con 4 min entre
-  búsquedas, una vuelta a 400 grupos toma varios días; va rotando y avisando a medida que encuentra.
+Todo queda en tu Chrome. Solo sale a internet: Facebook (tu sesión), Gemini (el texto de las
+publicaciones que parecen pega) y ntfy/webhook si los configuras.
