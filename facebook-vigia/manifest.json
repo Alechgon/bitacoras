@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Vigía de pegas — Facebook",
+  "version": "1.0.0",
+  "description": "Revisa tus grupos buscando quién pide eléctrico o gasfíter, clasifica con IA y te arma la lista con el mensaje listo. Tú respondes.",
+  "permissions": ["storage", "alarms", "tabs", "notifications"],
+  "host_permissions": [
+    "*://*.facebook.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://aiplatform.googleapis.com/*"
+  ],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "content_scripts": [
+    {
+      "matches": ["*://*.facebook.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "action": { "default_title": "Vigía de pegas — abrir panel" },
+  "web_accessible_resources": [
+    { "resources": ["panel.html"], "matches": ["*://*.facebook.com/*"] }
+  ]
+}

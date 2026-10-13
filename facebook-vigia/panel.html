@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vigía de pegas</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <header>
+    <div class="marca">⚡ Vigía de pegas <span class="sub">Facebook → tus solicitudes</span></div>
+    <div class="acciones">
+      <span id="estadoChip" class="chip">—</span>
+      <button id="btnActivo" class="btn primario">Activar</button>
+      <button id="btnRonda" class="btn">Buscar ahora</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab activo" data-t="solicitudes">Solicitudes <span id="cuentaNuevas" class="badge"></span></button>
+    <button class="tab" data-t="grupos">Grupos</button>
+    <button class="tab" data-t="palabras">Palabras</button>
+    <button class="tab" data-t="config">Configuración</button>
+  </nav>
+
+  <main>
+    <!-- ---------------- Solicitudes ---------------- -->
+    <section id="solicitudes" class="pag activo">
+      <div class="barra">
+        <div class="filtros">
+          <button class="filtro activo" data-f="nuevo">Nuevas</button>
+          <button class="filtro" data-f="contactado">Contactadas</button>
+          <button class="filtro" data-f="descartado">Descartadas</button>
+          <button class="filtro" data-f="todos">Todas</button>
+        </div>
+        <button id="btnLimpiar" class="btn chico fantasma">Borrar descartadas</button>
+      </div>
+      <div id="listaLeads" class="leads"></div>
+      <p id="vacioLeads" class="vacio">Todavía no hay solicitudes. Cuando el vigía encuentre a alguien pidiendo
+        eléctrico o gasfíter, aparece aquí con el mensaje listo.</p>
+    </section>
+
+    <!-- ---------------- Grupos ---------------- -->
+    <section id="grupos" class="pag">
+      <h2>Tus grupos</h2>
+      <p class="ayuda">Pega los links de tus grupos, uno por línea. Puedes poner un nombre después de una barra:
+        <code>https://facebook.com/groups/123456 | Pegas Santiago</code>. Para sacarlos todos de una, mira el README.</p>
+      <textarea id="txtGrupos" rows="12" placeholder="https://www.facebook.com/groups/..."></textarea>
+      <div class="row"><button id="btnGrupos" class="btn primario">Guardar grupos</button>
+        <span id="nGrupos" class="dim"></span></div>
+    </section>
+
+    <!-- ---------------- Palabras ---------------- -->
+    <section id="palabras" class="pag">
+      <h2>Palabras que busca</h2>
+      <p class="ayuda">Escribe para agregar (puedes varias separadas por coma). Haz clic en una para quitarla.</p>
+      <div class="row">
+        <input id="inpKw" type="text" placeholder="ej: califont, se cortó la luz, cambio de enchufe">
+        <button id="btnKw" class="btn">Agregar</button>
+      </div>
+      <div id="chipsKw" class="chips"></div>
+      <h3>Aprendidas por el vigía</h3>
+      <p class="ayuda">Frases que vio repetirse en solicitudes reales. Apruébalas para que también las busque.</p>
+      <div id="aprendidas" class="aprendidas"></div>
+    </section>
+
+    <!-- ---------------- Config ---------------- -->
+    <section id="config" class="pag">
+      <h2>Configuración</h2>
+      <div class="campo"><label>Llave de Gemini</label>
+        <input id="cGemini" type="password" placeholder="AQ.… o AIza…">
+        <button id="btnProbar" class="btn chico">Probar</button><span id="probarMsg" class="dim"></span></div>
+      <div class="grid2">
+        <div class="campo"><label>Tu nombre</label><input id="cNombre" type="text" placeholder="Manuel"></div>
+        <div class="campo"><label>Tu fono (opcional)</label><input id="cFono" type="text" placeholder="+56 9 ..."></div>
+        <div class="campo"><label>Qué ofreces</label><input id="cRubro" type="text" placeholder="electricidad y gasfitería"></div>
+        <div class="campo"><label>Zona donde trabajas</label><input id="cZona" type="text" placeholder="Santiago, Estación Central..."></div>
+      </div>
+      <div class="campo"><label>Tono / plantilla del mensaje (opcional)</label>
+        <textarea id="cPlantilla" rows="2" placeholder="Hola! vi que necesitas... yo hago ese tipo de trabajos..."></textarea></div>
+      <div class="grid2">
+        <div class="campo"><label>Minutos entre cada búsqueda</label><input id="cMin" type="number" min="2" max="60"></div>
+        <div class="campo"><label>Horario (de–a)</label>
+          <div class="row"><input id="cH1" type="time"><input id="cH2" type="time"></div></div>
+      </div>
+      <label class="check"><input id="cFeed" type="checkbox"> Leer el inicio/grupos mientras navego (riesgo cero)</label>
+      <label class="check"><input id="cRondas" type="checkbox"> Hacer búsquedas automáticas grupo por grupo</label>
+      <div class="campo"><label>Webhook opcional (para avisar a tu WhatsApp más adelante)</label>
+        <input id="cWebhook" type="text" placeholder="https://..."></div>
+      <div class="row"><button id="btnConfig" class="btn primario">Guardar configuración</button>
+        <span id="configMsg" class="dim"></span></div>
+      <p class="ayuda nota">⚠️ Mientras más lento (más minutos entre búsquedas), más seguro para tu cuenta.
+        Esto corre solo cuando Chrome está abierto y tu Facebook con sesión iniciada.</p>
+    </section>
+  </main>
+
+  <template id="tplLead">
+    <div class="lead">
+      <div class="cab">
+        <span class="tipo"></span>
+        <span class="urg"></span>
+        <span class="meta"></span>
+      </div>
+      <div class="autor"></div>
+      <div class="texto"></div>
+      <label class="lbl">Mensaje para escribirle:</label>
+      <textarea class="msg" rows="3"></textarea>
+      <div class="botones">
+        <a class="btn chico abrir" target="_blank">Abrir post</a>
+        <button class="btn chico copiar">Copiar mensaje</button>
+        <button class="btn chico ok">Contactado</button>
+        <button class="btn chico fantasma desc">Descartar</button>
+      </div>
+    </div>
+  </template>
+
+  <script src="panel.js"></script>
+</body>
+</html>
