@@ -198,6 +198,55 @@
     setInterval(barrer, 6000);
   }
 
+  // ---------------------------------------------------------------- modo importar (tu lista de grupos)
+  // Se abre facebook.com/groups/joins/ a la vista; baja la página de a poco y junta los links de
+  // tus grupos con su nombre. Va guardando a medida que encuentra (si cierras antes, queda lo que alcanzó).
+  async function modoImportar() {
+    const caja = document.createElement("div");
+    caja.style.cssText = "position:fixed;z-index:2147483647;top:14px;right:14px;max-width:340px;background:#1877f2;color:#fff;" +
+      "padding:12px 16px;border-radius:12px;font:600 14px/1.4 system-ui,Segoe UI,Arial,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.3)";
+    (document.body || document.documentElement).appendChild(caja);
+    const decir = (t) => { caja.textContent = t; };
+    const RES = /^(joins|feed|discover|create|search|notifications|your_groups|joined|learning_content|membership|categories|requests|invites|pending|manage|admin)$/i;
+    const GENERICO = /^(ver grupo|view group|visitar grupo|visit group|unirte|join|ver mas|see more|ver todo|see all|.*actividad.*|.*activity.*|.*miembros.*|.*members.*)$/i;
+    const grupos = new Map();
+    const juntar = () => {
+      let nuevos = 0;
+      for (const a of document.querySelectorAll('a[href*="/groups/"]')) {
+        const m = (a.getAttribute("href") || "").match(/\/groups\/([^/?#]+)/);
+        if (!m || RES.test(m[1])) continue;
+        let id; try { id = decodeURIComponent(m[1]); } catch { id = m[1]; }
+        const txt = (a.innerText || a.getAttribute("aria-label") || "").trim().split("\n")[0].trim();
+        const nombre = txt && !GENERICO.test(norm(txt)) ? txt.slice(0, 80) : "";
+        if (!grupos.has(id)) { grupos.set(id, nombre); nuevos++; }
+        else if (nombre && nombre.length > (grupos.get(id) || "").length) grupos.set(id, nombre);
+      }
+      return nuevos;
+    };
+    const mandar = (fin) => enviar({ tipo: "grupos_import", fin, grupos: [...grupos].map(([id, nombre]) => ({ id, nombre })) });
+
+    if (estadoPagina(1) === "login") { decir("⚡ Vigía: primero inicia sesión en Facebook y vuelve a tocar «Importar mis grupos»."); return mandar(true); }
+    decir("⚡ Vigía: juntando tus grupos… deja esta pestaña a la vista");
+    await dormir(2500);
+    const t0 = Date.now();
+    let quietos = 0, vueltas = 0;
+    while (Date.now() - t0 < 300000) {
+      if (document.visibilityState === "hidden") { decir("⚡ Vigía: vuelve a esta pestaña para que siga juntando tus grupos…"); await dormir(1500); continue; }
+      const n = juntar();
+      quietos = n ? 0 : quietos + 1;
+      decir(`⚡ Vigía: ${grupos.size} grupos encontrados… bajando la página (no cierres esta pestaña)`);
+      if (n || ++vueltas % 4 === 0) await mandar(false);
+      const abajo = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 120;
+      if (quietos >= (abajo ? 6 : 14)) break;
+      window.scrollBy(0, Math.round(window.innerHeight * (0.7 + Math.random() * 0.25)));
+      await dormir(1100 + Math.random() * 900);
+    }
+    juntar();
+    await mandar(true);
+    caja.style.background = "#16a34a";
+    decir(`✅ Listo: ${grupos.size} grupos guardados en el vigía. Ya puedes cerrar esta pestaña.`);
+  }
+
   // ---------------------------------------------------------------- arranque
   (async () => {
     let r = await enviar({ tipo: "quien_soy", url: location.href });
@@ -206,6 +255,7 @@
       r = await enviar({ tipo: "quien_soy", url: location.href });
     }
     if (r?.vigia) return modoVigia();
+    if (r?.importar) return modoImportar();
     if (r?.inicio) return modoInicio();
     // por ahora nada: vuelve a preguntar cada minuto (por si activas el vigía después)
     const iv = setInterval(async () => {

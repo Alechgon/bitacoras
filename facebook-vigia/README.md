@@ -17,7 +17,8 @@ tus 400 grupos.
 2. En Chrome entra a `chrome://extensions` y activa **Modo de desarrollador** (arriba a la derecha).
 3. - **Primera vez:** botón **Cargar descomprimida** → elige la carpeta `facebook-vigia`.
    - **Actualizando:** en la tarjeta “Vigía de pegas” toca la flechita circular ⟳ (Recargar).
-     Tus grupos, llave y solicitudes se conservan.
+     **Este paso es obligatorio:** si no, Chrome sigue usando el motor viejo (el panel te avisa con un
+     recuadro rojo “Falta recargar el vigía”). Tus grupos, llave y solicitudes se conservan.
 4. Fija el ícono ⚡ en la barra (pieza de puzzle → chincheta) y tócalo: se abre el **panel**.
 
 ## 2) Configurar (pestaña Configuración)
@@ -34,13 +35,12 @@ tus 400 grupos.
 
 ## 3) Cargar tus grupos (pestaña Grupos)
 
-Pega los links, uno por línea (opcional ponerle nombre: `link | Nombre`). Para sacar los 400 de una:
+Toca **Importar mis grupos**. Se abre tu lista de grupos de Facebook, el vigía la recorre bajando la
+página y los agrega con su nombre (los que ya tenías se mantienen). Deja esa pestaña a la vista hasta que
+salga el aviso verde **Listo** (1 a 4 minutos) y después ciérrala.
 
-1. Entra a **facebook.com/groups/joins/** y baja hasta el final (que carguen todos).
-2. **F12** → pestaña **Console**. Si Chrome pide escribir `allow pasting`, escríbelo y Enter.
-3. En el panel, en Grupos → “¿Cómo saco los 400 de una vez?” → **Copiar ese código**. Pégalo en la
-   consola y Enter: te copia la lista.
-4. Vuelve al panel, pega en el cuadro (Ctrl+V) y **Guardar grupos**.
+También puedes pegarlos a mano, uno por línea (`link | Nombre`), o con la consola F12 (plan B, explicado
+en el mismo panel).
 
 ## 4) Usar
 

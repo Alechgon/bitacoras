@@ -28,7 +28,8 @@ function haceTxt(h) {
 }
 const inicioHoy = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
 const hoyStr = () => { const d = new Date(); return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`; };
-const perfil = () => PERFILES[CONFIG.perfil_seguridad] || PERFILES.seguro || {};
+const PERFIL_SEGURO = { nombre: "Seguro", min_entre: 3, max_hora: 12, max_dia: 100, max_busq_hora: 4, max_busq_dia: 30, sesion_min: 25, descanso_min: 15 };
+const perfil = () => PERFILES[CONFIG.perfil_seguridad] || PERFILES.seguro || PERFIL_SEGURO;
 const sinLlave = () => !CONFIG.gemini_key || CONFIG.gemini_key.startsWith("PEGA") || CONFIG.gemini_key.length < 20;
 function nPalabras() {
   const n = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
@@ -53,13 +54,25 @@ $$(".filtro").forEach(f => f.onclick = () => {
 window.addEventListener("hashchange", () => irA(location.hash.slice(1)));
 
 // ======================================================================= carga y cambios en vivo
+const VERSION = chrome.runtime.getManifest().version;
+$("#version").textContent = "v" + VERSION;
+$("#btnRecargar").onclick = () => chrome.runtime.reload();
+$("#btnExtensiones").onclick = () => chrome.tabs.create({ url: "chrome://extensions/?id=" + chrome.runtime.id });
+
 async function inicio() {
-  const r = await bg("estado");
+  let r = null;
+  try { r = await bg("estado"); } catch (e) { console.warn("[vigía] el motor no responde", e); }
+  // motor viejo (no se recargó la extensión) o que no responde: avisar con botón para recargar
+  if (!r || !r.perfiles || !r.config) {
+    $("#bannerRecargar").hidden = false;
+    const d0 = await chrome.storage.local.get(["config", "estado"]);
+    r = { config: d0.config || {}, estado: d0.estado || {}, perfiles: {}, config_def: {} };
+  }
   DEF = r.config_def || {}; PERFILES = r.perfiles || {}; CONFIG = r.config || {}; ESTADO = r.estado || {};
   const d = await chrome.storage.local.get(["leads", "bitacora", "mirados", "gstats", "cola"]);
   LEADS = d.leads || []; BITA = d.bitacora || []; MIR = d.mirados || []; GSTATS = d.gstats || {}; COLA = (d.cola || []).length;
   pintarCabecera(); pintarActividad(); pintarLeads(true); pintarPalabras(); pintarTablaGrupos();
-  pintarGruposTxt(); pintarConfig();
+  pintarGruposTxt(); pintarConfig(); pintarImport();
   const h = location.hash.slice(1);
   if (h) irA(h);
 }
@@ -82,6 +95,8 @@ chrome.storage.onChanged.addListener((ch, area) => {
     if (c.has("leads")) pintarLeads();
     if (c.has("config")) pintarPalabras();
     if (c.has("gstats") || c.has("config")) pintarTablaGrupos();
+    if (c.has("estado")) pintarImport();
+    if (c.has("config") && document.activeElement !== $("#txtGrupos")) pintarGruposTxt();
   }, 200);
 });
 setInterval(() => pintarAhora(), 1000);       // la cuenta regresiva
@@ -139,7 +154,7 @@ function pintarAhora() {
     case "sin_datos": clase = "alerta";
       t = a.falta === "acceso" ? "Ningún grupo disponible" : a.falta === "modo" ? "No tiene qué hacer" : "Faltan datos";
       s = a.falta === "acceso" ? "Todos tus grupos salieron sin acceso. Revisa la pestaña Grupos." : "Activa “mirar lo más nuevo” o “buscar palabras” en Configuración."; break;
-    default: clase = "on"; t = "Arrancando…"; s = "En unos segundos parte.";
+    default: clase = "on"; t = "Arrancando…"; s = "En unos segundos parte (revisa cada 30 s).";
   }
   pulso.className = "pulso " + clase;
   txt.textContent = t;
@@ -266,6 +281,17 @@ $("#btnGrupos").onclick = async () => {
   $("#nGrupos").textContent = r.n + " grupos cargados ✓";
   setTimeout(pintarGruposTxt, 300);
 };
+$("#btnImportar").onclick = async () => {
+  await bg("importar_grupos");
+  $("#impMsg").textContent = "Abrí tu lista de grupos en otra pestaña. Déjala a la vista hasta que diga Listo.";
+};
+function pintarImport() {
+  const imp = ESTADO.importacion;
+  if (!imp || Date.now() - (imp.t || 0) > 3 * 3600000) return;
+  const el = $("#impMsg");
+  if (!imp.fin) { el.textContent = `Juntando… ${imp.n || 0} encontrados hasta ahora (deja la pestaña de Facebook a la vista).`; el.className = "dim"; }
+  else { el.textContent = imp.n ? `✓ Listo: encontré ${imp.n} grupos, ${imp.nuevos} nuevos. Ahora tienes ${imp.total}.` : "No encontré grupos (¿iniciaste sesión en Facebook?)."; el.className = imp.n ? "ok-txt" : "dim"; }
+}
 $("#btnCopiarSnippet").onclick = async (e) => { await navigator.clipboard.writeText($("#snippet").textContent); e.target.textContent = "¡Copiado!"; setTimeout(() => e.target.textContent = "Copiar ese código", 1500); };
 
 function pintarTablaGrupos() {

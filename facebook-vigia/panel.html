@@ -9,7 +9,7 @@
 </head>
 <body>
   <header>
-    <div class="marca"><img src="iconos/32.png" alt="" width="22" height="22"> Vigía de pegas <span class="sub">v2 · Facebook → tus solicitudes</span></div>
+    <div class="marca"><img src="iconos/32.png" alt="" width="22" height="22"> Vigía de pegas <span class="sub"><span id="version">v2</span> · Facebook → tus solicitudes</span></div>
     <div class="acciones">
       <span id="estadoChip" class="chip">—</span>
       <button id="btnActivo" class="btn primario">Activar</button>
@@ -26,6 +26,13 @@
   </nav>
 
   <main>
+    <div id="bannerRecargar" class="banner" hidden>
+      <div><b>Falta recargar el vigía</b>
+        <div class="dim">Chrome sigue usando la versión anterior del motor (pasa cuando se reemplazan los archivos).
+          Toca «Recargar ahora»; el panel se vuelve a abrir solo. Si no pasa nada, toca «Abrir extensiones» y ahí la flechita ⟳ del vigía.</div></div>
+      <div class="acciones"><button id="btnRecargar" class="btn chico primario">Recargar ahora</button>
+        <button id="btnExtensiones" class="btn chico">Abrir extensiones</button></div>
+    </div>
     <!-- ======================= Actividad ======================= -->
     <section id="actividad" class="pag activo">
       <div id="bannerPausa" class="banner" hidden>
@@ -87,13 +94,23 @@
     <!-- ======================= Grupos ======================= -->
     <section id="grupos" class="pag">
       <h2>Tus grupos</h2>
-      <p class="ayuda">Pega los links, uno por línea. Puedes ponerle nombre con una barra:
+      <div class="caja importar">
+        <div>
+          <b>Traer todos mis grupos de Facebook</b>
+          <p class="ayuda">Abre tu lista de grupos, la recorre bajando la página y los agrega acá con su nombre
+            (los que ya tenías se mantienen). Deja esa pestaña a la vista hasta que diga <b>Listo</b> (1 a 4 min).</p>
+          <span id="impMsg" class="dim"></span>
+        </div>
+        <button id="btnImportar" class="btn primario">Importar mis grupos</button>
+      </div>
+      <p class="ayuda">O pégalos a mano, uno por línea. Puedes ponerle nombre con una barra:
         <code>https://facebook.com/groups/123456 | Pegas Santiago</code>.</p>
-      <details class="ayudaBox"><summary>¿Cómo saco los 400 de una vez?</summary>
+      <details class="ayudaBox"><summary>Plan B: sacarlos con la consola (F12)</summary>
         <ol>
           <li>En Chrome entra a <b>facebook.com/groups/joins/</b> y baja hasta el final para que carguen todos.</li>
-          <li>Aprieta <b>F12</b> → pestaña <b>Console</b>. Si Chrome te pide escribir <code>allow pasting</code>, escríbelo y Enter.</li>
-          <li>Pega esto y Enter (te copia la lista):</li>
+          <li>Aprieta <b>F12</b> → pestaña <b>Console</b>. Los mensajes rojos/amarillos que salen son normales (son de Facebook).</li>
+          <li>Haz clic abajo en la consola, escribe a mano <code>allow pasting</code> y Enter (Chrome lo pide la primera vez).</li>
+          <li>Pega esto y Enter. Si responde <code>undefined</code> está bien: ya copió la lista.</li>
         </ol>
         <pre id="snippet">copy([...new Set([...document.querySelectorAll('a[href*="/groups/"]')].map(a=>(a.href.match(/facebook\.com\/groups\/([^/?#]+)/)||[])[1]).filter(x=>x&&!/^(joins|feed|discover|create|search|notifications|your_groups)$/.test(x)))].map(x=>'https://www.facebook.com/groups/'+x).join('\n'))</pre>
         <button id="btnCopiarSnippet" class="btn chico">Copiar ese código</button>

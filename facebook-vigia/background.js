@@ -54,7 +54,7 @@ const ESTADO_DEF = {
   vigiaTab: null, vigiaWin: null, pendiente: null, ultima: 0, proxima: 0, actual: { accion: "pausado" },
   sesion_inicio: 0, sesion_largo: 0, descanso_hasta: 0, pausa_hasta: 0, pausa_motivo: "",
   kw_idx: 0, n_visita: 0, cola_pausa_hasta: 0, cola_fallos: 0,
-  vacios_seguidos: 0, sin_resp_seguidos: 0
+  vacios_seguidos: 0, sin_resp_seguidos: 0, importTab: null, importacion: null
 };
 const USO_DEF = () => ({ dia: "", v_dia: 0, b_dia: 0, mv: [], mb: [] });
 const CONT_DEF = () => ({ visitas: 0, vistos: 0, pegas: 0 });
@@ -200,7 +200,7 @@ async function actualizarBadge() {
 }
 
 // ======================================================================= arranque
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(async (det) => {
   await mutarConfig(() => {});                      // guarda la config ya migrada a v2
   for (const [k, def] of [["leads", []], ["vistos", {}], ["bitacora", []], ["mirados", []], ["cola", []], ["gstats", {}]]) {
     if ((await get(k, null)) === null) await set({ [k]: def });
@@ -209,7 +209,9 @@ chrome.runtime.onInstalled.addListener(async () => {
   await patch({ pendiente: null, sesion_inicio: 0 });
   asegurarReloj();
   await actualizarBadge();
-  await anota("info", "Vigía v2 instalado/actualizado.");
+  await anota("info", `Vigía v${chrome.runtime.getManifest().version} instalado/actualizado.`);
+  if (det?.reason === "install" || det?.reason === "update") abrirPanel().catch(() => {});   // que veas al tiro que quedó andando
+  tick();
 });
 chrome.runtime.onStartup.addListener(async () => {
   await patch(s => { s.pendiente = null; s.vigiaTab = null; s.vigiaWin = null; s.sesion_inicio = 0; });
@@ -242,6 +244,7 @@ chrome.notifications.onButtonClicked.addListener(async (id, i) => {
 // si cierras la pestaña o la ventana del vigía, la vuelve a crear en la próxima vuelta
 chrome.tabs.onRemoved.addListener((tabId) => {
   patch(s => {
+    if (s.importTab === tabId) { s.importTab = null; if (s.importacion && !s.importacion.fin) s.importacion.fin = true; return; }
     if (s.vigiaTab !== tabId) return false;
     s.vigiaTab = null;
     if (s.pendiente) { s.pendiente = null; s.proxima = Date.now() + 60000; s.actual = { accion: "esperando", hasta: s.proxima, desde: Date.now() }; }
@@ -467,6 +470,7 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
         case "quien_soy": return responder(await quienSoy(sender));
         case "vigia_listo": await alListo(msg, sender); return responder({ ok: true });
         case "feed_posts": await alFeed(msg, sender); return responder({ ok: true });
+        case "grupos_import": await alImportar(msg, sender); return responder({ ok: true });
         case "alerta_pagina": await alAlerta(msg); return responder({ ok: true });
         case "panel": return responder(await comandoPanel(msg));
         default: return responder({ ok: false });
@@ -478,8 +482,43 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
 
 async function quienSoy(sender) {
   const [st, c] = [await estado(), await cfg()];
-  const esVigia = sender?.tab?.id != null && sender.tab.id === st.vigiaTab && !!st.pendiente;
-  return { vigia: esVigia, inicio: !esVigia && c.activo && c.feed_activo };
+  const tab = sender?.tab?.id;
+  const esVigia = tab != null && tab === st.vigiaTab && !!st.pendiente;
+  const importar = !esVigia && tab != null && tab === st.importTab && !st.importacion?.fin &&
+    Date.now() - (st.importacion?.t || 0) < 15 * 60000 && /\/groups\/joins|\/login/.test(sender.tab.url || "");
+  return { vigia: esVigia, importar, inicio: !esVigia && !importar && c.activo && c.feed_activo };
+}
+
+// lo que junta la pestaña de "Importar mis grupos" (llega varias veces; la última con fin=true)
+async function alImportar(msg, sender) {
+  const st = await estado();
+  if (sender?.tab?.id == null || sender.tab.id !== st.importTab) return;
+  const lista = (Array.isArray(msg.grupos) ? msg.grupos : [])
+    .map(g => ({ id: String(g?.id || "").trim(), nombre: String(g?.nombre || "").trim().slice(0, 80) }))
+    .filter(g => /^[\w.-]{2,}$/.test(g.id) && !RESERVADOS.has(g.id.toLowerCase()));
+  let nuevos = 0, total = 0;
+  await mutarConfig(c => {
+    const porId = new Map(c.grupos.map(g => [g.id, g]));
+    for (const g of lista) {
+      const ya = porId.get(g.id);
+      if (ya) { if (g.nombre && (!ya.nombre || ya.nombre === ya.id)) ya.nombre = g.nombre; continue; }
+      const n = { id: g.id, nombre: g.nombre || g.id, url: `https://www.facebook.com/groups/${g.id}/` };
+      c.grupos.push(n); porId.set(g.id, n); nuevos++;
+    }
+    total = c.grupos.length;
+  });
+  const fin = !!msg.fin;
+  const s2 = await patch(s => {
+    const prev = s.importacion || { t: Date.now(), nuevos: 0 };
+    s.importacion = { ...prev, n: lista.length, nuevos: (prev.nuevos || 0) + nuevos, total, fin };
+    if (fin) s.importTab = null;
+  });
+  if (fin) {
+    const imp = s2.importacion;
+    await anota("info", imp.n ? `Importé tus grupos de Facebook: encontré ${imp.n}, ${imp.nuevos} nuevos. Ahora tienes ${imp.total} grupos.`
+                              : "No encontré grupos en tu lista (¿sesión de Facebook iniciada?).");
+    await notificar("import" + Date.now(), "Grupos importados", imp.n ? `${imp.n} grupos encontrados, ${imp.nuevos} nuevos. Total: ${imp.total}.` : "No encontré grupos.");
+  }
 }
 
 async function alListo(msg, sender) {
@@ -801,6 +840,12 @@ async function comandoPanel(msg) {
       const grupos = parsearGrupos(msg.texto);
       await mutarConfig(c => { c.grupos = grupos; });
       return { ok: true, n: grupos.length };
+    }
+    case "importar_grupos": {
+      const t = await chrome.tabs.create({ url: "https://www.facebook.com/groups/joins/?nav_source=tab", active: true });
+      await patch({ importTab: t.id, importacion: { t: Date.now(), n: 0, nuevos: 0, total: 0, fin: false } });
+      await anota("info", "Abrí tu lista de grupos de Facebook para importarlos.");
+      return { ok: true };
     }
     case "grupo_reintentar": {
       await mutar("gstats", {}, gs => { if (gs[msg.id]) { gs[msg.id].sin_acceso = 0; gs[msg.id].ultimo_estado = ""; } });

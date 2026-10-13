@@ -148,3 +148,8 @@ input.mini{width:56px;padding:4px 6px;display:inline-block}
 .tabla .mal{color:var(--rojo);font-weight:600}
 .tabla .bien{color:var(--verde)}
 @media(max-width:600px){.usoFila{grid-template-columns:80px 1fr 70px}}
+.caja.importar{display:flex;gap:14px;align-items:center;justify-content:space-between;padding:12px 16px;margin-top:4px}
+.caja.importar .ayuda{margin:4px 0}
+.caja.importar .btn{flex:none}
+@media(max-width:600px){.caja.importar{flex-direction:column;align-items:stretch}}
+.ok-txt{color:var(--verde);font-weight:700;font-size:13px}
