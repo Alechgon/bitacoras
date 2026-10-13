@@ -119,6 +119,7 @@ function pintarConfig() {
   $("#cH2").value = (CONFIG.horario || [])[1] || "23:00";
   $("#cFeed").checked = CONFIG.feed_activo !== false;
   $("#cRondas").checked = CONFIG.rondas_activa !== false;
+  $("#cRecientes").checked = CONFIG.ver_recientes !== false;
   $("#cWebhook").value = CONFIG.webhook_url || "";
 }
 $("#btnConfig").onclick = async () => {
@@ -127,7 +128,8 @@ $("#btnConfig").onclick = async () => {
     mi_fono: $("#cFono").value.trim(), mi_rubro: $("#cRubro").value.trim(), mi_zona: $("#cZona").value.trim(),
     plantilla: $("#cPlantilla").value.trim(), minutos_entre: Math.max(2, +$("#cMin").value || 4),
     horario: [$("#cH1").value || "08:00", $("#cH2").value || "23:00"],
-    feed_activo: $("#cFeed").checked, rondas_activa: $("#cRondas").checked, webhook_url: $("#cWebhook").value.trim()
+    feed_activo: $("#cFeed").checked, rondas_activa: $("#cRondas").checked,
+    ver_recientes: $("#cRecientes").checked, webhook_url: $("#cWebhook").value.trim()
   };
   await bg("set_config", { config });
   $("#configMsg").textContent = "Guardado ✓"; setTimeout(() => $("#configMsg").textContent = "", 2000);

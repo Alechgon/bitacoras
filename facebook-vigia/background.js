@@ -11,6 +11,8 @@
 
 import { clasificar, probar } from "./gemini.js";
 
+const RECIENTES = "__recientes__";   // "palabra" especial = mirar el feed cronológico del grupo
+
 const CONFIG_DEF = {
   activo: false,
   gemini_key: "",
@@ -23,6 +25,7 @@ const CONFIG_DEF = {
   keywords_aprendidas: [],    // [{frase, veces, estado: 'propuesta'|'activa'|'descartada'}]
   minutos_entre: 4,           // cada cuánto hace una búsqueda (con un poco de azar encima)
   solo_recientes_dias: 10,
+  ver_recientes: true,        // en cada grupo, mirar primero el feed cronológico (lo más nuevo)
   feed_activo: true,          // leer el inicio/grupos mientras navegas (riesgo cero)
   rondas_activa: true,        // hacer las búsquedas automáticas por grupo (lo que gasta "navegación")
   horario: ["08:00", "23:00"],
@@ -103,13 +106,18 @@ async function tick() {
   // si quedó un tab de ronda abierto de antes, ciérralo
   if (st.vigiaTab) { try { await chrome.tabs.remove(st.vigiaTab); } catch {} }
 
-  const palabras = c.keywords.concat(c.keywords_aprendidas.filter(x => x.estado === "activa").map(x => x.frase));
+  const palabras = (c.ver_recientes !== false ? [RECIENTES] : [])
+    .concat(c.keywords, c.keywords_aprendidas.filter(x => x.estado === "activa").map(x => x.frase));
   const g = st.g % c.grupos.length;
   const k = st.k % palabras.length;
   const grupo = c.grupos[g];
   const palabra = palabras[k];
   const gid = grupo.id || idDe(grupo.url);
-  const url = `https://www.facebook.com/groups/${gid}/search/?q=${encodeURIComponent(palabra)}`;
+  // "#vigia" le avisa al content.js que esta pestaña la abrió el vigía (que lea una vez y listo)
+  const url = palabra === RECIENTES
+    ? `https://www.facebook.com/groups/${gid}/?sorting_setting=CHRONOLOGICAL#vigia`
+    : `https://www.facebook.com/groups/${gid}/search/?q=${encodeURIComponent(palabra)}#vigia`;
+  const etiqueta = palabra === RECIENTES ? "lo reciente" : palabra;
 
   let tab;
   try { tab = await chrome.tabs.create({ url, active: false }); }
@@ -118,7 +126,7 @@ async function tick() {
   const nk = (k + 1) % palabras.length;
   const ng = nk === 0 ? (g + 1) % c.grupos.length : g;
   await set({ estado: { ...st, g: ng, k: nk, vuelta: st.vuelta + (ng === 0 && nk === 0 ? 1 : 0), ultima: Date.now(),
-                        vigiaTab: tab.id, pendiente: { grupo: grupo.nombre || gid, palabra, t: Date.now() } } });
+                        vigiaTab: tab.id, pendiente: { grupo: grupo.nombre || gid, palabra: etiqueta, t: Date.now() } } });
 
   // red de seguridad: si en 25 s el content no mandó nada, cierra igual
   setTimeout(async () => {
@@ -173,7 +181,7 @@ async function guardarLead(p, r, ctx) {
   const lead = {
     id: "L" + Date.now() + Math.floor(Math.random() * 1000),
     creado: new Date().toISOString(),
-    grupo: ctx.grupo || "", via: ctx.feed ? "inicio" : ("búsqueda: " + (ctx.palabra || "")),
+    grupo: ctx.grupo || "", via: ctx.feed ? "inicio" : (ctx.palabra === "lo reciente" ? "reciente del grupo" : "búsqueda: " + (ctx.palabra || "")),
     autor: p.autor || "", autor_url: p.autor_url || "", texto: p.texto.slice(0, 1200), url: p.url || "",
     tipo: r.tipo || "", resumen: r.resumen || "", comuna: r.comuna || "", urgencia: r.urgencia || "",
     mensaje: r.mensaje || "", estado: "nuevo"

@@ -8,6 +8,7 @@
   window.__vigiaCargado = true;
 
   const vistosEnPagina = new Set();
+  const esVigia = () => location.hash.includes("vigia");          // esta pestaña la abrió el vigía
   const esBusqueda = () => /\/groups\/[^/]+\/search/i.test(location.pathname + location.search) || /\/search\//.test(location.pathname);
 
   // ------- sacar un post de un contenedor <article>
@@ -72,8 +73,8 @@
     return nuevos.length;
   }
 
-  // ------- búsqueda: barrer un par de veces (deja renderizar) y listo; el background cierra el tab
-  if (esBusqueda()) {
+  // ------- pestaña del vigía (búsqueda o feed reciente): barrer un par de veces y listo
+  if (esVigia() || esBusqueda()) {
     setTimeout(barrer, 2500);
     setTimeout(barrer, 6000);
     setTimeout(() => { try { chrome.runtime.sendMessage({ tipo: "posts", posts: [] }); } catch {} }, 9000);
