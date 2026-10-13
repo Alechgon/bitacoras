@@ -6,10 +6,11 @@ const TXT = {
   fuera_horario: "Fuera de horario. Vuelve solo.",
   descanso: "Descansando, como una persona.",
   pausa_seguridad: "En pausa de seguridad.",
-  limite_hora: "Llegó al máximo de esta hora.",
-  limite_dia: "Llegó al máximo de hoy. Mañana sigue.",
+  limite_hora: "Llegó al tope de grupos de esta hora.",
+  limite_dia: "Llegó al tope de grupos de hoy. Mañana sigue.",
   limite_busq: "Usó las búsquedas permitidas por ahora.",
-  esperando: "Próxima mirada en",
+  esperando: "Siguiente grupo en",
+  entre_pasos: "Siguiente paso en",
   sin_internet: "Sin internet."
 };
 function pintar() {

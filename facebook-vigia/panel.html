@@ -9,7 +9,7 @@
 </head>
 <body>
   <header>
-    <div class="marca"><img src="iconos/32.png" alt="" width="22" height="22"> Vigía de pegas <span class="sub"><span id="version">v2</span> · Facebook → tus solicitudes</span></div>
+    <div class="marca"><img src="iconos/32.png" alt="" width="22" height="22"> Vigía de pegas <span class="sub"><span id="version">v3</span> · Facebook → tus solicitudes</span></div>
     <div class="acciones">
       <span id="estadoChip" class="chip">—</span>
       <button id="btnActivo" class="btn primario">Activar</button>
@@ -45,21 +45,26 @@
         <div class="ahoraCuerpo">
           <div id="ahoraTxt" class="ahoraTxt">—</div>
           <div id="ahoraSub" class="dim"></div>
+          <div id="pasoBar" class="pasoBar" hidden><i id="pasoFill"></i></div>
+          <div id="planTxt" class="planTxt"></div>
         </div>
+        <button id="btnSaltar" class="btn chico fantasma" hidden title="Termina este grupo y pasa al siguiente">Siguiente grupo</button>
       </div>
 
       <div id="salud" class="salud"></div>
 
       <div class="uso">
-        <div class="usoFila"><span>Esta hora</span><div class="barraUso"><i id="bHora"></i></div><b id="tHora">—</b></div>
-        <div class="usoFila"><span>Hoy</span><div class="barraUso"><i id="bDia"></i></div><b id="tDia">—</b></div>
+        <div class="usoFila"><span>Grupos esta hora</span><div class="barraUso"><i id="bHora"></i></div><b id="tHora">—</b></div>
+        <div class="usoFila"><span>Grupos hoy</span><div class="barraUso"><i id="bDia"></i></div><b id="tDia">—</b></div>
+        <div class="usoFila"><span>Búsquedas esta hora</span><div class="barraUso"><i id="bBusqH"></i></div><b id="tBusqH">—</b></div>
         <div class="usoFila"><span>Búsquedas hoy</span><div class="barraUso"><i id="bBusq"></i></div><b id="tBusq">—</b></div>
       </div>
 
       <div class="stats">
         <div class="stat"><b id="sGrupos">0</b><span>grupos revisados hoy</span></div>
         <div class="stat"><b id="sVistos">0</b><span>publicaciones leídas</span></div>
-        <div class="stat"><b id="sPegas">0</b><span>pegas encontradas</span></div>
+        <div class="stat"><b id="sPegas">0</b><span>pegas (≤ 2 días)</span></div>
+        <div class="stat"><b id="sRevisar">0</b><span>para revisar</span></div>
         <div class="stat"><b id="sCola">0</b><span>en fila para la IA</span></div>
       </div>
 
@@ -68,7 +73,8 @@
       <div id="bitacora" class="bitacora"></div>
 
       <h3>Lo último que leyó</h3>
-      <p class="ayuda">Cada publicación que leyó y qué decidió: <b>PEGA</b>, <b>no</b> (no es solicitud) o <b>vieja</b> (más antigua que lo que configuraste).</p>
+      <p class="ayuda">Cada publicación y qué decidió: <b>PEGA</b>, <b>revisar</b> (pedido de hace 2–7 días),
+        <b>no</b> (no tiene que ver o no es pedido) o <b>vieja</b>. En la bitácora, toca “ver publicaciones” para el detalle de cada paso.</p>
       <div id="mirados" class="mirados"></div>
     </section>
 
@@ -77,6 +83,7 @@
       <div class="barra">
         <div class="filtros">
           <button class="filtro activo" data-f="nuevo">Nuevas</button>
+          <button class="filtro" data-f="revisar">Para revisar <span id="cuentaRevisar" class="badge gris"></span></button>
           <button class="filtro" data-f="contactado">Contactadas</button>
           <button class="filtro" data-f="descartado">Descartadas</button>
           <button class="filtro" data-f="todos">Todas</button>
@@ -86,6 +93,8 @@
           <button id="btnLimpiar" class="btn chico fantasma">Borrar descartadas</button>
         </div>
       </div>
+      <p id="ayudaRevisar" class="ayuda" hidden>Pedidos de hace más de 2 días (hasta 7). Revísalos tú: algunos ya se
+        habrán resuelto. Si te sirve, márcalo Contactado; si no, Descartar.</p>
       <div id="listaLeads" class="leads"></div>
       <p id="vacioLeads" class="vacio">Todavía no hay solicitudes. Cuando el vigía encuentre a alguien pidiendo
         eléctrico o gasfíter, aparece aquí con el mensaje listo para que le escribas.</p>
@@ -120,28 +129,49 @@
       <div class="row"><button id="btnGrupos" class="btn primario">Guardar grupos</button>
         <span id="nGrupos" class="dim"></span></div>
 
-      <h3>Cómo le va a cada grupo</h3>
-      <p class="ayuda">Los grupos donde salen más pegas los mira más seguido. Los que no tienen acceso los salta 7 días.</p>
+      <h3>Tus grupos y cómo le va a cada uno</h3>
+      <p class="ayuda">Los grupos donde salen más pegas los mira más seguido. Los que no tienen acceso los salta 7 días.
+        En <b>Palabras del buscador</b> puedes ponerle palabras propias a un grupo (si no, usa las de la pestaña Palabras).</p>
+      <div class="row"><input id="filtroGrupos" type="text" placeholder="Buscar grupo por nombre o link…"><span id="nFiltro" class="dim"></span></div>
       <div class="tablaWrap"><table class="tabla">
-        <thead><tr><th>Grupo</th><th>Visitas</th><th>Última</th><th>Leídas</th><th>Pegas</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Grupo</th><th>Link</th><th>Palabras del buscador</th><th>Visitas</th><th>Última</th><th>Leídas</th><th>Pegas</th><th>Estado</th></tr></thead>
         <tbody id="tablaGrupos"></tbody>
       </table></div>
     </section>
 
     <!-- ======================= Palabras ======================= -->
     <section id="palabras" class="pag">
-      <h2>Palabras que busca dentro de cada grupo</h2>
-      <p class="ayuda">Escribe para agregar (varias separadas por coma). Haz clic en una para quitarla.
-        Las búsquedas son lo que más vigila Facebook, por eso hace <b id="nCada">1 de cada 3</b> visitas como búsqueda
-        (el resto mira lo más nuevo del grupo) y va rotando las palabras.</p>
-      <div class="row">
-        <input id="inpKw" type="text" placeholder="ej: califont, se cortó la luz, cambio de enchufe">
-        <button id="btnKw" class="btn">Agregar</button>
+      <div class="caja">
+        <h3>🔎 Palabras del buscador</h3>
+        <p class="ayuda">Las escribe en el <b>buscador de cada grupo</b>, una por una (~1 min cada una), y lee los resultados.
+          Toca una palabra para <b>apagarla/prenderla</b>, ✏️ para cambiarla y ✕ para borrarla.
+          Ojo: las búsquedas son lo que más vigila Facebook; mientras menos palabras, más seguro.</p>
+        <div class="row">
+          <input id="inpBuscar" type="text" placeholder="ej: gasfiter, electricista, maestro (varias separadas por coma)">
+          <button id="btnBuscarAdd" class="btn">Agregar</button>
+        </div>
+        <div id="chipsBuscar" class="chips"></div>
+        <p class="dim" id="resBuscar"></p>
       </div>
-      <div id="chipsKw" class="chips"></div>
-      <h3>Aprendidas por el vigía</h3>
-      <p class="ayuda">Frases que vio en solicitudes reales. Si una se repite 3 veces la activa sola; tú puedes activarla antes o decirle que no.</p>
-      <div id="aprendidas" class="aprendidas"></div>
+
+      <div class="caja">
+        <h3>🏠 Palabras del inicio</h3>
+        <p class="ayuda">Las busca <b>dentro de las publicaciones</b> que lee en el inicio de cada grupo y en el inicio de Facebook.
+          Si una publicación trae alguna, la IA revisa si es alguien pidiendo el servicio.</p>
+        <div class="row">
+          <input id="inpInicio" type="text" placeholder="ej: necesito gasfiter, se me cortó la luz, califont">
+          <button id="btnInicioAdd" class="btn">Agregar</button>
+        </div>
+        <div id="chipsInicio" class="chips"></div>
+        <label class="check"><input id="cReglas" type="checkbox"> Además usar las reglas del vigía (oficio + alguien pidiendo), por si se te escapa alguna palabra</label>
+      </div>
+
+      <div class="caja">
+        <h3>Aprendidas por el vigía</h3>
+        <p class="ayuda">Frases que vio en pedidos reales. Si una se repite 3 veces pasa sola a tus palabras del inicio;
+          tú puedes activarla antes o decirle que no.</p>
+        <div id="aprendidas" class="aprendidas"></div>
+      </div>
     </section>
 
     <!-- ======================= Configuración ======================= -->
@@ -170,33 +200,68 @@
       </div>
 
       <div class="caja">
-        <h3>Seguridad de tu cuenta</h3>
-        <div class="campo"><label>Ritmo</label>
-          <select id="cPerfil"></select>
-          <p id="perfilTxt" class="ayuda"></p></div>
-        <div class="grid2">
-          <div class="campo"><label>Horario (de – a)</label>
-            <div class="row"><input id="cH1" type="time"><input id="cH2" type="time"></div></div>
-          <div class="campo"><label>Si Facebook avisa algo, pausar (horas)</label><input id="cPausaH" type="number" min="1" max="72"></div>
+        <h3>Cómo recorre cada grupo</h3>
+        <label class="check"><input id="cRondas" type="checkbox"> Recorrer mis grupos solo</label>
+        <div class="grid3">
+          <div class="campo"><label>Inicio del grupo: minutos</label><input id="tGrupoMin" type="number" step="0.5" min="0.5" max="30"></div>
+          <div class="campo"><label>…publicaciones a leer</label><input id="tGrupoPosts" type="number" min="5" max="150"></div>
+          <div class="campo"><label>Orden del inicio del grupo</label>
+            <select id="cOrden"><option value="RECENT_ACTIVITY">Actividad reciente</option><option value="CHRONOLOGICAL">Publicaciones nuevas</option></select></div>
+          <div class="campo"><label>Cada palabra del buscador: minutos</label><input id="tPalMin" type="number" step="0.5" min="0.5" max="10"></div>
+          <div class="campo"><label>…resultados a leer</label><input id="tPalPosts" type="number" min="3" max="50"></div>
+          <div class="campo"><label>Palabras por grupo (0 = todas)</label><input id="tPalGrupo" type="number" min="0" max="30"></div>
+          <div class="campo"><label>Inicio de Facebook: minutos (0 = no)</label><input id="tFbMin" type="number" step="0.5" min="0" max="30"></div>
+          <div class="campo"><label>…publicaciones a leer</label><input id="tFbPosts" type="number" min="5" max="150"></div>
+          <div class="campo"><label>…cada cuántos grupos</label><input id="tFbCada" type="number" min="1" max="20"></div>
         </div>
-        <p class="ayuda">Siempre: una sola pestaña, nunca hace clic ni escribe, descansa entre sesiones, y si Facebook
-          muestra login, verificación o “vas muy rápido”, se pausa solo y te avisa.</p>
+        <label class="check sub"><input id="cVerGrupo" type="checkbox"> Leer el inicio de cada grupo</label>
+        <label class="check sub"><input id="cBuscar" type="checkbox"> Usar el buscador del grupo con mis palabras</label>
+        <label class="check sub"><input id="cBuscarPrimero" type="checkbox"> Primero buscar las palabras y después leer el inicio del grupo</label>
+        <label class="check sub"><input id="cBusqRec" type="checkbox"> Pedir los resultados de búsqueda más recientes primero <span class="dim">(experimental)</span></label>
+        <p id="resumenPlan" class="ayuda"></p>
       </div>
 
       <div class="caja">
-        <h3>Qué hace</h3>
-        <label class="check"><input id="cRondas" type="checkbox"> Recorrer mis grupos solo</label>
-        <label class="check sub"><input id="cRecientes" type="checkbox"> En cada grupo, mirar lo más nuevo</label>
-        <label class="check sub"><input id="cBuscar" type="checkbox"> Buscar las palabras dentro del grupo — 1 de cada
-          <input id="cCada" type="number" min="1" max="10" class="mini"> visitas</label>
-        <label class="check sub"><input id="cBusqRec" type="checkbox"> Pedir los resultados de búsqueda más recientes primero <span class="dim">(experimental)</span></label>
-        <label class="check"><input id="cFeed" type="checkbox"> Leer el inicio y los grupos mientras navego yo (riesgo cero)</label>
-        <div class="grid2">
-          <div class="campo"><label>No tomar publicaciones de más de (días)</label><input id="cDias" type="number" min="1" max="60"></div>
+        <h3>Pausas y descansos</h3>
+        <div class="grid3">
+          <div class="campo"><label>Entre una búsqueda y otra (seg)</label><div class="row"><input id="tPasoA" type="number" min="2" max="300"><span>a</span><input id="tPasoB" type="number" min="2" max="300"></div></div>
+          <div class="campo"><label>Entre un grupo y otro (seg)</label><div class="row"><input id="tGrupoA" type="number" min="5" max="1800"><span>a</span><input id="tGrupoB" type="number" min="5" max="1800"></div></div>
+          <div class="campo"><label>Horario (de – a)</label><div class="row"><input id="cH1" type="time"><input id="cH2" type="time"></div></div>
+          <div class="campo"><label>Trabajar (min) y descansar</label><input id="tTrabajo" type="number" min="5" max="600"></div>
+          <div class="campo"><label>Descanso (min)</label><input id="tDescanso" type="number" min="1" max="240"></div>
+          <div class="campo"><label>Si Facebook avisa algo, pausar (horas)</label><input id="cPausaH" type="number" min="1" max="72"></div>
         </div>
-        <label class="check"><input id="cVentana" type="checkbox"> Usar una ventanita aparte en vez de una pestaña escondida</label>
-        <p class="ayuda">Actívalo si en la bitácora sale seguido “la página cargó pero no mostró publicaciones”
-          (el vigía también lo activa solo si pasa 3 veces).</p>
+        <p class="ayuda">Todo lleva un poco de azar (nunca exacto), como una persona.</p>
+      </div>
+
+      <div class="caja">
+        <h3>Topes de seguridad</h3>
+        <div class="grid3">
+          <div class="campo"><label>Grupos por hora</label><input id="tGH" type="number" min="1" max="20"></div>
+          <div class="campo"><label>Grupos por día</label><input id="tGD" type="number" min="1" max="300"></div>
+          <div class="campo"><label></label></div>
+          <div class="campo"><label>Búsquedas por hora</label><input id="tBH" type="number" min="0" max="40"></div>
+          <div class="campo"><label>Búsquedas por día</label><input id="tBD" type="number" min="0" max="400"></div>
+        </div>
+        <p class="ayuda">Si Facebook muestra login, verificación o “vas muy rápido”, se pausa solo, te avisa y baja estos topes a la mitad.</p>
+      </div>
+
+      <div class="caja">
+        <h3>Fechas</h3>
+        <div class="grid3">
+          <div class="campo"><label>Pega si tiene hasta (horas)</label><input id="fUtil" type="number" min="1" max="168"></div>
+          <div class="campo"><label>“Para revisar” hasta (días)</label><input id="fRevisar" type="number" min="1" max="30"></div>
+        </div>
+        <p class="ayuda">Lo de menos de 1 hora sale marcado 🔥. Lo más viejo que “para revisar” se descarta.</p>
+        <div class="row"><button id="btnRecomendados" class="btn chico fantasma">Volver a los valores recomendados</button></div>
+      </div>
+
+      <div class="caja">
+        <h3>Ventana del vigía</h3>
+        <label class="check"><input id="cVentana" type="checkbox"> Usar una ventana aparte del vigía (recomendado)</label>
+        <p class="ayuda">Facebook solo carga más publicaciones cuando la página está <b>a la vista</b>. Deja esa ventana abierta
+          y visible (puede ser chica, a un costado). Si la minimizas o queda tapada, el vigía ve solo las primeras.</p>
+        <label class="check"><input id="cFeed" type="checkbox"> Leer también lo que veo yo cuando navego Facebook</label>
       </div>
 
       <div class="caja">
@@ -237,13 +302,14 @@
         <span class="meta"></span>
       </div>
       <div class="autor"></div>
+      <div class="links"></div>
       <div class="texto"></div>
       <div class="otros dim" hidden></div>
       <label class="lbl">Mensaje para escribirle (puedes editarlo):</label>
       <textarea class="msg" rows="3"></textarea>
       <div class="botones">
         <button class="btn chico primario copiarAbrir">Copiar y abrir post</button>
-        <a class="btn chico abrir" target="_blank" rel="noopener">Abrir post</a>
+        <button class="btn chico copiarMsgr">Copiar y abrir Messenger</button>
         <button class="btn chico copiar">Copiar mensaje</button>
         <button class="btn chico ok">Contactado</button>
         <button class="btn chico fantasma desc">Descartar</button>
