@@ -1,37 +1,54 @@
-// background.js — el "capataz" del vigía (v3). Corre mientras Chrome esté abierto.
+// background.js — el "capataz" del vigía (v4). Corre mientras Chrome esté abierto.
 //
-// Cómo trabaja, como una persona:
-//  1. Entra a un grupo y lee su inicio (orden "Actividad reciente") unos minutos, bajando de a poco
-//     hasta ~30 publicaciones.
-//  2. Busca en el buscador del grupo tus palabras, una por una (~1 min cada una, hasta ~10 resultados).
-//  3. Pasa un rato por el inicio de Facebook leyendo lo que aparece.
-//  4. Descansa unos segundos y sigue con el siguiente grupo. Cada cierto rato toma un descanso largo.
-//  Todos los tiempos, cantidades, descansos y topes se cambian en Configuración.
+// El ciclo, como una persona (todo se cambia en Configuración):
+//  1. Entra a un grupo y lee su inicio (orden "Actividad reciente") bajando de a poco hasta ~30 publicaciones.
+//  2. Busca en el buscador del grupo tus palabras, una por una, leyendo ~10 resultados de cada una.
+//  3. Lee ~30 publicaciones del inicio de Facebook, aprieta F5 (actualizar) y lee ~30 más.
+//  4. Pausa y sigue con el siguiente grupo. Cada cierto rato toma un descanso largo.
 //
-// Lo que lee: lo de hasta 2 días que parezca pega va a Solicitudes (aviso al celular); lo de 2 a 7 días
-// va a "Para revisar"; lo más viejo se descarta. Si Facebook muestra login, verificación o bloqueo,
-// se pausa solo. Nunca hace clic, nunca comenta, nunca da like, nunca escribe.
+// Lo que lee: lo de hasta 2 días que parezca pedido va a Solicitudes (aviso al celular); lo de 2 a 7 días va a
+// "Para revisar"; lo más viejo se descarta. Si Facebook muestra login, verificación o bloqueo, se pausa solo.
+// Si la IA falla, deja una alarma en el panel con el link exacto para arreglarla (y sigue con reglas).
+// Nunca hace clic, nunca comenta, nunca da like, nunca escribe.
 
-import { clasificarLote, probar } from "./gemini.js";
+import { clasificarLote, probar, diagnosticar, LINKS } from "./gemini.js";
 import { prefiltro, clasificarLocal, plantilla, norm } from "./filtro.js";
 
 // ======================================================================= configuración
 export const TIEMPOS_DEF = {
-  grupo_min: 3, grupo_posts: 30,               // inicio del grupo: minutos y publicaciones a leer
-  palabra_min: 1, palabra_posts: 10,           // cada búsqueda: minutos y resultados a leer
-  palabras_por_grupo: 0,                       // 0 = todas las palabras del buscador en cada grupo
-  fb_min: 2, fb_posts: 30, fb_cada: 1,         // inicio de Facebook después de cada N grupos (0 min = no)
-  entre_pasos_seg: [5, 15],                    // pausa entre una búsqueda y otra (mín–máx)
-  entre_grupos_seg: [20, 60],                  // pausa entre un grupo y el siguiente
-  trabajo_min: 40, descanso_min: 10,           // trabaja ~40 min y descansa ~10 (con azar)
-  max_grupos_hora: 8, max_grupos_dia: 80,
-  max_busq_hora: 15, max_busq_dia: 120
+  grupo_posts: 30, grupo_max_min: 6, grupo_recargas: 0,     // inicio del grupo: cuántas leer, tiempo máximo, F5 extra
+  palabra_posts: 10, palabra_max_min: 3,                    // cada búsqueda: cuántos resultados leer y tiempo máximo
+  palabras_por_grupo: 0,                                    // 0 = todas las palabras del buscador en cada grupo
+  fb_posts: 30, fb_max_min: 6, fb_recargas: 1, fb_cada: 1,  // inicio de Facebook: cuántas, máximo, cuántos F5, cada N grupos
+  entre_pasos_seg: [5, 15],                                 // pausa entre un paso y otro dentro del grupo
+  entre_grupos_seg: [20, 60],                               // pausa entre un grupo y el siguiente
+  trabajo_min: 40, descanso_min: 10,                        // trabaja ~40 min y descansa ~10 (con azar)
+  max_grupos_hora: 8, max_grupos_dia: 80,                   // 0 = sin tope
+  max_busq_hora: 15, max_busq_dia: 120                      // 0 = sin tope
 };
 const LIM = {
-  grupo_min: [0.5, 30], grupo_posts: [5, 150], palabra_min: [0.5, 10], palabra_posts: [3, 50], palabras_por_grupo: [0, 30],
-  fb_min: [0, 30], fb_posts: [5, 150], fb_cada: [1, 20], trabajo_min: [5, 600], descanso_min: [1, 240],
-  max_grupos_hora: [1, 20], max_grupos_dia: [1, 300], max_busq_hora: [0, 40], max_busq_dia: [0, 400]
+  grupo_posts: [5, 200], grupo_max_min: [1, 30], grupo_recargas: [0, 5], palabra_posts: [3, 60], palabra_max_min: [1, 15],
+  palabras_por_grupo: [0, 100], fb_posts: [0, 200], fb_max_min: [1, 30], fb_recargas: [0, 5], fb_cada: [1, 20],
+  trabajo_min: [5, 600], descanso_min: [1, 240],
+  max_grupos_hora: [0, 60], max_grupos_dia: [0, 1000], max_busq_hora: [0, 200], max_busq_dia: [0, 2000]
 };
+// ajuste fino: cada movimiento, en segundos [mínimo, máximo] (siempre con azar entre ambos)
+export const RITMO_DEF = {
+  carga_seg: [3, 6],            // esperar que cargue la página antes de empezar a leer
+  lectura_seg: [2, 5],          // leer cada pantalla antes de seguir bajando
+  tirones: [2, 4],              // cuántos "tirones de ruedita" por bajada
+  tiron_px: [120, 260],         // cuánto baja cada tirón (píxeles)
+  tiron_ms: [90, 260],          // pausa entre tirón y tirón (milisegundos)
+  subir_prob: 10,               // % de veces que sube un poquito (como quien relee)
+  subir_px: [120, 320],         // cuánto sube cuando relee
+  puntero: true,                // pasar el puntero por la hora (para la fecha exacta y el link)
+  hover_seg: [0.4, 0.9],        // cuánto deja el puntero sobre la hora
+  escribir_seg_letra: [0.15, 0.35],   // "escribir" la palabra en el buscador (por letra)
+  antes_f5_seg: [3, 8],         // pausa antes de apretar F5
+  paciencia_seg: 25             // si no aparece nada nuevo en este tiempo, se da por terminado
+};
+const LIM_RITMO = { carga_seg: [0.5, 60], lectura_seg: [0.3, 60], tirones: [1, 10], tiron_px: [40, 1200], tiron_ms: [20, 3000],
+  subir_px: [20, 1500], hover_seg: [0.1, 5], escribir_seg_letra: [0, 3], antes_f5_seg: [0, 120] };
 export const FECHAS_DEF = { horas_util: 48, dias_revisar: 7 };
 
 const KW_BUSCAR_DEF = ["gasfiter", "electricista", "maestro", "eléctrico", "sin luz", "fuga", "califont", "busco maestro"];
@@ -43,7 +60,7 @@ const KW_V2 = ["busco", "eléctrico", "electricista", "gasfiter", "maestro", "si
   "enchufe", "cortocircuito", "necesito electricista", "necesito gasfiter", "filtración", "destape"];
 
 export const CONFIG_DEF = {
-  version: 4,
+  version: 5,
   activo: false,
   gemini_key: "", gemini_endpoint: "auto", modelos: ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest"],
   grupos: [],                         // [{id, nombre, url, palabras?:[...] (propias del buscador)}]
@@ -61,6 +78,12 @@ export const CONFIG_DEF = {
   horario: ["07:30", "23:30"],
   pausa_bloqueo_horas: 24,
   ventana_aparte: true,               // una ventana del vigía a la vista (así Facebook carga las publicaciones)
+  ver_fb: true,                       // leer el inicio de Facebook después de cada grupo
+  rubros: ["electricidad", "gasfiteria", "construccion"],   // qué pedidos te interesan
+  avisar_ia: true,                    // avisar (Chrome + celular) si la IA deja de funcionar
+  modo_libre: false, libre_min: 5,    // si no usas el PC X min, pone la ventana del vigía adelante
+  ajuste_fino: false,                 // mostrar el ajuste fino en Configuración
+  ritmo: { ...RITMO_DEF },
   tiempos: { ...TIEMPOS_DEF },
   fechas: { ...FECHAS_DEF },
   ntfy_tema: "", webhook_url: "",
@@ -71,7 +94,8 @@ const ESTADO_DEF = {
   vigiaTab: null, vigiaWin: null, pendiente: null, plan: null, ultima: 0, proxima: 0, actual: { accion: "pausado" },
   sesion_inicio: 0, sesion_largo: 0, descanso_hasta: 0, pausa_hasta: 0, pausa_motivo: "",
   kw_idx: 0, n_grupo: 0, cola_pausa_hasta: 0, cola_fallos: 0,
-  vacios_seguidos: 0, sin_resp_seguidos: 0, ocultos_seguidos: 0, importTab: null, importacion: null
+  vacios_seguidos: 0, sin_resp_seguidos: 0, ocultos_seguidos: 0, importTab: null, importacion: null,
+  ia: null, diag_pedido: false
 };
 const USO_DEF = () => ({ dia: "", g_dia: 0, b_dia: 0, p_dia: 0, mg: [], mb: [] });
 const CONT_DEF = () => ({ grupos: 0, pasos: 0, vistos: 0, pegas: 0, revisar: 0 });
@@ -94,7 +118,7 @@ const aLista = (arr) => (Array.isArray(arr) ? arr : []).map(x => typeof x === "s
 
 function migrar(raw) {
   const c = { ...CONFIG_DEF, ...(raw || {}) };
-  const v = raw ? (raw.version || 1) : 4;
+  const v = raw ? (raw.version || 1) : 5;
   if (raw && v < 4) {
     let kws = Array.isArray(raw.keywords) ? raw.keywords : KW_BUSCAR_DEF;
     if (JSON.stringify(kws) === JSON.stringify(KW_V1) || JSON.stringify(kws) === JSON.stringify(KW_V2)) kws = KW_BUSCAR_DEF;
@@ -110,11 +134,24 @@ function migrar(raw) {
     c.modelos = CONFIG_DEF.modelos;
     for (const k of ["keywords", "perfil_seguridad", "busqueda_cada", "ver_recientes", "dias_antiguedad", "minutos_entre", "solo_recientes_dias"]) delete c[k];
   }
+  if (raw && v < 5) {                // v3 (tiempos por minutos) → v4 (por cantidad, con F5 en el inicio de Facebook)
+    const t = raw.tiempos || {};
+    c.tiempos = { ...TIEMPOS_DEF, ...(raw.version >= 4 ? {
+      grupo_posts: t.grupo_posts || 30, palabra_posts: t.palabra_posts || 10, palabras_por_grupo: t.palabras_por_grupo ?? 0,
+      fb_posts: t.fb_min === 0 ? 30 : (t.fb_posts || 30), fb_cada: t.fb_cada || 1, entre_pasos_seg: t.entre_pasos_seg || [5, 15],
+      entre_grupos_seg: t.entre_grupos_seg || [20, 60], trabajo_min: t.trabajo_min || 40, descanso_min: t.descanso_min || 10,
+      max_grupos_hora: t.max_grupos_hora || 8, max_grupos_dia: t.max_grupos_dia || 80, max_busq_hora: t.max_busq_hora ?? 15, max_busq_dia: t.max_busq_dia ?? 120 } : {}) };
+    if (raw.version >= 4 && t.fb_min === 0) c.ver_fb = false;
+    c.ritmo = { ...RITMO_DEF };
+  }
   c.kw_buscar = aLista(c.kw_buscar); c.kw_inicio = aLista(c.kw_inicio);
+  c.ritmo = { ...RITMO_DEF, ...(c.ritmo || {}) };
+  if (!Array.isArray(c.rubros) || !c.rubros.length) c.rubros = [...CONFIG_DEF.rubros];
   c.tiempos = { ...TIEMPOS_DEF, ...(c.tiempos || {}) };
   c.fechas = { ...FECHAS_DEF, ...(c.fechas || {}) };
   if (!["RECENT_ACTIVITY", "CHRONOLOGICAL"].includes(c.orden_grupo)) c.orden_grupo = "RECENT_ACTIVITY";
-  c.version = 4;
+  for (const k of ["grupo_min", "palabra_min", "fb_min"]) delete c.tiempos[k];
+  c.version = 5;
   return c;
 }
 async function cfg() { return migrar(await get("config", null)); }
@@ -148,6 +185,25 @@ function tiempos(c) {
   }
   t.escala = +c._debug?.escala || 1;                  // solo para pruebas (acelera todo)
   return t;
+}
+const sinTope = (n) => !n || n <= 0;                  // 0 = sin tope
+function ritmo(c) {
+  const r = { ...RITMO_DEF, ...(c.ritmo || {}) };
+  const E = +c._debug?.escala || 1;
+  const out = {};
+  for (const [k, v] of Object.entries(RITMO_DEF)) {
+    if (Array.isArray(v)) {
+      const [mn, mx] = LIM_RITMO[k] || [0, 1e6];
+      let [a, b] = Array.isArray(r[k]) ? r[k].map(Number) : v;
+      a = Math.max(mn, Math.min(mx, Number.isFinite(a) ? a : v[0])); b = Math.max(a, Math.min(mx, Number.isFinite(b) ? b : v[1]));
+      const esc = /_seg|_ms|seg_letra/.test(k) ? E : 1;
+      out[k] = [a * esc, b * esc];
+    } else out[k] = r[k];
+  }
+  out.subir_prob = Math.max(0, Math.min(100, +r.subir_prob || 0)) / 100;
+  out.paciencia_seg = Math.max(5, Math.min(300, +r.paciencia_seg || 25)) * (E < 1 ? Math.max(E, 0.3) : 1);
+  out.puntero = r.puntero !== false;
+  return out;
 }
 function fechas(c) {
   const f = { ...FECHAS_DEF, ...(c.fechas || {}) };
@@ -202,7 +258,8 @@ function clave(p) {                // el mismo post puede venir con links distin
   return "txt:" + norm(p.autor || "").slice(0, 40) + "|" + norm(p.texto || "").replace(/\s+/g, " ").slice(0, 120);
 }
 const huellaLead = (p) => norm(p.autor || "").trim() + "|" + norm(p.texto || "").replace(/[^a-z0-9]+/g, " ").trim().slice(0, 140);
-function messengerDe(autorUrl) {
+function messengerDe(autorUrl, autorId = "") {
+  if (/^\d{5,}$/.test(autorId || "")) return `https://www.facebook.com/messages/t/${autorId}`;
   const u = String(autorUrl || "");
   const m = u.match(/\/user\/(\d+)/) || u.match(/profile\.php\?id=(\d+)/) || u.match(/facebook\.com\/(\d{6,})\/?$/);
   if (m) return `https://www.facebook.com/messages/t/${m[1]}`;
@@ -213,9 +270,10 @@ function messengerDe(autorUrl) {
 function edadTxt(h) {
   if (h == null) return "fecha ?";
   if (h < 1) return `hace ${Math.max(1, Math.round(h * 60))} min`;
-  if (h < 24) return `hace ${Math.round(h)} h`;
+  if (h < 24) { const H = Math.floor(h), M = Math.round((h - H) * 60); return `hace ${H} h${M ? " " + M + " min" : ""}`; }
   return `hace ${Math.round(h / 24)} d`;
 }
+const NOMBRE_PASO = (p) => p.tipo === "grupo" ? (p.recarga ? "F5 + inicio del grupo" : "inicio del grupo") : p.tipo === "buscar" ? `“${p.palabra}”` : (p.recarga ? "F5 + inicio de Facebook" : "inicio de Facebook");
 
 // ======================================================================= bitácora y avisos
 const ultimosLogs = new Map();
@@ -282,6 +340,10 @@ chrome.runtime.onInstalled.addListener(async (det) => {
     await anota("info", "Nuevo: ahora entra a cada grupo y se queda leyendo como una persona (inicio del grupo → tus palabras en el buscador → inicio de Facebook). Usa una ventana aparte del vigía: déjala a la vista para que Facebook cargue las publicaciones." +
       (c4.tiempos.palabras_por_grupo ? ` Tienes ${c4.kw_buscar.length} palabras para el buscador: busco ${c4.tiempos.palabras_por_grupo} por grupo, rotando, para no pasar el tope de búsquedas (en Configuración pon 0 para buscarlas todas).` : ""));
   }
+  if (antes && (antes.version || 1) < 5) {
+    await anota("info", "Versión 4: ahora lee por cantidad (30 del inicio del grupo, 10 por palabra, 30 del inicio de Facebook + F5 + 30 más), saca la fecha exacta de cada publicación, el link exacto y el perfil, " +
+      "y si la IA falla te deja una alarma con el link para arreglarla. Nueva pestaña «Lista» en Solicitudes. Tip: en Solicitudes toca «Revisar de nuevo» para limpiar las que entraron sin IA.");
+  }
   if (det?.reason === "install" || det?.reason === "update") abrirPanel().catch(() => {});
   tick();
 });
@@ -296,6 +358,21 @@ function asegurarReloj() {
 asegurarReloj();
 chrome.alarms.onAlarm.addListener(a => { if (a.name === "vigia") tick(); });
 
+// "cuando no uso el PC": si llevas X minutos sin mouse ni teclado, pone la ventana del vigía adelante
+async function configurarIdle() {
+  const c = await cfg();
+  try { chrome.idle.setDetectionInterval(Math.max(60, (c.libre_min || 5) * 60)); } catch {}
+}
+configurarIdle();
+chrome.idle?.onStateChanged.addListener(async (est) => {
+  const c = await cfg();
+  if (!c.modo_libre || !c.activo) return;
+  const st = await estado();
+  if (est === "idle" && st.vigiaWin != null) {
+    try { await chrome.windows.update(st.vigiaWin, { focused: true, state: "normal" }); await anota("info", "No estás usando el PC: puse la ventana del vigía adelante para que lea a full."); } catch {}
+  }
+});
+
 chrome.action.onClicked.addListener(() => abrirPanel());
 async function abrirPanel(seccion = "") {
   const base = chrome.runtime.getURL("panel.html");
@@ -304,7 +381,7 @@ async function abrirPanel(seccion = "") {
   if (ya) { await chrome.tabs.update(ya.id, { active: true, ...(seccion ? { url: base + "#" + seccion } : {}) }); await chrome.windows.update(ya.windowId, { focused: true }); }
   else await chrome.tabs.create({ url: base + (seccion ? "#" + seccion : "") });
 }
-chrome.notifications.onClicked.addListener(async (id) => { chrome.notifications.clear(id); await abrirPanel("solicitudes"); });
+chrome.notifications.onClicked.addListener(async (id) => { chrome.notifications.clear(id); await abrirPanel(id.startsWith("ia") ? "ia" : "solicitudes"); });
 chrome.notifications.onButtonClicked.addListener(async (id, i) => {
   chrome.notifications.clear(id);
   if (i === 1) return abrirPanel("solicitudes");
@@ -345,7 +422,7 @@ async function ronda(forzar) {
 
   // 1) hay un paso en curso: esperar al lector (su tiempo + margen)
   if (st.pendiente) {
-    const limite = Math.max(st.pendiente.dur * 1.5, st.pendiente.dur + 45000);
+    const limite = st.pendiente.dur + 60000 + (ritmo(c).carga_seg[1] * 1000);
     if (now - st.pendiente.t < limite) return;
     await terminarPaso(`${st.pendiente.grupo || "Facebook"}: la página no respondió a tiempo`, { sinRespuesta: true });
     return;
@@ -362,7 +439,7 @@ async function ronda(forzar) {
   }
   if (!dentroHorario(c)) return setActual({ accion: "fuera_horario" }, ["info", `Fuera de horario (trabajo de ${c.horario[0]} a ${c.horario[1]}). Vuelvo solo.`]);
   if (!c.grupos.length) return setActual({ accion: "sin_datos", falta: "grupos" });
-  if (!c.ver_grupo && !(c.buscar_palabras && activas(c.kw_buscar).length) && !T.fb_min) return setActual({ accion: "sin_datos", falta: "modo" });
+  if (!c.ver_grupo && !(c.buscar_palabras && activas(c.kw_buscar).length) && !(c.ver_fb && T.fb_posts)) return setActual({ accion: "sin_datos", falta: "modo" });
   if (navigator.onLine === false) return setActual({ accion: "sin_internet" }, ["info", "Sin internet. Espero."]);
 
   const u = st.uso;
@@ -386,12 +463,12 @@ async function ronda(forzar) {
           ["descanso", `Llevo ${Math.round((now - st.sesion_inicio) / 60000)} min mirando grupos: descanso hasta las ${horaCorta(hasta)}, como haría una persona.`]);
       }
     }
-    if (u.mg.length >= T.max_grupos_hora) {
+    if (!sinTope(T.max_grupos_hora) && u.mg.length >= T.max_grupos_hora) {
       const hasta = Math.min(...u.mg) + 3600000;
       await patch({ uso: u });
       return setActual({ accion: "limite_hora", hasta }, ["seguridad", `Llegué al máximo de grupos de esta hora (${T.max_grupos_hora}). Sigo a las ${horaCorta(hasta)}.`]);
     }
-    if (u.g_dia >= T.max_grupos_dia) {
+    if (!sinTope(T.max_grupos_dia) && u.g_dia >= T.max_grupos_dia) {
       await patch({ uso: u });
       return setActual({ accion: "limite_dia" }, ["seguridad", `Llegué al máximo de grupos de hoy (${T.max_grupos_dia}). Mañana sigo.`]);
     }
@@ -416,24 +493,25 @@ async function ronda(forzar) {
     await patch(s => { s.plan = plan; s.uso = u; s.n_grupo = (s.n_grupo || 0) + 1; s.cont.grupos++;
       if (plan.rotar) s.kw_idx = (s.kw_idx || 0) + plan.rotar; });
     await mutar("gstats", {}, gs => { const x = gs[g.id] ||= {}; x.visitas = (x.visitas || 0) + 1; x.ultima = now; });
-    const desc = plan.pasos.map(p => p.tipo === "grupo" ? `inicio del grupo ${minTxt(p.dur)}` : p.tipo === "buscar" ? `“${p.palabra}”` : `inicio de Facebook ${minTxt(p.dur)}`).join(" → ");
+    const desc = plan.pasos.map(p => NOMBRE_PASO(p) + (p.tipo !== "buscar" ? ` (${p.objetivo})` : "")).join(" → ");
     await anota("grupo", `Entro a ${g.nombre}: ${desc}${plan.omitidas ? ` (${plan.omitidas} palabras quedan para después: tope de búsquedas)` : ""}`);
   }
 
   // 6) ejecutar el paso que toca
   const paso = plan.pasos[plan.i];
-  if (paso.tipo === "buscar" && (u.mb.length >= T.max_busq_hora || u.b_dia >= T.max_busq_dia)) {
-    await anota("seguridad", `Salto la búsqueda “${paso.palabra}” en ${plan.grupo}: llegué al tope de búsquedas (${u.mb.length >= T.max_busq_hora ? "esta hora" : "hoy"}).`);
+  const topeH = !sinTope(T.max_busq_hora) && u.mb.length >= T.max_busq_hora, topeD = !sinTope(T.max_busq_dia) && u.b_dia >= T.max_busq_dia;
+  if (paso.tipo === "buscar" && (topeH || topeD)) {
+    await anota("seguridad", `Salto la búsqueda “${paso.palabra}” en ${plan.grupo}: llegué al tope de búsquedas (${topeH ? "esta hora" : "hoy"}).`);
     await patch(s => { if (s.plan) s.plan.i++; s.uso = u; });
     programar(500);
     return;
   }
-  const dur = Math.round(paso.dur * azar(0.9, 1.15));
+  const dur = paso.max_ms;
   if (paso.tipo === "buscar") { u.mb.push(now); u.b_dia++; }
   u.p_dia++;
   const pid = "P" + now.toString(36) + Math.floor(Math.random() * 1e4).toString(36);
   await patch(s => {
-    s.pendiente = { id: pid, t: now, dur, objetivo: paso.objetivo, tipo: paso.tipo, palabra: paso.palabra || "", url: paso.url,
+    s.pendiente = { id: pid, t: now, dur, objetivo: paso.objetivo, tipo: paso.tipo, palabra: paso.palabra || "", url: paso.url, recarga: !!paso.recarga,
       grupoId: plan.grupoId, grupo: plan.grupo, tabId: null, vistos: 0, visible: "",
       res: { total: 0, ya: 0, recientes: 0, semana: 0, viejas: 0, candidatas: 0, revisar: 0 }, det: [] };
     s.uso = u; s.cont.pasos++;
@@ -441,7 +519,7 @@ async function ronda(forzar) {
       grupo: plan.grupo, palabra: paso.palabra || "", desde: now, hasta: now + dur, paso: plan.i + 1, de: plan.pasos.length };
   });
   let tabId;
-  try { tabId = await pestanaVigia(c, paso.url); }
+  try { tabId = await pestanaVigia(c, paso.url, !!paso.recarga); }
   catch (e) {
     await patch({ pendiente: null, plan: null, vigiaTab: null, proxima: now + 60000 });
     await anota("error", "No pude abrir la ventana/pestaña del vigía: " + e.message);
@@ -449,10 +527,11 @@ async function ronda(forzar) {
   }
   await patch(s => { s.vigiaTab = tabId; if (s.pendiente?.id === pid) s.pendiente.tabId = tabId; });
   await anota(paso.tipo === "buscar" ? "ronda" : paso.tipo === "grupo" ? "recientes" : "inicio",
-    paso.tipo === "buscar" ? `Busco “${paso.palabra}” en ${plan.grupo} (${minTxt(dur)}, hasta ${paso.objetivo} resultados)`
-    : paso.tipo === "grupo" ? `Leo el inicio de ${plan.grupo} — ${c.orden_grupo === "CHRONOLOGICAL" ? "publicaciones nuevas" : "actividad reciente"} (${minTxt(dur)}, ~${paso.objetivo} publicaciones)`
-    : `Leo el inicio de Facebook (${minTxt(dur)}, ~${paso.objetivo} publicaciones)`);
-  programar(Math.max(dur * 1.5, dur + 45000) + 2000);       // por si el lector no contesta
+    (paso.recarga ? "F5 (actualizo) · " : "") +
+    (paso.tipo === "buscar" ? `Busco “${paso.palabra}” en ${plan.grupo} (leo ${paso.objetivo} resultados, máx ${minTxt(dur)})`
+    : paso.tipo === "grupo" ? `Leo el inicio de ${plan.grupo} — ${c.orden_grupo === "CHRONOLOGICAL" ? "publicaciones nuevas" : "actividad reciente"} (${paso.objetivo} publicaciones, máx ${minTxt(dur)})`
+    : `Leo el inicio de Facebook (${paso.objetivo} publicaciones, máx ${minTxt(dur)})`));
+  programar(dur + 62000 + ritmo(c).carga_seg[1] * 1000);       // por si el lector no contesta
 }
 
 function urlBusqueda(gid, palabra, reciente) {
@@ -467,7 +546,9 @@ function urlBusqueda(gid, palabra, reciente) {
 function armarPlan(c, T, st, g, u, now) {
   const E = T.escala;
   const pasos = [];
-  const inicio = { tipo: "grupo", url: `${urlGrupo(g.id)}?sorting_setting=${c.orden_grupo}`, dur: T.grupo_min * 60000 * E, objetivo: T.grupo_posts };
+  const grupoUrl = `${urlGrupo(g.id)}?sorting_setting=${c.orden_grupo}`;
+  const inicio = [{ tipo: "grupo", url: grupoUrl, max_ms: T.grupo_max_min * 60000 * E, objetivo: T.grupo_posts }];
+  for (let k = 0; k < T.grupo_recargas; k++) inicio.push({ tipo: "grupo", url: grupoUrl, recarga: true, max_ms: T.grupo_max_min * 60000 * E, objetivo: T.grupo_posts });
   let pal = c.buscar_palabras ? palabrasBuscar(c, g) : [];
   let rotar = 0;
   if (T.palabras_por_grupo > 0 && pal.length > T.palabras_por_grupo) {
@@ -475,15 +556,17 @@ function armarPlan(c, T, st, g, u, now) {
     pal = [...pal.slice(k), ...pal.slice(0, k)].slice(0, T.palabras_por_grupo);
     rotar = T.palabras_por_grupo;
   }
-  const cupo = Math.max(0, Math.min(T.max_busq_hora - u.mb.length, T.max_busq_dia - u.b_dia));
-  const usar = pal.slice(0, cupo);
-  const busq = usar.map(w => ({ tipo: "buscar", palabra: w, url: urlBusqueda(g.id, w, c.busqueda_reciente), dur: T.palabra_min * 60000 * E, objetivo: T.palabra_posts }));
-  if (c.ver_grupo && c.orden_pasos !== "buscar_primero") pasos.push(inicio);
+  const cupoH = sinTope(T.max_busq_hora) ? Infinity : T.max_busq_hora - u.mb.length;
+  const cupoD = sinTope(T.max_busq_dia) ? Infinity : T.max_busq_dia - u.b_dia;
+  const usar = pal.slice(0, Math.max(0, Math.min(cupoH, cupoD)));
+  const busq = usar.map(w => ({ tipo: "buscar", palabra: w, url: urlBusqueda(g.id, w, c.busqueda_reciente), max_ms: T.palabra_max_min * 60000 * E, objetivo: T.palabra_posts }));
+  if (c.ver_grupo && c.orden_pasos !== "buscar_primero") pasos.push(...inicio);
   pasos.push(...busq);
-  if (c.ver_grupo && c.orden_pasos === "buscar_primero") pasos.push(inicio);
-  if (!pasos.length) pasos.push(inicio);                 // sin búsquedas posibles: al menos el inicio
-  if (T.fb_min > 0 && ((st.n_grupo || 0) % T.fb_cada === T.fb_cada - 1 || T.fb_cada === 1)) {
-    pasos.push({ tipo: "facebook", url: "https://www.facebook.com/", dur: T.fb_min * 60000 * E, objetivo: T.fb_posts });
+  if (c.ver_grupo && c.orden_pasos === "buscar_primero") pasos.push(...inicio);
+  if (!pasos.length) pasos.push(...inicio);                // sin búsquedas posibles: al menos el inicio
+  if (c.ver_fb && T.fb_posts > 0 && ((st.n_grupo || 0) % T.fb_cada === T.fb_cada - 1 || T.fb_cada === 1)) {
+    pasos.push({ tipo: "facebook", url: "https://www.facebook.com/", max_ms: T.fb_max_min * 60000 * E, objetivo: T.fb_posts });
+    for (let k = 0; k < T.fb_recargas; k++) pasos.push({ tipo: "facebook", url: "https://www.facebook.com/", recarga: true, max_ms: T.fb_max_min * 60000 * E, objetivo: T.fb_posts });
   }
   return { grupoId: g.id, grupo: g.nombre, pasos, i: 0, t: now, omitidas: pal.length - usar.length, rotar };
 }
@@ -506,14 +589,18 @@ function elegirGrupo(c, gstats, now) {
 }
 
 // la ventana (o pestaña fija) del vigía: siempre la misma, silenciada
-async function pestanaVigia(c, url) {
+async function pestanaVigia(c, url, recarga = false) {
   const st = await estado();
   const opts = { url, muted: true, autoDiscardable: false };
   if (st.vigiaTab != null) {
     try {
       const t = await chrome.tabs.get(st.vigiaTab);
       const enVentana = st.vigiaWin != null && t.windowId === st.vigiaWin;
-      if (!!c.ventana_aparte === enVentana) { await chrome.tabs.update(t.id, opts); return t.id; }
+      if (!!c.ventana_aparte === enVentana) {
+        const misma = (t.url || "").split("#")[0].replace(/\/$/, "") === url.split("#")[0].replace(/\/$/, "");
+        if (recarga && misma) { await chrome.tabs.reload(t.id); return t.id; }        // F5
+        await chrome.tabs.update(t.id, opts); return t.id;
+      }
       await chrome.tabs.remove(t.id).catch(() => {});      // cambió el modo: se rehace
     } catch {}
   }
@@ -555,6 +642,7 @@ async function cerrarVigia() {
 async function terminarPaso(texto, { sinRespuesta = false, tipoLog = "resultado", det = null, cancelar = false } = {}) {
   const c = await cfg();
   const T = tiempos(c);
+  const R = ritmo(c);
   const now = Date.now();
   let tabId = null, finGrupo = false;
   const st = await patch(s => {
@@ -564,6 +652,9 @@ async function terminarPaso(texto, { sinRespuesta = false, tipoLog = "resultado"
     else finGrupo = true;
     const [a, b] = finGrupo ? T.entre_grupos_seg : T.entre_pasos_seg;
     let espera = azar(a, b) * 1000 * T.escala;
+    const sig = !finGrupo && s.plan ? s.plan.pasos[s.plan.i] : null;
+    if (sig?.recarga) espera = azar(...R.antes_f5_seg) * 1000;                           // pausa antes de apretar F5
+    else if (sig?.tipo === "buscar") espera += azar(...R.escribir_seg_letra) * 1000 * sig.palabra.length;   // "escribe" la palabra
     if (finGrupo && Math.random() < 0.1) espera *= azar(1.5, 2.5);       // a veces se "distrae" más rato
     s.ultima = now;
     s.proxima = now + espera;
@@ -630,7 +721,8 @@ async function quienSoy(sender) {
   const p = st.pendiente;
   const esVigia = tab != null && tab === st.vigiaTab && !!p;     // cada página nueva de esa pestaña toma el paso en curso
   if (esVigia) {
-    return { vigia: true, paso: { id: p.id, tipo: p.tipo, dur: Math.max(8000, p.dur - (Date.now() - p.t)), objetivo: p.objetivo } };
+    return { vigia: true, paso: { id: p.id, tipo: p.tipo, objetivo: p.objetivo, max_ms: Math.max(15000, p.dur - (Date.now() - p.t)),
+      ritmo: ritmo(c), diag: !!st.diag_pedido } };
   }
   const importar = tab != null && tab === st.importTab && !st.importacion?.fin &&
     Date.now() - (st.importacion?.t || 0) < 15 * 60000 && /\/groups\/joins|\/login/.test(sender.tab.url || "");
@@ -642,10 +734,24 @@ function ctxDe(p) {
     via: p.tipo === "buscar" ? "búsqueda: " + p.palabra : p.tipo === "grupo" ? "inicio del grupo" : "inicio de Facebook" };
 }
 
+// el nombre real del grupo (si lo tenías como número): se corrige en la config, en el plan, en el paso y en las solicitudes
+async function aprenderNombre(p, nombre) {
+  if (!nombre || p.tipo === "facebook" || !p.grupoId || nombre === p.grupo) return p.grupo;
+  let cambio = false;
+  await mutarConfig(x => { const g = x.grupos.find(y => y.id === p.grupoId); if (g && (!g.nombre || g.nombre === g.id || /^\d+$/.test(g.nombre))) { g.nombre = nombre; cambio = true; } });
+  if (!cambio) return p.grupo;
+  await patch(s => { if (s.plan?.grupoId === p.grupoId) s.plan.grupo = nombre; if (s.pendiente?.grupoId === p.grupoId) s.pendiente.grupo = nombre;
+    if (s.actual?.grupo === p.grupo) s.actual.grupo = nombre; });
+  await mutar("leads", [], L => { let n = 0; for (const l of L) if (l.grupoId === p.grupoId && l.grupo === p.grupo) { l.grupo = nombre; n++; } return n ? undefined : false; });
+  await anota("info", `El grupo ${p.grupo} se llama «${nombre}» (lo guardé).`);
+  return nombre;
+}
+
 async function alParcial(msg, sender) {
   const st = await estado();
-  const p = st.pendiente;
+  let p = st.pendiente;
   if (!p || sender?.tab?.id !== st.vigiaTab || (msg.pid && msg.pid !== p.id)) return;     // de un paso anterior: se ignora
+  if (msg.grupo_nombre && msg.grupo_nombre !== p.grupo && p.tipo !== "facebook") p = { ...p, grupo: await aprenderNombre(p, msg.grupo_nombre) };
   const r = await encolar(Array.isArray(msg.posts) ? msg.posts : [], ctxDe(p));
   await patch(s => {
     const x = s.pendiente;
@@ -668,7 +774,13 @@ async function alListo(msg, sender) {
   const st2 = await estado();
   const res = st2.pendiente?.id === p.id ? st2.pendiente.res : p.res;
   const det = st2.pendiente?.id === p.id ? st2.pendiente.det : p.det;
-  const donde = p.tipo === "buscar" ? `“${p.palabra}” en ${p.grupo}` : p.tipo === "grupo" ? `Inicio de ${p.grupo}` : "Inicio de Facebook";
+  const grupoNombre = await aprenderNombre(p, pg.grupo_nombre);
+  if (pg.diag) {
+    await set({ diagnostico: { t: Date.now(), url: pg.url, titulo: pg.titulo, version: chrome.runtime.getManifest().version, calidad: pg.calidad, items: pg.diag } });
+    await patch({ diag_pedido: false });
+    await anota("info", "Diagnóstico listo: en Configuración → Diagnóstico toca «Descargar» y mándamelo.");
+  }
+  const donde = p.tipo === "buscar" ? `“${p.palabra}” en ${grupoNombre}` : p.tipo === "grupo" ? `${p.recarga ? "F5 · " : ""}Inicio de ${grupoNombre}` : `${p.recarga ? "F5 · " : ""}Inicio de Facebook`;
   const gstat = (fn) => p.grupoId ? mutar("gstats", {}, gs => { fn(gs[p.grupoId] ||= {}); }) : Promise.resolve();
 
   switch (pg.estado) {
@@ -719,7 +831,10 @@ async function alListo(msg, sender) {
   ].filter(Boolean).join(", ");
   const ia = res.candidatas ? ` · ${res.candidatas} parecen pega → IA${res.revisar ? ` (${res.revisar} para revisar)` : ""}` : "";
   const tapada = oculto ? " · ⚠️ ventana tapada: Facebook carga menos así" : "";
-  await terminarPaso(`${donde} (${minTxt((pg.seg || 0) * 1000)}): ${n} publicaciones — ${partes || "sin detalle"}${ia}${tapada}`, { det });
+  const cuanto = pg.motivo === "cantidad" ? `leí ${n} de ${p.objetivo}` : pg.motivo === "no_hay_mas" ? `leí ${n} de ${p.objetivo} (no había más)` : pg.motivo === "tiempo" ? `leí ${n} de ${p.objetivo} (se acabó el tiempo máximo)` : `${n} publicaciones`;
+  const q = pg.calidad ? ` · fecha ${pg.calidad.fecha}/${n}, link ${pg.calidad.link}/${n}, nombre ${pg.calidad.autor}/${n}` : "";
+  await terminarPaso(`${donde} (${minTxt((pg.seg || 0) * 1000)}): ${cuanto} — ${partes || "sin detalle"}${ia}${tapada}${q}`, { det });
+  if (pg.calidad && n >= 5 && pg.calidad.fecha / n < 0.5) await anotaUnaVez("info", "Ojo: no pude leer la fecha de muchas publicaciones. En Configuración → Diagnóstico toca «Hacer diagnóstico» y mándame el archivo para ajustarlo a tu Facebook.", 6 * 3600000);
   const s3 = await estado();
   if (s3.ocultos_seguidos === 3 && c.ventana_aparte) {
     await notificar("oculta" + Date.now(), "Deja la ventana del vigía a la vista", "Si está minimizada o tapada, Facebook no carga más publicaciones y el vigía ve muy pocas.");
@@ -804,8 +919,9 @@ async function encolar(posts, ctx) {
   });
   for (const p of validos) {
     res.total++;
+    if (p.publicado_ms) p.edad_h = Math.max(0, (now - +p.publicado_ms) / 3.6e6);
     const e = p.edad_h == null ? null : +p.edad_h;
-    const d = { a: (p.autor || "").slice(0, 40), s: p.texto.replace(/\s+/g, " ").slice(0, 100), e: edadTxt(e), u: p.url || "" };
+    const d = { a: (p.autor || "").slice(0, 40), s: p.texto.replace(/\s+/g, " ").slice(0, 100), e: edadTxt(e), u: p.url || "", f: p.fecha_fuente || "" };
     if (!nuevos.has(p)) { res.ya++; det.push({ ...d, v: "ya" }); continue; }
     const grupo = ctx.tipo === "facebook" || ctx.tipo === "tu" ? (p.grupo_nombre || ctx.grupo) : ctx.grupo;
     const grupoId = ctx.tipo === "facebook" || ctx.tipo === "tu" ? (p.grupo_id || ctx.grupoId) : ctx.grupoId;
@@ -834,23 +950,56 @@ async function anotarMirados(lista) {
   await mutar("mirados", [], m => { m.unshift(...lista.reverse()); if (m.length > 120) m.length = 120; });
 }
 
+// ======================================================================= estado de la IA (y su alarma)
+async function iaBien(n) {
+  let volvio = false;
+  await patch(s => {
+    const ia = { ...(s.ia || {}) }; const d = hoyStr();
+    if (ia.dia !== d) { ia.dia = d; ia.ok_hoy = 0; ia.fallas_hoy = 0; }
+    volvio = !!ia.alarma;
+    Object.assign(ia, { estado: "ok", ok_hoy: (ia.ok_hoy || 0) + n, ultimo_ok: Date.now(), seguidas: 0, alarma: false, diag: null });
+    s.ia = ia;
+  });
+  if (volvio) await anota("ia", "✓ La IA volvió a funcionar.");
+}
+async function iaMal(diag) {
+  const c = await cfg();
+  let nueva = false;
+  await patch(s => {
+    const ia = { ...(s.ia || {}) }; const d = hoyStr();
+    if (ia.dia !== d) { ia.dia = d; ia.ok_hoy = 0; ia.fallas_hoy = 0; }
+    ia.estado = "falla"; ia.fallas_hoy = (ia.fallas_hoy || 0) + 1; ia.seguidas = (ia.seguidas || 0) + 1; ia.diag = diag; ia.ultimo_error = Date.now();
+    if ((diag?.grave || ia.seguidas >= 3) && !ia.alarma) { ia.alarma = true; ia.desde = Date.now(); nueva = true; }
+    s.ia = ia;
+  });
+  if (!nueva) return;
+  await anota("ia", `⚠️ La IA dejó de funcionar: ${diag?.titulo || "error"}. Mientras, decido con reglas. Toca la alarma del panel para arreglarlo.`);
+  if (c.avisar_ia) {
+    await notificar("ia" + Date.now(), "La IA del vigía dejó de funcionar", `${diag?.titulo || "Error"}. Toca para arreglarlo (el vigía sigue trabajando).`);
+    alCelular(c, "IA del vigía caída", `${diag?.titulo || "Error"}. Abre el panel del vigía para arreglarlo.`, "", ["warning"]);
+  }
+}
+
 let colaCorriendo = false;
+const claveCola = (x) => x.re ? "re:" + x.re : clave(x.p);
 async function procesarCola() {
   if (colaCorriendo) return;
   colaCorriendo = true;
   try {
-    for (let vuelta = 0; vuelta < 8; vuelta++) {
+    for (let vuelta = 0; vuelta < 10; vuelta++) {
       const c = await cfg();
       const st = await estado();
       const now = Date.now();
       const cola = await get("cola", []);
       if (!cola.length) return;
       const hayIA = llaveOk(c);
+      if (!hayIA && c.activo) await iaMal(diagnosticar("sin_llave", c));
       const iaLibre = hayIA && !(st.cola_pausa_hasta > now);
+      const iaRota = hayIA && st.ia?.alarma && st.ia?.diag?.grave;      // llave mala / API apagada: no tiene sentido esperar
       let lote;
       if (iaLibre) lote = cola.slice(0, 8);
-      else if (!hayIA) lote = cola.slice(0, 60);
-      else { lote = cola.filter(x => now - x.t > 20 * 60000).slice(0, 60); if (!lote.length) return; }
+      else if (!hayIA || iaRota) lote = cola.slice(0, 60);
+      else { lote = cola.filter(x => now - x.t > 5 * 60000).slice(0, 60); if (!lote.length) return; }   // cuota: espera un rato a la IA
 
       let resultados;
       if (iaLibre) {
@@ -859,31 +1008,38 @@ async function procesarCola() {
           const fx = (st.cola_fallos || 0) + 1;
           const min = Math.min(30, 2 ** fx);
           await patch({ cola_fallos: fx, cola_pausa_hasta: now + min * 60000 });
-          await anota("ia", `Gemini dice “demasiadas consultas”. Espero ${min} min y sigo (quedan ${cola.length} en fila).`);
+          await anota("ia", `Gemini dice “demasiadas consultas” (cuota gratis). Espero ${min} min y sigo (quedan ${cola.length} en fila).`);
+          await iaMal(r.diag);
           return;
         }
         if (r.error) {
-          await anotaUnaVez("ia", `Gemini no respondió (${r.error}). Mientras, decido con reglas simples.`);
-          await patch({ cola_pausa_hasta: now + 5 * 60000 });
+          await anotaUnaVez("ia", `Gemini no respondió (${r.diag?.titulo || r.error}). Mientras, decido con reglas.`);
+          await patch({ cola_pausa_hasta: now + (r.diag?.grave ? 3 : 5) * 60000 });
+          await iaMal(r.diag);
           resultados = lote.map(x => clasificarLocal(x.p.texto, c));
         } else {
           if (st.cola_fallos) await patch({ cola_fallos: 0 });
+          await iaBien(lote.length);
           resultados = r.r.map((x, i) => x ? normalizar(x, c) : clasificarLocal(lote[i].p.texto, c));
         }
       } else resultados = lote.map(x => clasificarLocal(x.p.texto, c));
 
-      const quitar = new Set(lote.map(x => clave(x.p)));
-      await mutar("cola", [], q => { const resto = q.filter(x => !quitar.has(clave(x.p))); q.length = 0; q.push(...resto); });
-      const mir = [];
+      const quitar = new Set(lote.map(claveCola));
+      await mutar("cola", [], q => { const resto = q.filter(x => !quitar.has(claveCola(x))); q.length = 0; q.push(...resto); });
+      const mir = [], re = [];
       for (let i = 0; i < lote.length; i++) {
         const x = lote[i], r = resultados[i];
-        mir.push(mirado(x.p, x.ctx, r.es_solicitud ? (x.revisar ? "revisar" : "pega") : "no", r.resumen));
-        if (r.es_solicitud) {
+        const rubroOk = ["varios", "otro"].includes(r.tipo) || (c.rubros || []).includes(r.tipo);
+        const es = r.es_solicitud && rubroOk;
+        if (x.re) { re.push({ id: x.re, r, es }); continue; }
+        mir.push(mirado(x.p, x.ctx, es ? (x.revisar ? "revisar" : "pega") : "no", r.resumen));
+        if (es) {
           await guardarLead(x.p, r, x.ctx, x);
           if (!r.sin_ia) await aprender(r.frases_clave || []);
         }
       }
-      await anotarMirados(mir);
+      if (re.length) await aplicarReclasificacion(re);
+      if (mir.length) await anotarMirados(mir);
     }
   } catch (e) {
     console.warn("[vigía] cola", e);
@@ -891,12 +1047,35 @@ async function procesarCola() {
   } finally { colaCorriendo = false; }
 }
 
+// "Revisar de nuevo con IA": actualiza las solicitudes que ya tenías (y descarta las que no son)
+async function aplicarReclasificacion(lista) {
+  let buenas = 0, fuera = 0;
+  await mutar("leads", [], L => {
+    for (const { id, r, es } of lista) {
+      const l = L.find(x => x.id === id);
+      if (!l) continue;
+      if (es) {
+        Object.assign(l, { tipo: r.tipo, resumen: r.resumen || l.resumen, necesita: r.necesita || l.necesita || r.resumen, comuna: r.comuna || l.comuna,
+          urgencia: r.urgencia || l.urgencia, sin_ia: !!r.sin_ia, revisado: new Date().toISOString() });
+        if (!l.mensaje_editado && r.mensaje) l.mensaje = r.mensaje;
+        buenas++;
+      } else if (["nuevo", "revisar"].includes(l.estado)) {
+        l.estado = "descartado"; l.descartado_por = r.sin_ia ? "reglas" : "ia"; l.revisado = new Date().toISOString(); fuera++;
+      }
+    }
+  });
+  await actualizarBadge();
+  await anota("ia", `Revisé de nuevo ${lista.length} solicitudes: ${buenas} siguen siendo pega, ${fuera} no eran (pasaron a Descartadas).`);
+}
+
 function normalizar(x, c) {
   const es = x.es_solicitud === true || x.es_solicitud === "true";
-  const tipo = ["electricidad", "gasfiteria", "ambos", "otro"].includes(x.tipo) ? x.tipo : "otro";
+  let tipo = String(x.tipo || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (tipo === "ambos") tipo = "varios";
+  if (!["electricidad", "gasfiteria", "construccion", "varios", "otro"].includes(tipo)) tipo = "otro";
   return {
     es_solicitud: es, tipo,
-    resumen: String(x.resumen || "").slice(0, 120), comuna: String(x.comuna || "").slice(0, 40),
+    resumen: String(x.resumen || "").slice(0, 120), necesita: String(x.necesita || x.resumen || "").slice(0, 300), comuna: String(x.comuna || "").slice(0, 40),
     urgencia: ["alta", "media", "baja"].includes(x.urgencia) ? x.urgencia : "media",
     mensaje: es ? (String(x.mensaje || "").trim() || plantilla(c)) : "",
     frases_clave: Array.isArray(x.frases_clave) ? x.frases_clave.slice(0, 4) : []
@@ -916,11 +1095,13 @@ async function guardarLead(p, r, ctx, item = {}) {
     nuevo = {
       id: "L" + now + Math.floor(Math.random() * 1000), creado: new Date(now).toISOString(), huella: h,
       grupo: ctx.grupo || "", grupoId: ctx.grupoId || "", grupo_url: ctx.grupoId ? urlGrupo(ctx.grupoId) : "", via: ctx.via || "",
-      autor: p.autor || "", autor_url: p.autor_url || "", messenger: messengerDe(p.autor_url),
+      autor: p.autor || "", autor_url: p.autor_url || "", autor_id: p.autor_id || "", messenger: messengerDe(p.autor_url, p.autor_id),
       texto: (p.texto || "").slice(0, 1500), url: p.url || "",
-      edad_h: p.edad_h ?? null, fecha_txt: p.fecha_txt || "",
-      publicado: p.edad_h != null ? new Date(now - p.edad_h * 3600000).toISOString() : "",
-      tipo: r.tipo || "", resumen: r.resumen || "", comuna: r.comuna || "", urgencia: r.urgencia || "media",
+      edad_h: p.edad_h ?? null, fecha_txt: p.fecha_txt || "", fecha_fuente: p.fecha_fuente || "", precision: p.precision || "",
+      visto_ms: p.visto_ms || now,
+      publicado_ms: p.publicado_ms || (p.edad_h != null ? Math.round((p.visto_ms || now) - p.edad_h * 3600000) : null),
+      publicado: p.publicado_ms ? new Date(p.publicado_ms).toISOString() : (p.edad_h != null ? new Date(now - p.edad_h * 3600000).toISOString() : ""),
+      tipo: r.tipo || "", resumen: r.resumen || "", necesita: r.necesita || r.resumen || "", comuna: r.comuna || "", urgencia: r.urgencia || "media",
       mensaje: r.mensaje || "", sin_ia: !!r.sin_ia, coincide: item.coincide || [], otros_grupos: [],
       estado: item.revisar ? "revisar" : "nuevo"
     };
@@ -978,7 +1159,8 @@ async function comandoPanel(msg) {
   switch (msg.accion) {
     case "estado": {
       const c = await cfg();
-      return { config: c, estado: await estado(), config_def: CONFIG_DEF, tiempos_def: TIEMPOS_DEF, fechas_def: FECHAS_DEF, lim: LIM, perfiles: { v3: true } };
+      return { config: c, estado: await estado(), config_def: CONFIG_DEF, tiempos_def: TIEMPOS_DEF, fechas_def: FECHAS_DEF, ritmo_def: RITMO_DEF,
+               lim: LIM, links: LINKS, perfiles: { v4: true } };
     }
     case "set_config": {
       const antes = await cfg();
@@ -990,14 +1172,44 @@ async function comandoPanel(msg) {
         await anota("info", "Activado.");
       }
       if (n.activo === false && antes.activo) await anota("info", "Pausado por ti.");
+      if ("modo_libre" in n || "libre_min" in n) configurarIdle();
       asegurarReloj();
       return { ok: true };
     }
     case "restaurar_tiempos": {
-      await mutarConfig(c => { c.tiempos = { ...TIEMPOS_DEF }; c.fechas = { ...FECHAS_DEF }; });
+      await mutarConfig(c => { c.tiempos = { ...TIEMPOS_DEF }; c.fechas = { ...FECHAS_DEF }; c.ritmo = { ...RITMO_DEF }; });
       return { ok: true };
     }
-    case "probar": return await probar(await cfg());
+    case "probar": {
+      const c = await cfg();
+      const r = await probar(c);
+      if (r.ok) { await patch({ cola_pausa_hasta: 0, cola_fallos: 0 }); await iaBien(0); procesarCola(); }
+      else await iaMal(r.diag);
+      return r;
+    }
+    case "guardar_llave": {
+      const key = String(msg.key || "").trim().replace(/^["']|["']$/g, "");
+      await mutarConfig(c => { c.gemini_key = key; });
+      const r = await probar(await cfg());
+      if (r.ok) { await patch({ cola_pausa_hasta: 0, cola_fallos: 0 }); await iaBien(0); await anota("ia", "Llave nueva guardada y probada ✓"); procesarCola(); }
+      else await iaMal(r.diag);
+      return r;
+    }
+    case "reclasificar": {
+      const L = await get("leads", []);
+      const elegidas = L.filter(l => msg.cuales === "todas" ? ["nuevo", "revisar"].includes(l.estado) : (l.sin_ia && ["nuevo", "revisar"].includes(l.estado)));
+      const items = elegidas.map(l => ({ re: l.id, p: { texto: l.texto, autor: l.autor, url: l.url }, ctx: { grupo: l.grupo, grupoId: l.grupoId, via: l.via }, t: Date.now() }));
+      await mutar("cola", [], q => { const ya = new Set(q.map(claveCola)); q.unshift(...items.filter(x => !ya.has(claveCola(x)))); });
+      await anota("ia", `Reviso de nuevo ${items.length} solicitudes${llaveOk(await cfg()) ? " con la IA" : " con las reglas nuevas (sin IA)"}…`);
+      procesarCola();
+      return { ok: true, n: items.length };
+    }
+    case "diagnostico": {
+      await patch({ diag_pedido: true });
+      await anota("info", "Diagnóstico pedido: lo hago en la próxima página de Facebook que mire.");
+      tick(true);
+      return { ok: true };
+    }
     case "probar_ntfy": {
       const r = await alCelular(await cfg(), "Vigía de pegas", "¡Funciona! Aquí te llegarán las pegas que encuentre.", "");
       return { ok: r.ok, detalle: r.ok ? "enviado ✓ revisa tu celular" : r.error };
@@ -1017,7 +1229,7 @@ async function comandoPanel(msg) {
       await actualizarBadge(); return { ok: true };
     }
     case "lead_mensaje": {
-      await mutar("leads", [], L => { const l = L.find(x => x.id === msg.id); if (!l) return false; l.mensaje = String(msg.mensaje || "").slice(0, 1000); });
+      await mutar("leads", [], L => { const l = L.find(x => x.id === msg.id); if (!l) return false; l.mensaje = String(msg.mensaje || "").slice(0, 1000); l.mensaje_editado = true; });
       return { ok: true };
     }
     case "borrar_leads": {
@@ -1106,7 +1318,8 @@ async function comandoPanel(msg) {
 // solo deja pasar campos conocidos y valores con sentido
 function limpiarConfig(n) {
   const out = {};
-  const bool = ["activo", "rondas_activa", "ver_grupo", "buscar_palabras", "busqueda_reciente", "feed_activo", "ventana_aparte", "usar_reglas"];
+  const bool = ["activo", "rondas_activa", "ver_grupo", "buscar_palabras", "busqueda_reciente", "feed_activo", "ventana_aparte", "usar_reglas",
+    "ver_fb", "avisar_ia", "modo_libre", "ajuste_fino"];
   const txt = ["gemini_key", "gemini_endpoint", "ntfy_tema", "webhook_url", "mi_nombre", "mi_rubro", "mi_zona", "mi_fono", "plantilla"];
   for (const k of bool) if (k in n) out[k] = !!n[k];
   for (const k of txt) if (k in n) out[k] = String(n[k] ?? "").trim().slice(0, k === "plantilla" ? 600 : 300);
@@ -1126,6 +1339,18 @@ function limpiarConfig(n) {
     }
     out.tiempos = { ...TIEMPOS_DEF, ...t };
   }
+  if (n.ritmo && typeof n.ritmo === "object") {
+    const r = {};
+    for (const [k, v] of Object.entries(RITMO_DEF)) {
+      if (!(k in n.ritmo)) continue;
+      if (Array.isArray(v)) { const a = n.ritmo[k]; if (Array.isArray(a) && a.length === 2 && a.every(x => Number.isFinite(+x))) r[k] = a.map(Number); }
+      else if (typeof v === "boolean") r[k] = !!n.ritmo[k];
+      else if (Number.isFinite(+n.ritmo[k])) r[k] = +n.ritmo[k];
+    }
+    out.ritmo = { ...RITMO_DEF, ...r };
+  }
+  if (Array.isArray(n.rubros)) { const r = n.rubros.filter(x => ["electricidad", "gasfiteria", "construccion"].includes(x)); if (r.length) out.rubros = r; }
+  if ("libre_min" in n && Number.isFinite(+n.libre_min)) out.libre_min = Math.max(1, Math.min(120, Math.round(+n.libre_min)));
   if (n.fechas && typeof n.fechas === "object") {
     out.fechas = { horas_util: Math.max(1, Math.min(168, +n.fechas.horas_util || 48)), dias_revisar: Math.max(1, Math.min(30, +n.fechas.dias_revisar || 7)) };
   }

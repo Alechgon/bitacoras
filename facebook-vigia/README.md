@@ -1,127 +1,94 @@
-# Vigía de pegas — Facebook (v3)
+# Vigía de pegas — Facebook (v4)
 
 Extensión de Chrome que recorre tus grupos de Facebook **como una persona** buscando a quien **pide**
-trabajos de electricidad o gasfitería, y te arma una **lista de solicitudes** con el link de la
-publicación, el perfil de la persona, un link directo a Messenger y el mensaje listo para que **tú**
-le escribas.
+trabajos de electricidad, gasfitería o construcción, y te arma la lista con la fecha de cada publicación,
+el link exacto, el perfil de la persona, un link a Messenger y el mensaje listo para que **tú** le escribas.
 
-**Lo que NO hace, a propósito:** no comenta, no da like, no manda mensajes, no hace clic. Solo mira
-lo que ya está en pantalla. Los likes y los mensajes los haces tú.
+**Lo que NO hace, a propósito:** no comenta, no da like, no manda mensajes, no hace clic. Solo mira.
+Los likes y los mensajes los haces tú.
 
 ---
 
 ## 1) Instalar o actualizar
 
-1. Descomprime el ZIP en una carpeta que no vayas a borrar, por ejemplo `Documentos\facebook-vigia`.
-   - **Si ya lo tenías:** reemplaza los archivos de la carpeta vieja por estos (misma carpeta).
-2. En Chrome entra a `chrome://extensions` y activa **Modo de desarrollador** (arriba a la derecha).
-3. - **Primera vez:** botón **Cargar descomprimida** → elige la carpeta `facebook-vigia`.
-   - **Actualizando:** en la tarjeta “Vigía de pegas” toca la flechita circular **⟳**.
-     **Obligatorio:** si no, Chrome sigue con el motor viejo (el panel avisa con un recuadro rojo).
-     Tus grupos, palabras, llave y solicitudes se conservan.
-4. Fija el ícono ⚡ en la barra (pieza de puzzle → chincheta). El panel se abre solo después de actualizar.
+1. Descomprime el ZIP en una carpeta que no vayas a borrar (por ejemplo `Documentos\facebook-vigia`).
+   Si ya lo tenías, reemplaza los archivos de la carpeta vieja.
+2. Chrome → `chrome://extensions` → **Modo de desarrollador** (arriba a la derecha).
+3. Primera vez: **Cargar descomprimida** → la carpeta. Actualizando: la flechita **⟳** en la tarjeta del vigía
+   (**obligatorio**; si no, el panel avisa con un recuadro rojo). Se conserva todo.
+4. El panel se abre solo.
 
-## 2) Cómo recorre cada grupo
+## 2) El ciclo en cada grupo (todo se cambia en Configuración)
 
-Por cada grupo (todos los tiempos se cambian en **Configuración**):
+1. **Inicio del grupo** (orden “Actividad reciente”): baja de a poco hasta leer **30** publicaciones.
+2. **Buscador del grupo**: escribe tus palabras una por una y lee **10** resultados de cada una.
+3. **Inicio de Facebook**: lee **30**, aprieta **F5** (actualizar) y lee **30** más.
+4. Pausa y sigue con el siguiente grupo. Cada ~40 min descansa ~10.
 
-1. **Inicio del grupo** en orden “Actividad reciente”: se queda ~3 min bajando de a poco y leyendo
-   hasta ~30 publicaciones (lo de hoy y ayer).
-2. **Buscador del grupo:** escribe tus palabras del buscador una por una, ~1 min cada una, y lee hasta
-   ~10 resultados.
-3. **Inicio de Facebook:** ~2 min leyendo lo que aparece, buscando tus palabras del inicio.
-4. Pausa de 20–60 s y pasa al siguiente grupo. Cada ~40 min de trabajo descansa ~10 min.
+Lee hasta juntar la cantidad; si el grupo no tiene más o se cumple el tiempo máximo, sigue y lo anota en la
+bitácora (“leí 18 de 30, no había más”). Cada paso dice además cuántas fechas, links y nombres pudo leer
+(“fecha 30/30, link 30/30, nombre 30/30”).
 
-**Fechas:** lo de hasta **2 días** que sea un pedido → **Solicitudes** (lo de menos de 1 hora sale 🔥 y te
-avisa al celular). Lo de **2 a 7 días** → **Para revisar** (lo analizas tú). Lo más viejo se descarta.
+## 3) La fecha de cada publicación
 
-**Ventana del vigía:** el vigía usa una ventana aparte. **Déjala abierta y a la vista** (puede ser chica, a
-un costado de la pantalla): Facebook solo carga más publicaciones cuando la página se ve. Si la minimizas o
-queda tapada, solo alcanza a leer las primeras (la bitácora te lo avisa).
+Facebook esconde la hora a propósito (la dibuja con letras revueltas). El vigía la saca de 4 formas, en este
+orden: la hora exacta que Facebook guarda escondida en la página, el globito que sale al pasar el puntero por la
+hora, las letras que de verdad se ven en pantalla, y el texto tal cual. Cada solicitud muestra:
 
-## 3) Palabras (pestaña Palabras)
+- **Publicado** con día y hora, y un **“hace 2 h 14 min” que va corriendo** en vivo.
+- Qué decía Facebook cuando la vio (“3 h”, “Ayer a las 14:30”…) y a qué hora la vio.
 
-- **🔎 Del buscador:** las que escribe en el buscador de cada grupo.
-- **🏠 Del inicio:** las que busca dentro de las publicaciones (inicio del grupo e inicio de Facebook).
-  Si una publicación trae alguna, la IA revisa si es alguien pidiendo el servicio. Además puede usar sus
-  propias reglas (oficio + alguien pidiendo) por si se te escapa una palabra.
-- Toca una palabra para **apagarla/prenderla**, ✏️ para **cambiarla**, ✕ para **borrarla**.
-- **Palabras propias por grupo:** en la pestaña Grupos, ✏️ en la columna “Palabras del buscador”.
-- **Aprendidas:** frases que el vigía vio en pedidos reales; si se repiten pasan solas a las del inicio.
+Hasta **2 días** → Solicitudes (las de menos de 1 hora salen 🔥 y te avisa al celular). De **2 a 7 días** →
+**Para revisar**. Más viejas → se descartan.
 
-Las búsquedas son lo que más vigila Facebook: mientras menos palabras del buscador, más seguro. Si tienes
-muchas, en Configuración pon “Palabras por grupo” en 2 o 3 y las va rotando entre grupos.
+## 4) Solicitudes y la pestaña “Lista”
 
-## 4) Configurar (pestaña Configuración)
+- Tarjetas con 👤 perfil, 💬 Messenger, 📄 link a **esa** publicación y 👥 grupo; **Copiar y abrir** el post o
+  Messenger con el mensaje ya copiado.
+- **📋 Lista**: una tabla para bajar con scroll — **Tipo** (lo juzga la IA: electricidad, gasfitería,
+  construcción) · **Persona** · **Grupo** · **Publicado** · **Qué necesita** · **link a la publicación**.
+  Se ordena de más nuevas a más antiguas o al revés, se filtra por tipo y estado, y tiene buscador.
+- **Revisar de nuevo**: vuelve a pasar por la IA las que entraron sin IA; las que no son pega pasan a
+  Descartadas.
+- **Exportar a Excel** con todos los links.
 
-- **Llave de Gemini** (la del bot de SOSER) → **Probar**. Sin llave decide con reglas simples.
-- **Tus datos** (nombre, fono, rubro, zona): la IA los usa para redactar el mensaje.
-- **Cómo recorre cada grupo:** minutos y publicaciones del inicio del grupo, minutos y resultados por
-  palabra, palabras por grupo, minutos del inicio de Facebook y cada cuántos grupos, orden de los pasos.
-  Abajo te calcula cuánto toma cada grupo y cuánto demora una vuelta completa.
-- **Pausas y descansos:** entre búsquedas, entre grupos, trabajar/descansar, horario.
-- **Topes de seguridad:** grupos y búsquedas por hora y por día.
-- **Fechas:** hasta cuántas horas es pega y hasta cuántos días “para revisar”.
-- **Avisos al celular (gratis):** app **ntfy** → **Generar** → en la app **+** con ese nombre → **Probar**.
+## 5) La IA (Gemini) y su alarma
 
-## 5) Cargar tus grupos (pestaña Grupos)
+- Pega tu llave en Configuración → **Probar**. Arriba se ve si la IA está funcionando y cuántas revisó hoy.
+- Si la IA falla (llave mala, API apagada, cuota gratis agotada, sin internet), aparece una **alarma roja en
+  la esquina** del panel (y un aviso en Chrome y en el celular). Al tocarla se abre una ventana que dice qué
+  pasó, qué hacer, con **el botón que te lleva justo a la página para arreglarlo** (por ejemplo, “Habilitar la
+  API” de tu proyecto), un cuadro para **pegar la llave** y **Guardar y probar**. Mientras tanto el vigía sigue
+  trabajando con reglas.
+- Las llaves: Google AI Studio → https://aistudio.google.com/apikey · Vertex modo express →
+  https://console.cloud.google.com/vertex-ai/studio · Google Cloud → https://console.cloud.google.com/apis/credentials
 
-Toca **Importar mis grupos**: abre tu lista de grupos, la recorre y los agrega con nombre y link. Deja esa
-pestaña a la vista hasta el aviso verde **Listo**. La tabla muestra cada grupo con su **nombre y link**, sus
-palabras, visitas, publicaciones leídas, pegas y estado. Tiene buscador.
+## 6) Configuración
 
-## 6) Usar
+- **El ciclo:** cuántas publicaciones leer y tiempo máximo en cada paso, cuántos F5, palabras por grupo
+  (0 = todas), orden de los pasos. Abajo calcula cuánto toma cada grupo y una vuelta completa.
+- **Pausas y descansos** y el **Ajuste fino**: los segundos de cada movimiento (esperar que cargue, leer cada
+  pantalla, tirones de ruedita, subir a releer, pasar el puntero por la hora, “escribir” la palabra, antes del
+  F5, paciencia cuando no aparece nada).
+- **Topes de seguridad** por hora y por día (0 = sin tope, bajo tu riesgo).
+- **Rubros** que te interesan, **fechas**, **ventana del vigía**, “cuando no uso el PC, poner la ventana del
+  vigía adelante”, avisos al celular (ntfy), respaldo.
+- **Diagnóstico**: si la bitácora dice “fecha 0/30” o “nombre 0/30”, toca **Hacer diagnóstico**, descarga el
+  archivo y mándamelo para ajustarlo exacto a tu Facebook.
 
-Toca **Activar**.
+## 7) Para que funcione bien
 
-- **Actividad:** qué hace en este momento (qué grupo, qué paso, cuánto lleva y cuántas publicaciones),
-  el plan del grupo actual, cuánto lleva esta hora y hoy contra los topes, y la **bitácora**: en cada paso
-  toca “ver publicaciones” para ver **quién publicó, de qué se trata, hace cuánto y qué decidió**.
-- **Solicitudes:** cada pega con 👤 perfil, 💬 Messenger, 📄 link de la publicación y 👥 grupo, el texto, hace
-  cuánto se publicó y el mensaje sugerido (editable). **Copiar y abrir post** / **Copiar y abrir Messenger**
-  copian el mensaje y abren la página para que lo pegues. Después marca **Contactado**.
-  **Para revisar** tiene las de 2–7 días. **Exportar a Excel** baja la lista con todos los links.
+- Chrome abierto, Facebook con sesión, y la **ventana del vigía a la vista** (puede ser chica, a un costado):
+  Facebook solo carga más publicaciones cuando la página se ve.
+- PC sin suspensión: Configuración de Windows → Sistema → Inicio/apagado → suspender: Nunca (enchufado).
 
-## 7) Cómo cuida tu cuenta
+## 8) Cómo cuida tu cuenta
 
-- Una sola ventana/pestaña del vigía, silenciada; nunca abre varias a la vez.
-- Se queda minutos en cada página, baja de a poco y a veces sube un poco, como quien lee.
-- Tiempos con azar (nunca exactos), descansos largos, horario y topes por hora y por día.
-- Un grupo mirado hace menos de 1 hora no se repite si hay otros disponibles; prioriza los que dan pegas.
-- **Pausa automática** si Facebook pide iniciar sesión (20 min) o muestra verificación o “bloqueado / vas muy
-  rápido” (24 h, configurable): te avisa y **baja los topes a la mitad**. Si el aviso te sale a ti navegando,
-  también se pausa.
-
-Si Facebook te muestra un aviso: resuélvelo tú a mano, no toques “Reanudar” y deja que termine la pausa.
-
-## 8) Dejarlo andando
-
-- Chrome **abierto**, Facebook **con sesión iniciada** y la **ventana del vigía a la vista**.
-- Que el PC no se suspenda: Configuración de Windows → Sistema → “Inicio/apagado y batería” → Pantalla y
-  suspensión → suspender: **Nunca** (enchufado).
-- Para que Chrome parta solo: **Windows + R** → `shell:startup` → crea ahí un acceso directo a Chrome.
-
-## 9) Problemas comunes
-
-- **Recuadro rojo “Falta recargar el vigía”:** toca “Recargar ahora” (o ⟳ en `chrome://extensions`).
-- **Lee muy pocas publicaciones / “ventana tapada”:** deja la ventana del vigía visible, no minimizada.
-- **“Facebook pide iniciar sesión”:** entra a Facebook con tu cuenta; vuelve solo en 20 min.
-- **La IA dice “demasiadas consultas”:** espera sola y sigue; nada se pierde.
-- **Facebook cambió y ya no pesca publicaciones:** avísame y ajusto `content.js`.
-- **Cambias de PC:** Configuración → Descargar respaldo; en el otro, Cargar respaldo.
+Una sola ventana, ritmo de persona con azar, descansos, horario y topes. Si Facebook muestra login (20 min),
+verificación o “vas muy rápido” (24 h), se pausa solo, te avisa y baja los topes a la mitad.
 
 ---
 
-## Por dentro (técnico)
-
-- `background.js` — arma un plan por grupo (inicio → buscador → inicio de Facebook), lleva tiempos,
-  descansos, horario y topes; pausas de seguridad; filtro de fechas y palabras; fila → IA → solicitudes;
-  avisos (Chrome, ntfy, webhook); aprendizaje de frases. Todo cambio al almacenamiento pasa por un candado.
-- `content.js` — el lector: en cada paso se queda el tiempo pedido bajando de a poco, junta publicaciones
-  (autor, perfil, texto, link, fecha, grupo) y las manda de a poco; detecta login / verificación / bloqueo /
-  sin acceso / sin resultados. Solo mira.
-- `filtro.js` — reglas locales; `gemini.js` — IA por lotes de 8 (llave `AQ.` → Vertex, `AIza` → AI Studio).
-- `panel.*` — la pantalla; `reposo.*` — lo que muestra la ventana del vigía entre grupos.
-
-Todo queda en tu Chrome. Solo sale a internet: Facebook (tu sesión), Gemini (el texto de las
-publicaciones que parecen pedido) y ntfy/webhook si los configuras.
+Por dentro: `background.js` (el ciclo, tiempos, pausas, IA, solicitudes, alarma), `content.js` (lee la página:
+autor, perfil, texto, link, fecha), `gemini.js` (IA por lotes y diagnóstico de errores), `filtro.js` (reglas sin
+IA), `panel.*` (la pantalla), `reposo.*` (la ventana del vigía entre grupos). Todo queda en tu Chrome.

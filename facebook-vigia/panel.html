@@ -87,8 +87,10 @@
           <button class="filtro" data-f="contactado">Contactadas</button>
           <button class="filtro" data-f="descartado">Descartadas</button>
           <button class="filtro" data-f="todos">Todas</button>
+          <button class="filtro" data-f="lista">📋 Lista</button>
         </div>
         <div class="acciones">
+          <button id="btnReclasificar" class="btn chico" title="Vuelve a pasar por la IA las que entraron sin IA y descarta las que no son pega">Revisar de nuevo</button>
           <button id="btnCsv" class="btn chico">Exportar a Excel</button>
           <button id="btnLimpiar" class="btn chico fantasma">Borrar descartadas</button>
         </div>
@@ -96,6 +98,21 @@
       <p id="ayudaRevisar" class="ayuda" hidden>Pedidos de hace más de 2 días (hasta 7). Revísalos tú: algunos ya se
         habrán resuelto. Si te sirve, márcalo Contactado; si no, Descartar.</p>
       <div id="listaLeads" class="leads"></div>
+      <div id="vistaLista" hidden>
+        <div class="barraLista">
+          <select id="lOrden"><option value="nuevas">Más nuevas primero</option><option value="antiguas">Más antiguas primero</option></select>
+          <select id="lTipo"><option value="">Todos los tipos</option><option value="electricidad">Electricidad</option><option value="gasfiteria">Gasfitería</option>
+            <option value="construccion">Construcción</option><option value="varios">Varios</option><option value="otro">Otro</option></select>
+          <select id="lEstado"><option value="activas">Nuevas + para revisar</option><option value="nuevo">Nuevas</option><option value="revisar">Para revisar</option>
+            <option value="contactado">Contactadas</option><option value="descartado">Descartadas</option><option value="todos">Todas</option></select>
+          <input id="lBuscar" type="text" placeholder="Buscar persona, grupo o palabra…">
+          <span id="lCuenta" class="dim"></span>
+        </div>
+        <div class="tablaWrap alta"><table class="tabla lista">
+          <thead><tr><th>Tipo</th><th>Persona</th><th>Grupo</th><th>Publicado</th><th>Qué necesita</th><th>Publicación</th></tr></thead>
+          <tbody id="tablaLista"></tbody>
+        </table></div>
+      </div>
       <p id="vacioLeads" class="vacio">Todavía no hay solicitudes. Cuando el vigía encuentre a alguien pidiendo
         eléctrico o gasfíter, aparece aquí con el mensaje listo para que le escribas.</p>
     </section>
@@ -180,11 +197,19 @@
 
       <div class="caja">
         <h3>IA (Gemini)</h3>
+        <div id="iaEstado" class="iaEstado"></div>
         <div class="campo"><label>Llave de Gemini (la misma del bot de SOSER)</label>
           <div class="row"><input id="cGemini" type="password" placeholder="AQ.… o AIza…">
-          <button id="btnProbar" class="btn chico">Probar</button></div>
+          <button id="btnProbar" class="btn chico">Probar</button>
+          <button id="btnArreglarIA" class="btn chico">Ayuda con la llave</button></div>
           <span id="probarMsg" class="dim"></span></div>
-        <p class="ayuda">Sin llave igual funciona, pero decide con reglas simples y el mensaje es una plantilla.</p>
+        <div class="campo"><label>Qué pedidos te interesan (la IA los clasifica)</label>
+          <div class="row rubros">
+            <label class="check"><input type="checkbox" class="rubro" value="electricidad"> Electricidad</label>
+            <label class="check"><input type="checkbox" class="rubro" value="gasfiteria"> Gasfitería</label>
+            <label class="check"><input type="checkbox" class="rubro" value="construccion"> Construcción</label>
+          </div></div>
+        <label class="check"><input id="cAvisarIA" type="checkbox"> Avisarme (Chrome y celular) si la IA deja de funcionar</label>
       </div>
 
       <div class="caja">
@@ -200,49 +225,62 @@
       </div>
 
       <div class="caja">
-        <h3>Cómo recorre cada grupo</h3>
+        <h3>El ciclo en cada grupo</h3>
         <label class="check"><input id="cRondas" type="checkbox"> Recorrer mis grupos solo</label>
-        <div class="grid3">
-          <div class="campo"><label>Inicio del grupo: minutos</label><input id="tGrupoMin" type="number" step="0.5" min="0.5" max="30"></div>
-          <div class="campo"><label>…publicaciones a leer</label><input id="tGrupoPosts" type="number" min="5" max="150"></div>
-          <div class="campo"><label>Orden del inicio del grupo</label>
-            <select id="cOrden"><option value="RECENT_ACTIVITY">Actividad reciente</option><option value="CHRONOLOGICAL">Publicaciones nuevas</option></select></div>
-          <div class="campo"><label>Cada palabra del buscador: minutos</label><input id="tPalMin" type="number" step="0.5" min="0.5" max="10"></div>
-          <div class="campo"><label>…resultados a leer</label><input id="tPalPosts" type="number" min="3" max="50"></div>
-          <div class="campo"><label>Palabras por grupo (0 = todas)</label><input id="tPalGrupo" type="number" min="0" max="30"></div>
-          <div class="campo"><label>Inicio de Facebook: minutos (0 = no)</label><input id="tFbMin" type="number" step="0.5" min="0" max="30"></div>
-          <div class="campo"><label>…publicaciones a leer</label><input id="tFbPosts" type="number" min="5" max="150"></div>
-          <div class="campo"><label>…cada cuántos grupos</label><input id="tFbCada" type="number" min="1" max="20"></div>
+        <div class="ciclo">
+          <div class="pasoCfg"><label class="check"><input id="cVerGrupo" type="checkbox"> 1. Inicio del grupo</label>
+            <div class="grid3">
+              <div class="campo"><label>Publicaciones a leer</label><input id="tGrupoPosts" type="number" min="5" max="200"></div>
+              <div class="campo"><label>Tiempo máximo (min)</label><input id="tGrupoMax" type="number" step="0.5" min="1" max="30"></div>
+              <div class="campo"><label>F5 y leer de nuevo (veces)</label><input id="tGrupoF5" type="number" min="0" max="5"></div>
+              <div class="campo"><label>Orden del inicio del grupo</label>
+                <select id="cOrden"><option value="RECENT_ACTIVITY">Actividad reciente</option><option value="CHRONOLOGICAL">Publicaciones nuevas</option></select></div>
+            </div></div>
+          <div class="pasoCfg"><label class="check"><input id="cBuscar" type="checkbox"> 2. Buscador del grupo, palabra por palabra</label>
+            <div class="grid3">
+              <div class="campo"><label>Resultados a leer por palabra</label><input id="tPalPosts" type="number" min="3" max="60"></div>
+              <div class="campo"><label>Tiempo máximo por palabra (min)</label><input id="tPalMax" type="number" step="0.5" min="1" max="15"></div>
+              <div class="campo"><label>Palabras por grupo (0 = todas)</label><input id="tPalGrupo" type="number" min="0" max="100"></div>
+            </div>
+            <label class="check sub"><input id="cBuscarPrimero" type="checkbox"> Buscar las palabras antes de leer el inicio del grupo</label>
+            <label class="check sub"><input id="cBusqRec" type="checkbox"> Pedir los resultados más recientes primero <span class="dim">(experimental)</span></label></div>
+          <div class="pasoCfg"><label class="check"><input id="cVerFb" type="checkbox"> 3. Inicio de Facebook</label>
+            <div class="grid3">
+              <div class="campo"><label>Publicaciones a leer</label><input id="tFbPosts" type="number" min="5" max="200"></div>
+              <div class="campo"><label>Tiempo máximo (min)</label><input id="tFbMax" type="number" step="0.5" min="1" max="30"></div>
+              <div class="campo"><label>F5 y leer de nuevo (veces)</label><input id="tFbF5" type="number" min="0" max="5"></div>
+              <div class="campo"><label>Cada cuántos grupos</label><input id="tFbCada" type="number" min="1" max="20"></div>
+            </div></div>
         </div>
-        <label class="check sub"><input id="cVerGrupo" type="checkbox"> Leer el inicio de cada grupo</label>
-        <label class="check sub"><input id="cBuscar" type="checkbox"> Usar el buscador del grupo con mis palabras</label>
-        <label class="check sub"><input id="cBuscarPrimero" type="checkbox"> Primero buscar las palabras y después leer el inicio del grupo</label>
-        <label class="check sub"><input id="cBusqRec" type="checkbox"> Pedir los resultados de búsqueda más recientes primero <span class="dim">(experimental)</span></label>
-        <p id="resumenPlan" class="ayuda"></p>
+        <p class="ayuda">Lee hasta juntar la cantidad; si no hay más o se cumple el tiempo máximo, sigue con el paso siguiente (y lo anota).</p>
+        <p id="resumenPlan" class="ayuda resumen"></p>
       </div>
 
       <div class="caja">
         <h3>Pausas y descansos</h3>
         <div class="grid3">
-          <div class="campo"><label>Entre una búsqueda y otra (seg)</label><div class="row"><input id="tPasoA" type="number" min="2" max="300"><span>a</span><input id="tPasoB" type="number" min="2" max="300"></div></div>
+          <div class="campo"><label>Entre un paso y otro (seg)</label><div class="row"><input id="tPasoA" type="number" min="2" max="300"><span>a</span><input id="tPasoB" type="number" min="2" max="300"></div></div>
           <div class="campo"><label>Entre un grupo y otro (seg)</label><div class="row"><input id="tGrupoA" type="number" min="5" max="1800"><span>a</span><input id="tGrupoB" type="number" min="5" max="1800"></div></div>
           <div class="campo"><label>Horario (de – a)</label><div class="row"><input id="cH1" type="time"><input id="cH2" type="time"></div></div>
-          <div class="campo"><label>Trabajar (min) y descansar</label><input id="tTrabajo" type="number" min="5" max="600"></div>
-          <div class="campo"><label>Descanso (min)</label><input id="tDescanso" type="number" min="1" max="240"></div>
+          <div class="campo"><label>Trabajar (min) y luego…</label><input id="tTrabajo" type="number" min="5" max="600"></div>
+          <div class="campo"><label>…descansar (min)</label><input id="tDescanso" type="number" min="1" max="240"></div>
           <div class="campo"><label>Si Facebook avisa algo, pausar (horas)</label><input id="cPausaH" type="number" min="1" max="72"></div>
         </div>
-        <p class="ayuda">Todo lleva un poco de azar (nunca exacto), como una persona.</p>
+        <label class="check"><input id="cFino" type="checkbox"> Ajuste fino: cambiar los segundos de cada movimiento (bajar, leer, pasar el puntero, escribir, F5…)</label>
+        <div id="ajusteFino" class="ajusteFino" hidden></div>
+        <p class="ayuda">Todo lleva azar entre el mínimo y el máximo (nunca exacto), como una persona.</p>
       </div>
 
       <div class="caja">
-        <h3>Topes de seguridad</h3>
+        <h3>Topes de seguridad <span class="dim">(0 = sin tope)</span></h3>
         <div class="grid3">
-          <div class="campo"><label>Grupos por hora</label><input id="tGH" type="number" min="1" max="20"></div>
-          <div class="campo"><label>Grupos por día</label><input id="tGD" type="number" min="1" max="300"></div>
+          <div class="campo"><label>Grupos por hora</label><input id="tGH" type="number" min="0" max="60"></div>
+          <div class="campo"><label>Grupos por día</label><input id="tGD" type="number" min="0" max="1000"></div>
           <div class="campo"><label></label></div>
-          <div class="campo"><label>Búsquedas por hora</label><input id="tBH" type="number" min="0" max="40"></div>
-          <div class="campo"><label>Búsquedas por día</label><input id="tBD" type="number" min="0" max="400"></div>
+          <div class="campo"><label>Búsquedas por hora</label><input id="tBH" type="number" min="0" max="200"></div>
+          <div class="campo"><label>Búsquedas por día</label><input id="tBD" type="number" min="0" max="2000"></div>
         </div>
+        <p id="avisoTopes" class="ayuda"></p>
         <p class="ayuda">Si Facebook muestra login, verificación o “vas muy rápido”, se pausa solo, te avisa y baja estos topes a la mitad.</p>
       </div>
 
@@ -262,6 +300,15 @@
         <p class="ayuda">Facebook solo carga más publicaciones cuando la página está <b>a la vista</b>. Deja esa ventana abierta
           y visible (puede ser chica, a un costado). Si la minimizas o queda tapada, el vigía ve solo las primeras.</p>
         <label class="check"><input id="cFeed" type="checkbox"> Leer también lo que veo yo cuando navego Facebook</label>
+        <label class="check"><input id="cLibre" type="checkbox"> Cuando no uso el PC por <input id="cLibreMin" type="number" min="1" max="120" class="mini"> min, poner la ventana del vigía adelante</label>
+      </div>
+
+      <div class="caja">
+        <h3>Diagnóstico</h3>
+        <p class="ayuda">Si en la bitácora ves “fecha 0/30” o “nombre 0/30”, toca <b>Hacer diagnóstico</b>: en la próxima página que mire
+          guarda cómo viene armada la publicación (sin fotos). Descárgalo y mándamelo para ajustarlo exacto a tu Facebook.</p>
+        <div class="row"><button id="btnDiag" class="btn chico">Hacer diagnóstico</button>
+          <button id="btnDiagBajar" class="btn chico" disabled>Descargar diagnóstico</button><span id="diagMsg" class="dim"></span></div>
       </div>
 
       <div class="caja">
@@ -293,6 +340,25 @@
     </section>
   </main>
 
+  <button id="alarmaIA" class="alarmaIA" hidden title="Toca para arreglar la IA">⚠️ <span id="alarmaTxt">La IA no está funcionando</span></button>
+  <div id="modalIA" class="modal" hidden>
+    <div class="modalCaja">
+      <button id="cerrarIA" class="cerrar" title="Cerrar">✕</button>
+      <h2 id="mTitulo">Arreglar la IA</h2>
+      <p id="mQue" class="ayuda"></p>
+      <ol id="mPasos" class="pasos"></ol>
+      <div class="row wrap" id="mLinks"></div>
+      <div class="campo"><label>Pega aquí la llave (la nueva o la de siempre)</label>
+        <div class="row"><input id="mKey" type="text" placeholder="AQ.… o AIza…" autocomplete="off" spellcheck="false">
+          <button id="mPegar" class="btn chico">Pegar</button>
+          <button id="mGuardar" class="btn chico primario">Guardar y probar</button></div>
+        <span id="mMsg" class="dim"></span></div>
+      <p class="ayuda">Mientras tanto el vigía sigue trabajando y decide con reglas simples. Cuando la IA vuelva, toca
+        <b>Revisar de nuevo</b> en Solicitudes para que revise las que entraron sin IA.</p>
+      <p class="dim" id="mDetalle"></p>
+    </div>
+  </div>
+
   <template id="tplLead">
     <div class="lead">
       <div class="cab">
@@ -302,6 +368,7 @@
         <span class="meta"></span>
       </div>
       <div class="autor"></div>
+      <div class="fecha"></div>
       <div class="links"></div>
       <div class="texto"></div>
       <div class="otros dim" hidden></div>

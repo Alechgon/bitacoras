@@ -56,7 +56,7 @@ $$(".filtro").forEach(f => f.onclick = () => {
   $$(".filtro").forEach(x => x.classList.remove("activo"));
   f.classList.add("activo"); filtro = f.dataset.f; pintarLeads(true);
 });
-window.addEventListener("hashchange", () => irA(location.hash.slice(1)));
+window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (h === "ia") { irA("config"); abrirModalIA(ESTADO.ia?.diag || null); } else irA(h); });
 
 // ======================================================================= carga y cambios en vivo
 $("#btnRecargar").onclick = () => chrome.runtime.reload();
@@ -73,12 +73,14 @@ async function inicio() {
       trabajo_min: 40, descanso_min: 10, max_grupos_hora: 8, max_grupos_dia: 80, max_busq_hora: 15, max_busq_dia: 120 }, fechas_def: { horas_util: 48, dias_revisar: 7 } };
   }
   DEF = r.config_def || {}; TDEF = r.tiempos_def || {}; FDEF = r.fechas_def || {}; CONFIG = r.config || {}; ESTADO = r.estado || {};
+  RDEF = r.ritmo_def || {}; LINKS = r.links || { aistudio_llaves: "https://aistudio.google.com/apikey", credenciales: "https://console.cloud.google.com/apis/credentials" };
   const d = await chrome.storage.local.get(["leads", "bitacora", "mirados", "gstats", "cola"]);
   LEADS = d.leads || []; BITA = d.bitacora || []; MIR = d.mirados || []; GSTATS = d.gstats || {}; COLA = (d.cola || []).length;
   pintarCabecera(); pintarActividad(); pintarLeads(true); pintarPalabras(); pintarTablaGrupos();
   pintarGruposTxt(); pintarConfig(); pintarImport();
   const h = location.hash.slice(1);
-  if (h) irA(h);
+  if (h === "ia") { irA("config"); abrirModalIA(ESTADO.ia?.diag || null); }
+  else if (h) irA(h);
 }
 
 let cambios = new Set(), timerPintar = null;
@@ -100,7 +102,8 @@ chrome.storage.onChanged.addListener((ch, area) => {
     if (c.has("leads")) pintarLeads();
     if (c.has("config")) { pintarPalabras(); if (document.activeElement !== $("#txtGrupos")) pintarGruposTxt(); }
     if (c.has("gstats") || c.has("config")) pintarTablaGrupos();
-    if (c.has("estado")) pintarImport();
+    if (c.has("estado")) { pintarImport(); pintarIA(); }
+    if (c.has("diagnostico")) pintarDiag();
   }, 250);
 });
 setInterval(() => pintarAhora(), 1000);
@@ -146,12 +149,12 @@ function pintarAhora() {
   else if (nG === 0) { clase = "alerta"; t = "Falta cargar grupos"; s = "Anda a la pestaña Grupos y toca «Importar mis grupos»."; }
   else if (p && ["leyendo_grupo", "buscando", "leyendo_fb"].includes(a.accion)) {
     enPaso = true; clase = "busca";
-    t = a.accion === "buscando" ? `Buscando “${a.palabra}” en ${a.grupo}` : a.accion === "leyendo_grupo" ? `Leyendo el inicio de ${a.grupo}` : "Leyendo el inicio de Facebook";
+    t = (p.recarga ? "F5 · " : "") + (a.accion === "buscando" ? `Buscando “${a.palabra}” en ${a.grupo}` : a.accion === "leyendo_grupo" ? `Leyendo el inicio de ${a.grupo}` : "Leyendo el inicio de Facebook");
     const el = Date.now() - p.t;
-    s = `${reloj(el)} de ${reloj(p.dur)} · ${p.vistos || 0} publicaciones (meta ${p.objetivo})` +
+    s = `${p.vistos || 0} de ${p.objetivo} publicaciones · ${reloj(el)} (máx ${reloj(p.dur)})` +
         (p.res?.candidatas ? ` · ${p.res.candidatas} parecen pega` : "") +
         (p.visible === "hidden" ? " · ⚠️ la ventana del vigía está tapada o minimizada" : "");
-    $("#pasoFill").style.width = Math.min(100, el / p.dur * 100).toFixed(1) + "%";
+    $("#pasoFill").style.width = Math.min(100, Math.max((p.vistos || 0) / Math.max(1, p.objetivo), el / p.dur) * 100).toFixed(1) + "%";
   } else switch (a.accion) {
     case "entre_pasos": clase = "on"; t = `En ${a.grupo || "el grupo"}: siguiente paso en ${reloj(falta)}`; s = "Una pausa corta, como quien escribe la siguiente búsqueda."; break;
     case "esperando": clase = "on"; t = "Atento"; s = falta > 0 ? `Siguiente grupo en ${reloj(falta)}` : "Partiendo en instantes…"; break;
@@ -174,7 +177,7 @@ function pintarAhora() {
   $("#pasoBar").hidden = !enPaso;
   $("#btnSaltar").hidden = !(CONFIG.activo && plan);
   $("#planTxt").innerHTML = plan && CONFIG.activo ? plan.pasos.map((x, i) => {
-    const n = x.tipo === "grupo" ? "inicio del grupo" : x.tipo === "buscar" ? `“${esc(x.palabra)}”` : "inicio de Facebook";
+    const n = (x.recarga ? "F5 · " : "") + (x.tipo === "grupo" ? "inicio del grupo" : x.tipo === "buscar" ? `“${esc(x.palabra)}”` : "inicio de Facebook");
     const cl = i < plan.i ? "hecho" : (i === plan.i && enPaso ? "ahora" : "");
     return `<span class="p ${cl}">${i < plan.i ? "✓ " : ""}${n}</span>`;
   }).join("") : "";
@@ -186,7 +189,7 @@ function pintarActividad() {
   const chip = (ok, txt) => `<span class="chip ${ok === true ? "on" : ok === false ? "off" : ""}">${txt}</span>`;
   const nG = (CONFIG.grupos || []).length;
   $("#salud").innerHTML = [
-    chip(!sinLlave(), `IA ${sinLlave() ? "✗ sin llave" : "✓"}`),
+    chip(!sinLlave() && ESTADO.ia?.estado !== "falla", `IA ${sinLlave() ? "✗ sin llave" : ESTADO.ia?.estado === "falla" ? "✗ fallando" : "✓"}`),
     chip(nG > 0, `Grupos <b>${nG}</b>`),
     chip(activas("kw_buscar").length > 0 || !CONFIG.buscar_palabras ? true : false, `Buscador <b>${activas("kw_buscar").length}</b>`),
     chip(activas("kw_inicio").length > 0 || CONFIG.usar_reglas ? true : false, `Inicio <b>${activas("kw_inicio").length}</b>${CONFIG.usar_reglas ? " + reglas" : ""}`),
@@ -239,35 +242,77 @@ $("#btnReanudar").onclick = async () => {
 };
 
 // ======================================================================= solicitudes
+const TIPO_TXT = { electricidad: "Electricidad", gasfiteria: "Gasfitería", construccion: "Construcción", varios: "Varios", otro: "Otro", ambos: "Varios" };
+const FUENTE_TXT = { datos: "hora exacta de Facebook", globito: "según el globito de la hora", visible: "según la hora en pantalla", etiqueta: "según la hora", texto: "según el texto" };
+function pubMs(l) {               // cuándo se publicó (hora de tu PC)
+  if (l.publicado_ms) return +l.publicado_ms;
+  if (l.edad_h != null) return Date.parse(l.creado) - l.edad_h * 3600000;
+  return null;
+}
+function vivoTxt(ms, prec) {      // "hace 2 h 14 min" que va corriendo
+  if (!ms) return "fecha ?";
+  const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  const aprox = ["d", "sem", "ano"].includes(prec) ? "~" : "";
+  if (s < 60) return "hace segundos";
+  if (s < 3600) return `hace ${Math.floor(s / 60)} min`;
+  if (s < 86400) return `${aprox}hace ${Math.floor(s / 3600)} h ${dos(Math.floor(s % 3600 / 60))} min`;
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600);
+  return `${aprox}hace ${d} d${h && !aprox ? " " + h + " h" : ""}`;
+}
+function fechaLarga(ms, prec) {
+  if (!ms) return "";
+  const d = new Date(ms);
+  const dia = d.toLocaleDateString("es-CL", { weekday: "short", day: "2-digit", month: "2-digit" });
+  return ["d", "sem", "ano"].includes(prec) ? `${dia} (aprox.)` : `${dia} ${horaCorta(ms)}`;
+}
+function actualizarRelojes() {
+  for (const el of document.querySelectorAll("[data-pub]")) {
+    const ms = +el.dataset.pub;
+    el.textContent = vivoTxt(ms, el.dataset.prec);
+    el.classList.toggle("recien", Date.now() - ms < 3600000);
+  }
+}
+setInterval(actualizarRelojes, 1000);
+
 function pintarLeads(forzar = false) {
+  const enLista = filtro === "lista";
+  $("#vistaLista").hidden = !enLista;
+  $("#listaLeads").hidden = enLista;
+  if (enLista) { $("#vacioLeads").style.display = "none"; $("#ayudaRevisar").hidden = true; return pintarLista(); }
   const editando = document.activeElement?.classList?.contains("msg") && $("#listaLeads").contains(document.activeElement);
   if (editando && !forzar) { leadsPendiente = true; return; }
   leadsPendiente = false;
   const cont = $("#listaLeads");
   cont.innerHTML = "";
   $("#ayudaRevisar").hidden = filtro !== "revisar";
-  const lista = LEADS.filter(l => filtro === "todos" ? true : l.estado === filtro).slice(0, 300);
-  $("#vacioLeads").style.display = lista.length ? "none" : "block";
-  for (const l of lista) {
+  const lst = LEADS.filter(l => filtro === "todos" ? true : l.estado === filtro).slice(0, 300);
+  $("#vacioLeads").style.display = lst.length ? "none" : "block";
+  for (const l of lst) {
     const n = $("#tplLead").content.cloneNode(true);
     const card = $(".lead", n);
-    $(".tipo", n).textContent = l.tipo === "gasfiteria" ? "gasfitería" : (l.tipo || "pega");
+    $(".tipo", n).textContent = TIPO_TXT[l.tipo] || l.tipo || "pega";
     if (l.urgencia) { const u = $(".urg", n); u.textContent = l.urgencia === "alta" ? "urgente" : l.urgencia; u.classList.add(l.urgencia); }
-    const h = edadAhora(l);
+    const ms = pubMs(l);
     const ed = document.createElement("span");
+    const h = ms ? (Date.now() - ms) / 3600000 : null;
     ed.className = "edad" + (h != null && h <= 1 ? " recien" : h != null && h <= 24 ? " hoy" : "");
-    ed.textContent = (h != null && h <= 1 ? "🔥 " : "") + "publicado " + edadTxt(h) + (l.fecha_txt && h != null && h > 24 ? ` (${l.fecha_txt})` : "");
+    ed.textContent = h != null && h <= 1 ? "🔥 recién" : h != null && h <= 24 ? "de hoy" : h != null ? "de días" : "fecha ?";
     $(".cab", n).insertBefore(ed, $(".meta", n));
     if (l.sin_ia) $(".sinia", n).hidden = false;
-    $(".meta", n).textContent = [l.comuna, l.via, "visto " + fecha(l.creado)].filter(Boolean).join(" · ");
+    $(".meta", n).textContent = [l.comuna, l.via, l.descartado_por ? `descartada por ${l.descartado_por === "ia" ? "la IA" : "reglas"}` : ""].filter(Boolean).join(" · ");
     $(".autor", n).innerHTML = l.autor_url ? `<a href="${esc(l.autor_url)}" target="_blank" rel="noopener">${esc(l.autor || "(sin nombre)")}</a>` : esc(l.autor || "(sin nombre)");
+    $(".fecha", n).innerHTML = ms
+      ? `🕒 Publicado <b>${esc(fechaLarga(ms, l.precision))}</b> · <span class="vivo" data-pub="${ms}" data-prec="${esc(l.precision || "")}">${vivoTxt(ms, l.precision)}</span>` +
+        ` <span class="src">· visto ${horaCorta(l.visto_ms || Date.parse(l.creado))}${l.fecha_txt ? `, Facebook decía «${esc(l.fecha_txt)}»` : ""}${l.fecha_fuente ? ` (${FUENTE_TXT[l.fecha_fuente] || l.fecha_fuente})` : ""}</span>`
+      : `🕒 <span class="src">Fecha no leída · visto ${fecha(l.creado)}</span>`;
     const links = [];
     if (l.autor_url) links.push(`<a href="${esc(l.autor_url)}" target="_blank" rel="noopener">👤 Perfil de ${esc(l.autor || "la persona")}</a>`);
     if (l.messenger) links.push(`<a href="${esc(l.messenger)}" target="_blank" rel="noopener">💬 Escribirle por Messenger</a>`);
     if (l.url) links.push(`<a href="${esc(l.url)}" target="_blank" rel="noopener">📄 Ver publicación</a> <span class="url">${esc(l.url)}</span>`);
     if (l.grupo) links.push(l.grupo_url ? `<a href="${esc(l.grupo_url)}" target="_blank" rel="noopener">👥 ${esc(l.grupo)}</a>` : `<span>👥 ${esc(l.grupo)}</span>`);
     $(".links", n).innerHTML = links.join("");
-    $(".texto", n).textContent = l.resumen && !l.sin_ia ? (l.resumen + "\n\n" + l.texto) : l.texto;
+    const nec = l.necesita || l.resumen;
+    $(".texto", n).textContent = nec && !l.sin_ia ? (nec + "\n\n" + l.texto) : l.texto;
     if (l.otros_grupos?.length) { const o = $(".otros", n); o.hidden = false; o.textContent = "También lo publicó en: " + l.otros_grupos.join(", "); }
     const msg = $(".msg", n);
     msg.value = l.mensaje || "";
@@ -286,20 +331,57 @@ function pintarLeads(forzar = false) {
     cont.appendChild(n);
   }
 }
+
+// ---- Lista: todo en una tabla para bajar con scroll
+function leadsDeLista() {
+  const est = $("#lEstado").value, tipo = $("#lTipo").value, q = norm($("#lBuscar").value);
+  const L = LEADS.filter(l => (est === "todos" || (est === "activas" ? ["nuevo", "revisar"].includes(l.estado) : l.estado === est)) &&
+    (!tipo || (l.tipo === tipo || (tipo === "varios" && l.tipo === "ambos"))) &&
+    (!q || norm([l.autor, l.grupo, l.necesita, l.resumen, l.texto, l.comuna].join(" ")).includes(q)));
+  const orden = $("#lOrden").value === "antiguas" ? 1 : -1;
+  return L.sort((a, b) => ((pubMs(a) ?? Date.parse(a.creado)) - (pubMs(b) ?? Date.parse(b.creado))) * orden);
+}
+const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+function pintarLista() {
+  const L = leadsDeLista();
+  $("#lCuenta").textContent = `${L.length} solicitudes`;
+  $("#tablaLista").innerHTML = L.slice(0, 1500).map(l => {
+    const ms = pubMs(l);
+    const persona = l.autor_url ? `<a href="${esc(l.autor_url)}" target="_blank" rel="noopener">${esc(l.autor || "(sin nombre)")}</a>` : esc(l.autor || "(sin nombre)");
+    const msgr = l.messenger ? `<br><a href="${esc(l.messenger)}" target="_blank" rel="noopener" class="dim">💬 Messenger</a>` : "";
+    const grupo = l.grupo_url ? `<a href="${esc(l.grupo_url)}" target="_blank" rel="noopener">${esc(l.grupo || "")}</a>` : esc(l.grupo || "");
+    const pub = ms ? `<b>${esc(fechaLarga(ms, l.precision))}</b><span class="vivo${Date.now() - ms < 3600000 ? " recien" : ""}" data-pub="${ms}" data-prec="${esc(l.precision || "")}">${vivoTxt(ms, l.precision)}</span>` : `<span class="dim">fecha ?</span>`;
+    const nec = esc(l.necesita || l.resumen || (l.texto || "").slice(0, 160)) + (l.comuna ? ` <span class="dim">· ${esc(l.comuna)}</span>` : "") + (l.sin_ia ? ` <span class="sinia">sin IA</span>` : "");
+    const link = l.url ? `<a href="${esc(l.url)}" target="_blank" rel="noopener">Abrir publicación ↗</a>` : `<span class="dim">sin link</span>`;
+    return `<tr><td><span class="tipoTag ${esc(l.tipo === "ambos" ? "varios" : l.tipo || "otro")}">${esc(TIPO_TXT[l.tipo] || l.tipo || "otro")}</span></td>
+      <td>${persona}${msgr}</td><td>${grupo}</td><td class="pub">${pub}</td><td class="necesita">${nec}</td><td>${link}</td></tr>`;
+  }).join("") || '<tr><td colspan="6" class="dim">No hay solicitudes con esos filtros.</td></tr>';
+}
+for (const id of ["#lOrden", "#lTipo", "#lEstado"]) $(id).addEventListener("change", pintarLista);
+$("#lBuscar").addEventListener("input", pintarLista);
+
 async function cambiarLead(id, estado) {
   const l = LEADS.find(x => x.id === id);
   await bg("lead_estado", { id, estado: l?.estado === estado ? "nuevo" : estado });
 }
 $("#btnLimpiar").onclick = () => { if (confirm("¿Borrar todas las descartadas?")) bg("borrar_leads", { cuales: "descartado" }); };
+$("#btnReclasificar").onclick = async () => {
+  const n = LEADS.filter(l => l.sin_ia && ["nuevo", "revisar"].includes(l.estado)).length;
+  const todas = !n && confirm("No hay solicitudes sin IA. ¿Revisar de nuevo TODAS las nuevas y para revisar?");
+  if (!n && !todas) return;
+  if (n && !confirm(`Voy a revisar de nuevo ${n} solicitudes que entraron sin IA. Las que no sean pega pasan a Descartadas. ¿Sigo?`)) return;
+  const r = await bg("reclasificar", { cuales: todas ? "todas" : "sin_ia" });
+  $("#btnReclasificar").textContent = `Revisando ${r.n}…`; setTimeout(() => $("#btnReclasificar").textContent = "Revisar de nuevo", 4000);
+};
 
 $("#btnCsv").onclick = () => {
-  const cols = [["creado", "Visto"], ["publicado", "Publicado aprox."], ["fecha_txt", "Fecha según Facebook"], ["estado", "Estado"], ["tipo", "Tipo"],
-    ["urgencia", "Urgencia"], ["comuna", "Comuna"], ["resumen", "Resumen"], ["autor", "Persona"], ["autor_url", "Perfil"], ["messenger", "Messenger"],
-    ["grupo", "Grupo"], ["grupo_url", "Link del grupo"], ["via", "Cómo"], ["url", "Link publicación"], ["mensaje", "Mensaje"], ["texto", "Texto"]];
+  const cols = [["tipo", "Tipo"], ["autor", "Persona"], ["autor_url", "Perfil"], ["messenger", "Messenger"], ["grupo", "Grupo"], ["grupo_url", "Link del grupo"],
+    ["_pub", "Publicado"], ["fecha_txt", "Fecha según Facebook"], ["necesita", "Qué necesita"], ["comuna", "Comuna"], ["urgencia", "Urgencia"],
+    ["url", "Link publicación"], ["estado", "Estado"], ["creado", "Visto"], ["via", "Cómo"], ["mensaje", "Mensaje"], ["texto", "Texto"]];
   const celda = (v) => `"${String(v ?? "").replace(/"/g, '""').replace(/\r?\n/g, " ")}"`;
-  const lst = LEADS.filter(l => filtro === "todos" ? true : l.estado === filtro);
-  const filas = [cols.map(c => celda(c[1])).join(";"),
-    ...lst.map(l => cols.map(([k]) => celda(k === "creado" || k === "publicado" ? (l[k] ? fecha(l[k]) : "") : l[k])).join(";"))];
+  const lst = filtro === "lista" ? leadsDeLista() : LEADS.filter(l => filtro === "todos" ? true : l.estado === filtro);
+  const val = (l, k) => k === "_pub" ? (pubMs(l) ? fechaLarga(pubMs(l), l.precision) : "") : k === "creado" ? fecha(l.creado) : k === "tipo" ? (TIPO_TXT[l.tipo] || l.tipo) : k === "necesita" ? (l.necesita || l.resumen) : l[k];
+  const filas = [cols.map(c => celda(c[1])).join(";"), ...lst.map(l => cols.map(([k]) => celda(val(l, k))).join(";"))];
   descargar(`solicitudes-${hoyStr()}.csv`, "﻿" + filas.join("\r\n"), "text/csv;charset=utf-8");
 };
 function descargar(nombre, contenido, tipo) {
@@ -406,16 +488,57 @@ for (const [inp, btn, nombre] of [["#inpBuscar", "#btnBuscarAdd", "buscar"], ["#
 $("#cReglas").onchange = () => bg("set_config", { config: { usar_reglas: $("#cReglas").checked } });
 
 // ======================================================================= configuración
+// ajuste fino: cada movimiento, mínimo y máximo
+const FINO = [
+  ["carga_seg", "Esperar que cargue la página", "antes de empezar a leer (seg)"],
+  ["lectura_seg", "Leer cada pantalla", "cuánto se queda mirando antes de seguir bajando (seg)"],
+  ["tirones", "Tirones de ruedita por bajada", "cuántas veces gira la ruedita cada vez que baja"],
+  ["tiron_px", "Largo de cada tirón", "cuánto baja cada tirón (píxeles)"],
+  ["tiron_ms", "Pausa entre tirón y tirón", "milisegundos"],
+  ["subir_prob", "Subir un poco para releer", "% de las veces", "uno"],
+  ["subir_px", "Cuánto sube al releer", "píxeles"],
+  ["puntero", "Pasar el puntero por la hora", "para leer la fecha exacta y el link (recomendado)", "bool"],
+  ["hover_seg", "Dejar el puntero sobre la hora", "seg"],
+  ["escribir_seg_letra", "“Escribir” la palabra en el buscador", "seg por cada letra"],
+  ["antes_f5_seg", "Pausa antes de apretar F5", "seg"],
+  ["paciencia_seg", "Si no aparece nada nuevo, esperar", "seg; después pasa al siguiente paso", "uno"]
+];
+let RDEF = {};
+function pintarFino() {
+  const r = { ...RDEF, ...(CONFIG.ritmo || {}) };
+  $("#ajusteFino").innerHTML = FINO.map(([k, t, d, modo]) => {
+    const v = r[k];
+    const campos = modo === "bool" ? `<label class="check" style="grid-column:span 3"><input type="checkbox" data-r="${k}" ${v !== false ? "checked" : ""}> sí</label>`
+      : modo === "uno" ? `<input type="number" step="any" min="0" data-r="${k}" value="${esc(v)}"><span></span><span></span>`
+      : `<input type="number" step="any" min="0" data-r="${k}" data-i="0" value="${esc(v?.[0])}"><span class="a">a</span><input type="number" step="any" min="0" data-r="${k}" data-i="1" value="${esc(v?.[1])}">`;
+    return `<div class="afFila"><div class="que"><b>${t}</b><span>${d}</span></div>${campos}</div>`;
+  }).join("");
+  $$("#ajusteFino input").forEach(el => el.addEventListener("input", resumenPlan));
+}
+function leerFino() {
+  const r = { ...RDEF, ...(CONFIG.ritmo || {}) };
+  for (const el of $$("#ajusteFino [data-r]")) {
+    const k = el.dataset.r;
+    if (el.type === "checkbox") r[k] = el.checked;
+    else if (el.dataset.i != null) { r[k] = [...(Array.isArray(r[k]) ? r[k] : [0, 0])]; r[k][+el.dataset.i] = +el.value; }
+    else r[k] = +el.value;
+  }
+  return r;
+}
+$("#cFino").onchange = () => { $("#ajusteFino").hidden = !$("#cFino").checked; if ($("#cFino").checked) pintarFino(); };
+
 function pintarConfig() {
   const t = T(), f = F();
   const val = (id, v) => { $(id).value = v; };
   val("#cGemini", CONFIG.gemini_key || ""); val("#cNombre", CONFIG.mi_nombre || ""); val("#cFono", CONFIG.mi_fono || "");
   val("#cRubro", CONFIG.mi_rubro || ""); val("#cZona", CONFIG.mi_zona || ""); val("#cPlantilla", CONFIG.plantilla || "");
+  $$(".rubro").forEach(x => x.checked = (CONFIG.rubros || ["electricidad", "gasfiteria", "construccion"]).includes(x.value));
+  $("#cAvisarIA").checked = CONFIG.avisar_ia !== false;
   $("#cRondas").checked = CONFIG.rondas_activa !== false;
-  val("#tGrupoMin", t.grupo_min); val("#tGrupoPosts", t.grupo_posts); val("#cOrden", CONFIG.orden_grupo || "RECENT_ACTIVITY");
-  val("#tPalMin", t.palabra_min); val("#tPalPosts", t.palabra_posts); val("#tPalGrupo", t.palabras_por_grupo);
-  val("#tFbMin", t.fb_min); val("#tFbPosts", t.fb_posts); val("#tFbCada", t.fb_cada);
-  $("#cVerGrupo").checked = CONFIG.ver_grupo !== false; $("#cBuscar").checked = CONFIG.buscar_palabras !== false;
+  $("#cVerGrupo").checked = CONFIG.ver_grupo !== false; $("#cBuscar").checked = CONFIG.buscar_palabras !== false; $("#cVerFb").checked = CONFIG.ver_fb !== false;
+  val("#tGrupoPosts", t.grupo_posts); val("#tGrupoMax", t.grupo_max_min); val("#tGrupoF5", t.grupo_recargas); val("#cOrden", CONFIG.orden_grupo || "RECENT_ACTIVITY");
+  val("#tPalPosts", t.palabra_posts); val("#tPalMax", t.palabra_max_min); val("#tPalGrupo", t.palabras_por_grupo);
+  val("#tFbPosts", t.fb_posts); val("#tFbMax", t.fb_max_min); val("#tFbF5", t.fb_recargas); val("#tFbCada", t.fb_cada);
   $("#cBuscarPrimero").checked = CONFIG.orden_pasos === "buscar_primero"; $("#cBusqRec").checked = !!CONFIG.busqueda_reciente;
   val("#tPasoA", t.entre_pasos_seg[0]); val("#tPasoB", t.entre_pasos_seg[1]);
   val("#tGrupoA", t.entre_grupos_seg[0]); val("#tGrupoB", t.entre_grupos_seg[1]);
@@ -424,45 +547,64 @@ function pintarConfig() {
   val("#tGH", t.max_grupos_hora); val("#tGD", t.max_grupos_dia); val("#tBH", t.max_busq_hora); val("#tBD", t.max_busq_dia);
   val("#fUtil", f.horas_util); val("#fRevisar", f.dias_revisar);
   $("#cVentana").checked = !!CONFIG.ventana_aparte; $("#cFeed").checked = CONFIG.feed_activo !== false;
+  $("#cLibre").checked = !!CONFIG.modo_libre; val("#cLibreMin", CONFIG.libre_min || 5);
   val("#cNtfy", CONFIG.ntfy_tema || ""); val("#cWebhook", CONFIG.webhook_url || "");
+  $("#cFino").checked = !!CONFIG.ajuste_fino; $("#ajusteFino").hidden = !CONFIG.ajuste_fino; pintarFino();
+  pintarIA(); pintarDiag();
   resumenPlan();
 }
 function leerTiempos() {
   const n = (id) => +$(id).value;
   return {
-    grupo_min: n("#tGrupoMin"), grupo_posts: n("#tGrupoPosts"), palabra_min: n("#tPalMin"), palabra_posts: n("#tPalPosts"),
-    palabras_por_grupo: n("#tPalGrupo"), fb_min: n("#tFbMin"), fb_posts: n("#tFbPosts"), fb_cada: n("#tFbCada"),
+    grupo_posts: n("#tGrupoPosts"), grupo_max_min: n("#tGrupoMax"), grupo_recargas: n("#tGrupoF5"),
+    palabra_posts: n("#tPalPosts"), palabra_max_min: n("#tPalMax"), palabras_por_grupo: n("#tPalGrupo"),
+    fb_posts: n("#tFbPosts"), fb_max_min: n("#tFbMax"), fb_recargas: n("#tFbF5"), fb_cada: n("#tFbCada") || 1,
     entre_pasos_seg: [n("#tPasoA"), n("#tPasoB")], entre_grupos_seg: [n("#tGrupoA"), n("#tGrupoB")],
     trabajo_min: n("#tTrabajo"), descanso_min: n("#tDescanso"),
     max_grupos_hora: n("#tGH"), max_grupos_dia: n("#tGD"), max_busq_hora: n("#tBH"), max_busq_dia: n("#tBD")
   };
 }
+// estimación de cuánto toma un grupo con estos números
 function resumenPlan() {
   const t = leerTiempos();
+  const r = $("#cFino").checked ? leerFino() : { ...RDEF, ...(CONFIG.ritmo || {}) };
+  const m = (x, d) => Array.isArray(x) ? (+x[0] + +x[1]) / 2 : (x ?? d);
+  const porPantalla = 3;                                                   // publicaciones que se ven por pantalla (aprox.)
+  const seg = (n) => m(r.carga_seg, 4.5) + (n / porPantalla) * (m(r.lectura_seg, 3.5) + m(r.tirones, 3) * m(r.tiron_ms, 175) / 1000) +
+                     (r.puntero !== false ? n * 0.3 * m(r.hover_seg, 0.65) : 0);
   const nb = activas("kw_buscar").length;
-  const pal = $("#cBuscar").checked ? (t.palabras_por_grupo > 0 ? Math.min(nb, t.palabras_por_grupo) : nb) : 0;
-  const palConTope = Math.min(pal, t.max_busq_hora);
-  const min = ($("#cVerGrupo").checked ? t.grupo_min : 0) + palConTope * t.palabra_min + (t.fb_min / Math.max(1, t.fb_cada)) +
-              (palConTope * ((t.entre_pasos_seg[0] + t.entre_pasos_seg[1]) / 2) + (t.entre_grupos_seg[0] + t.entre_grupos_seg[1]) / 2) / 60;
-  const porHora = Math.min(t.max_grupos_hora, 60 / Math.max(min, 0.5) * (t.trabajo_min / (t.trabajo_min + t.descanso_min)));
+  let pal = $("#cBuscar").checked ? (t.palabras_por_grupo > 0 ? Math.min(nb, t.palabras_por_grupo) : nb) : 0;
+  const topeB = t.max_busq_hora > 0 ? t.max_busq_hora : Infinity, topeG = t.max_grupos_hora > 0 ? t.max_grupos_hora : Infinity;
+  const palConTope = Math.min(pal, topeB);
+  const fbVeces = $("#cVerFb").checked && t.fb_posts > 0 ? (1 + t.fb_recargas) / Math.max(1, t.fb_cada) : 0;
+  const total = ($("#cVerGrupo").checked ? seg(t.grupo_posts) * (1 + t.grupo_recargas) : 0) + palConTope * (seg(t.palabra_posts) + m(r.escribir_seg_letra, 0.25) * 8) +
+                fbVeces * (seg(t.fb_posts) + m(r.antes_f5_seg, 5)) + palConTope * m(t.entre_pasos_seg, 10) + m(t.entre_grupos_seg, 40);
+  const min = total / 60;
+  const porHora = Math.min(topeG, 60 / Math.max(min, 0.5) * (t.trabajo_min / (t.trabajo_min + t.descanso_min)));
   const nG = (CONFIG.grupos || []).length;
   const horasDia = (() => { const [a, b] = [$("#cH1").value || "07:30", $("#cH2").value || "23:30"].map(x => +x.slice(0, 2) + +x.slice(3) / 60); return b >= a ? b - a : 24 - a + b; })();
-  const porDia = Math.min(t.max_grupos_dia, porHora * horasDia);
-  $("#resumenPlan").textContent = `Con esto, cada grupo toma ~${min.toFixed(1)} min (inicio del grupo + ${palConTope} búsqueda${palConTope === 1 ? "" : "s"} + Facebook + pausas) → ~${porHora.toFixed(1)} grupos por hora, ~${Math.round(porDia)} por día.` +
+  const porDia = Math.min(t.max_grupos_dia > 0 ? t.max_grupos_dia : Infinity, porHora * horasDia);
+  $("#resumenPlan").textContent = `Con esto, cada grupo toma ~${min.toFixed(1)} min (${$("#cVerGrupo").checked ? `inicio del grupo ${t.grupo_posts}` : "sin inicio"} + ${palConTope} palabra${palConTope === 1 ? "" : "s"} × ${t.palabra_posts} + ` +
+    `${fbVeces ? `inicio de Facebook ${t.fb_posts}${t.fb_recargas ? ` + ${t.fb_recargas} F5` : ""}` : "sin inicio de Facebook"} + pausas) → ~${porHora.toFixed(1)} grupos por hora, ~${Math.round(porDia)} por día.` +
     (nG ? ` Una vuelta completa a tus ${nG} grupos: ~${Math.max(1, Math.ceil(nG / Math.max(1, porDia)))} día(s).` : "") +
-    (pal * porHora > t.max_busq_hora ? ` Ojo: con ${pal} palabras por grupo llegas al tope de ${t.max_busq_hora} búsquedas por hora; los grupos que vengan después de eso solo leen el inicio hasta que se libere.` : "");
+    (pal * porHora > topeB ? ` Ojo: con ${pal} palabras por grupo llegas al tope de ${t.max_busq_hora} búsquedas por hora; los grupos que vengan después solo leen el inicio hasta que se libere.` : "");
+  const sin = [t.max_grupos_hora, t.max_grupos_dia, t.max_busq_hora, t.max_busq_dia].some(x => !(x > 0));
+  $("#avisoTopes").innerHTML = sin ? "⚠️ <b>Tienes algún tope en 0 (sin tope).</b> Es más riesgoso: si Facebook muestra un aviso, el vigía igual se pausa solo." : "";
 }
-$$("#config input, #config select").forEach(el => el.addEventListener("input", () => { if (el.id.startsWith("t") || el.id.startsWith("c")) resumenPlan(); }));
+$$("#config input, #config select").forEach(el => el.addEventListener("input", () => resumenPlan()));
 $("#btnConfig").onclick = async () => {
   const config = {
     gemini_key: $("#cGemini").value.trim(), mi_nombre: $("#cNombre").value.trim(), mi_fono: $("#cFono").value.trim(),
     mi_rubro: $("#cRubro").value.trim(), mi_zona: $("#cZona").value.trim(), plantilla: $("#cPlantilla").value.trim(),
-    rondas_activa: $("#cRondas").checked, ver_grupo: $("#cVerGrupo").checked, buscar_palabras: $("#cBuscar").checked,
+    rubros: $$(".rubro").filter(x => x.checked).map(x => x.value), avisar_ia: $("#cAvisarIA").checked,
+    rondas_activa: $("#cRondas").checked, ver_grupo: $("#cVerGrupo").checked, buscar_palabras: $("#cBuscar").checked, ver_fb: $("#cVerFb").checked,
     orden_grupo: $("#cOrden").value, orden_pasos: $("#cBuscarPrimero").checked ? "buscar_primero" : "inicio_primero",
     busqueda_reciente: $("#cBusqRec").checked, horario: [$("#cH1").value || "07:30", $("#cH2").value || "23:30"],
     pausa_bloqueo_horas: +$("#cPausaH").value || 24, tiempos: leerTiempos(),
     fechas: { horas_util: +$("#fUtil").value || 48, dias_revisar: +$("#fRevisar").value || 7 },
     ventana_aparte: $("#cVentana").checked, feed_activo: $("#cFeed").checked,
+    modo_libre: $("#cLibre").checked, libre_min: +$("#cLibreMin").value || 5,
+    ajuste_fino: $("#cFino").checked, ...($("#cFino").checked ? { ritmo: leerFino() } : {}),
     ntfy_tema: $("#cNtfy").value.trim(), webhook_url: $("#cWebhook").value.trim()
   };
   await bg("set_config", { config });
@@ -470,15 +612,77 @@ $("#btnConfig").onclick = async () => {
   setTimeout(pintarConfig, 300);
 };
 $("#btnRecomendados").onclick = async () => {
-  if (!confirm("¿Volver todos los tiempos, descansos, topes y fechas a los valores recomendados?")) return;
+  if (!confirm("¿Volver todos los tiempos, descansos, topes, fechas y el ajuste fino a los valores recomendados?")) return;
   await bg("restaurar_tiempos"); setTimeout(pintarConfig, 300);
 };
 $("#btnProbar").onclick = async () => {
   $("#probarMsg").textContent = "Probando…";
   await bg("set_config", { config: { gemini_key: $("#cGemini").value.trim() } });
   const r = await bg("probar");
-  $("#probarMsg").textContent = (r.ok ? "✓ " : "✗ ") + r.detalle;
+  $("#probarMsg").textContent = (r.ok ? "✓ " : "✗ ") + (r.ok ? r.detalle : (r.diag?.titulo || r.detalle));
+  if (!r.ok) abrirModalIA(r.diag);
 };
+$("#btnArreglarIA").onclick = () => abrirModalIA(ESTADO.ia?.diag || null);
+
+// ======================================================================= alarma y arreglo de la IA
+let LINKS = {};
+function pintarIA() {
+  const ia = ESTADO.ia || {};
+  const el = $("#iaEstado");
+  if (sinLlave()) { el.className = "iaEstado mal"; el.textContent = "✗ Falta la llave: el vigía decide con reglas simples."; }
+  else if (ia.estado === "falla") { el.className = "iaEstado mal"; el.textContent = `✗ ${ia.diag?.titulo || "La IA está fallando"} · ${ia.fallas_hoy || 0} ${ia.fallas_hoy === 1 ? "falla" : "fallas"} hoy`; }
+  else if (ia.estado === "ok") { el.className = "iaEstado ok"; el.textContent = `✓ IA funcionando · ${ia.ok_hoy || 0} publicaciones revisadas hoy · última ${ia.ultimo_ok ? horaCorta(ia.ultimo_ok) : "—"}`; }
+  else { el.className = "iaEstado"; el.textContent = "IA sin usar todavía (cuando encuentre algo para revisar se verá aquí)."; }
+  const alarma = !!ia.alarma || (CONFIG.activo && sinLlave());
+  const b = $("#alarmaIA");
+  b.hidden = !alarma;
+  if (alarma) {
+    const d = ia.diag || { titulo: "Falta la llave de Gemini", grave: true };
+    $("#alarmaTxt").textContent = "IA: " + d.titulo;
+    b.classList.toggle("leve", d.grave === false);
+  }
+}
+$("#alarmaIA").onclick = () => abrirModalIA(ESTADO.ia?.diag || null);
+$("#cerrarIA").onclick = () => { $("#modalIA").hidden = true; if (location.hash === "#ia") history.replaceState(null, "", "#actividad"); };
+$("#modalIA").addEventListener("click", (e) => { if (e.target.id === "modalIA") $("#cerrarIA").click(); });
+function abrirModalIA(diag) {
+  const d = diag || (sinLlave() ? { tipo: "sin_llave", titulo: "Falta la llave de Gemini", que: "Sin llave el vigía decide con reglas simples.",
+    pasos: ["Abre Google AI Studio con tu cuenta.", "Toca «Create API key».", "Copia la llave, pégala aquí y toca «Guardar y probar»."], link: LINKS.aistudio_llaves, link_txt: "Crear llave en Google AI Studio" }
+    : { titulo: "Revisar la llave de la IA", que: "Si quieres cambiar o revisar tu llave, estos son los lugares.", pasos: ["Abre tus llaves, copia la que quieras usar y pégala aquí."] });
+  $("#mTitulo").textContent = "⚠️ " + d.titulo;
+  $("#mQue").textContent = d.que || "";
+  $("#mPasos").innerHTML = (d.pasos || []).map(p => `<li>${esc(p)}</li>`).join("");
+  const links = [];
+  if (d.link) links.push([d.link, d.link_txt || "Abrir la página para arreglarlo", "primario"]);
+  for (const [u, t] of [[LINKS.aistudio_llaves, "Google AI Studio: mis llaves"], [LINKS.express, "Vertex (modo express): mis llaves"],
+                        [LINKS.credenciales, "Google Cloud: credenciales"], [LINKS.api_gemini, "Habilitar la API de Gemini"], [LINKS.api_vertex, "Habilitar la API de Vertex"]])
+    if (u && u !== d.link) links.push([u, t, ""]);
+  $("#mLinks").innerHTML = links.map(([u, t, c]) => `<a class="btn chico link ${c}" href="${esc(u)}" target="_blank" rel="noopener">${esc(t)} ↗</a>`).join("");
+  $("#mKey").value = "";
+  $("#mMsg").textContent = "";
+  $("#mDetalle").textContent = ESTADO.ia?.ultimo_error ? `Último error: ${horaCorta(ESTADO.ia.ultimo_error)} · ${ESTADO.ia.fallas_hoy || 0} ${ESTADO.ia.fallas_hoy === 1 ? "falla" : "fallas"} hoy` : "";
+  $("#modalIA").hidden = false;
+}
+$("#mPegar").onclick = async () => { try { $("#mKey").value = (await navigator.clipboard.readText()).trim(); } catch { $("#mMsg").textContent = "No pude leer el portapapeles: pega con Ctrl+V."; } };
+$("#mGuardar").onclick = async () => {
+  const key = $("#mKey").value.trim();
+  if (key.length < 20) { $("#mMsg").textContent = "Esa llave es muy corta. Cópiala completa."; return; }
+  $("#mMsg").textContent = "Probando…";
+  const r = await bg("guardar_llave", { key });
+  if (r.ok) { $("#mMsg").textContent = "✓ ¡Funciona! " + r.detalle; setTimeout(() => { $("#modalIA").hidden = true; pintarConfig(); }, 1500); }
+  else { $("#mMsg").textContent = "✗ " + (r.diag?.titulo || r.detalle); abrirModalIA(r.diag); $("#mKey").value = key; }
+};
+
+// ======================================================================= diagnóstico
+let DIAG = null;
+async function pintarDiag() {
+  DIAG = (await chrome.storage.local.get("diagnostico")).diagnostico || null;
+  $("#btnDiagBajar").disabled = !DIAG;
+  $("#diagMsg").textContent = ESTADO.diag_pedido ? "Pedido: se hace en la próxima página que mire." : DIAG ? `Listo (${new Date(DIAG.t).toLocaleString("es-CL")}).` : "";
+}
+$("#btnDiag").onclick = async () => { await bg("diagnostico"); $("#diagMsg").textContent = "Pedido: se hace en la próxima página que mire."; };
+$("#btnDiagBajar").onclick = () => { if (DIAG) descargar(`vigia-diagnostico-${hoyStr()}.json`, JSON.stringify(DIAG, null, 1), "application/json"); };
+
 $("#btnNtfyGen").onclick = () => {
   const a = new Uint8Array(8); crypto.getRandomValues(a);
   $("#cNtfy").value = "vigia-" + [...a].map(x => (x % 36).toString(36)).join("");
