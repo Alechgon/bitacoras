@@ -4,11 +4,19 @@
   "nota": "Requerimientos del grupo Mantención - operaciones (28-09 al 20-10) revisados uno a uno contra Datácora (export 20-10 22:24), el registro Libro1 y lo que avisó Manuel el 20-10. estado: cerrado = hay bitácora posterior que lo atiende; pendiente = sin bitácora o vuelven a reclamar; parcial = se fue pero quedó algo; admin/proveedor = no lo resuelve un técnico en terreno; info = aviso sin trabajo.",
 
   "visitas_sin_datacora": [
-    {"fecha": "2026-10-20", "rbd": 947129, "tec": "RODRIGO", "tipo": "Preventiva", "parte": "JI",
-     "folio": "s/n", "det": "Bitácora preventiva 2° semestre (aviso de Manuel 20-10; aún no subida a Datácora). Técnico supuesto: Rodrigo, que ese día estaba a 300 m en Los Cariñositos."},
-    {"fecha": "2026-10-20", "rbd": 8520, "tec": "CAMILO", "tipo": "Correctiva", "parte": "JI",
-     "folio": "s/n", "det": "Emergencia atendida (aviso de Manuel 20-10; no se subió a Datácora). Técnico supuesto: Camilo, que ese día tenía menos carga."}
+    {"fecha": "2026-10-20", "rbd": 947129, "tec": "RODRIGO", "tipo": "Preventiva", "parte": "JI+SC",
+     "folio": "s/n", "det": "Preventiva 2° semestre JI y SC, Rodrigo (confirmado por Manuel 20-10; aún no subida a Datácora)."},
+    {"fecha": "2026-10-20", "rbd": 8520, "tec": "RODRIGO", "tipo": "Correctiva", "parte": "JI",
+     "folio": "s/n", "det": "Emergencia atendida por Rodrigo (confirmado por Manuel 20-10; no se subió a Datácora)."}
   ],
+
+  "reclasificar_datacora": {
+    "798": {"tipo": "Correctiva", "nota": "En Datácora figura como Plan Preventivo, pero fue emergencia: no cuenta como preventiva (Manuel, 20-10)."}
+  },
+
+  "visitas_separadas": [["2518", "2541"]],
+
+  "registro_confirmado": ["1981", "5332"],
 
   "requerimientos": [
     {"id": "R01", "fecha": "2026-09-28", "autor": "Annahi", "rbd": 8556, "crit": "EQUIPO", "prio": true,

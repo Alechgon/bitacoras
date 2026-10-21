@@ -182,12 +182,21 @@ def main():
     ap.add_argument("--novedades", required=True)
     ap.add_argument("--desde", required=True, help="primer día a replanificar (AAAA-MM-DD)")
     ap.add_argument("--version")
+    ap.add_argument("--firmas-de", nargs="*", default=[],
+                    help="datos.js de versiones anteriores que alguien pudo dejar guardadas en su navegador")
     ap.add_argument("--reporte", default=None)
     a = ap.parse_args()
 
     D = cargar_js(a.datos)
     NOV = json.load(open(a.novedades, encoding="utf-8"))
     M = D["META"]
+    # Firmas de cada tarjeta tal como venía en las versiones anteriores. El panel las usa para
+    # distinguir lo que tú cambiaste a mano de lo que solo venía del plan viejo (ver fusionar()).
+    previas = {M["version"]: firmas(D)}
+    for ruta in a.firmas_de:
+        X = cargar_js(ruta)
+        previas.setdefault(X["META"]["version"], firmas(X))
+    version_entrada = M["version"]
     E = {e["rbd"]: e for e in D["ESTAB"]}
     DESDE = a.desde
     CORTE = NOV["corte"]
@@ -197,6 +206,14 @@ def main():
 
     # ---------------------------------------------------------------- 1. Datácora
     dc = leer_datacora(a.datacora)
+    for d in dc:                                  # correcciones tuyas al tipo que quedó en Datácora
+        r = NOV.get("reclasificar_datacora", {}).get(d["folio"])
+        if r:
+            d["tipo"] = r["tipo"]
+            d["cuenta"] = d["inst"] == "Junaeb" or d["tipo"] == "Preventiva"
+            d["det"] = (d["det"] + "  [" + r["nota"] + "]").strip()
+            rep.append(f"  Folio {d['folio']} {d['estab']}: queda como {d['tipo']} ({r['nota']})")
+    separadas = {f: i for i, g in enumerate(NOV.get("visitas_separadas", [])) for f in g}
     fuera = sorted({d["rbd"] for d in dc if d["rbd"] not in E})
     if fuera:
         avisos.append(f"Datácora trae RBD que no están en la sucursal: {fuera}")
@@ -210,7 +227,7 @@ def main():
     for d in dc:
         if d["_tarea"]:
             dup[d["_tarea"]].append(d["folio"])
-    dobles = [v for v in dup.values() if len(v) > 1]
+    dobles = [v for v in dup.values() if len(v) > 1 and not all(f in separadas for f in v)]
     D["DC"] = [{k: v for k, v in d.items() if not k.startswith("_")} for d in dc]
     rep.append(f"Datácora: {len(dc)} bitácoras válidas ({len(nuevos_dc)} nuevas desde el export anterior).")
     for v in dobles:
@@ -236,7 +253,8 @@ def main():
                      "det": v["det"], "fuente": "Aviso (sin Datácora)"})
 
     # cotejo de fechas: registro contra Datácora
-    for x in [b for b in bits if b["fuente"] == "Registro"]:
+    confirmados = set(NOV.get("registro_confirmado", []))
+    for x in [b for b in bits if b["fuente"] == "Registro" and b["folio"] not in confirmados]:
         cand = [d for d in dc if d["rbd"] == x["rbd"] and abs((F(d["fecha"]) - F(x["fecha"])).days) <= 6]
         mismo = [d for d in cand if d["fecha"] == x["fecha"]]
         if mismo:
@@ -275,12 +293,13 @@ def main():
     # ---------------------------------------------------------------- 3. visitas
     vis = {}
     for b in sorted(bits, key=lambda b: b["fecha"]):
-        k = (b["rbd"], b["fecha"], b["tec"])
+        # dos folios marcados como visitas distintas no se juntan aunque sean del mismo día
+        k = (b["rbd"], b["fecha"], b["tec"], b["num"] if b["num"] in separadas else "")
         v = vis.setdefault(k, {"rbd": b["rbd"], "fecha": b["fecha"], "tec": b["tec"], "tipos": set(),
                                "partes": set(), "folios": [], "det": [], "fuentes": set()})
         v["tipos"].add(b["tipo"])
         if b["tipo"] == "Preventiva":
-            v["partes"].add(b["parte"])
+            v["partes"].update(x.strip() for x in b["parte"].split("+") if x.strip())
         if b["num"] not in v["folios"]:
             v["folios"].append(b["num"])
         if b["det"] and b["det"] not in v["det"]:
@@ -750,7 +769,9 @@ def main():
     # ---------------------------------------------------------------- META
     M["hoy"] = hoy
     M["datacoraCorte"] = CORTE
-    M["version"] = a.version or (hoy + "-r14")
+    n = int((re.search(r"-r(\d+)$", version_entrada) or [0, 0])[1])
+    M["version"] = a.version or f"{hoy}-r{n + 1}"
+    M["firmasPrevias"] = {k: v for k, v in previas.items() if k != M["version"]}
     M["revisadoWsp"] = CORTE
     guardar_js(a.datos, D, F(hoy).strftime("%d-%m-%Y"))
 
@@ -769,6 +790,13 @@ def main():
     print(texto)
     if a.reporte:
         open(a.reporte, "w", encoding="utf-8").write(texto + "\n")
+
+
+def firmas(D):
+    """id -> 'estado|fecha|tec|bloque|aplaz|folio', lo mismo que compara fusionar() en el panel."""
+    return {p["id"]: "|".join(str(x) for x in (p.get("estado", ""), p.get("fecha", ""), p.get("tec", ""),
+                                                 p.get("bloque", ""), p.get("aplaz") or 0, p.get("folio") or ""))
+            for p in D["PLAN"]}
 
 
 def sumar_habiles(desde, n, M):

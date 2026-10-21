@@ -3,3 +3,4 @@ bot/sesion/
 bot/estado.json
 bot/node_modules/
 *.log
+__pycache__/

@@ -333,14 +333,21 @@ async function persistirDuro(){
   return false;
 }
 let MIGRADO = 0;
-function fusionar(guardado){
+function firmaTarjeta(p){ return [p.estado, p.fecha, p.tec, p.bloque, p.aplaz||0, p.folio||''].join('|'); }
+function fusionar(guardado, verGuardada){
   /* Parte del plan nuevo de datos.js y le vuelve a aplicar lo que el usuario editó,
-     emparejando por id. Así entran las visitas nuevas sin perder cambios. */
+     emparejando por id. Así entran las visitas nuevas sin perder cambios.
+     Si datos.js trae la firma de cómo venía cada tarjeta en la versión guardada, una tarjeta
+     que sigue igual a esa versión no la tocó el usuario: manda el plan nuevo (así una
+     reprogramación o una visita marcada como hecha en datos.js no se pierde). */
   const base = JSON.parse(JSON.stringify(D.PLAN));
   const prev = {}; (guardado||[]).forEach(p=>prev[p.id]=p);
+  const firmas = ((D.META.firmasPrevias||{})[verGuardada]) || null;
   let tocados = 0;
   base.forEach(p=>{
     const v = prev[p.id]; if(!v) return;
+    if(v.rbd!==undefined && v.rbd!==p.rbd) return;   /* el id pasó a otra visita: no mezclar */
+    if(firmas && firmas[p.id]!==undefined && firmas[p.id]===firmaTarjeta(v)) return;
     const cambiado = v.estado!=='programada' || v.fecha!==p.fecha || v.tec!==p.tec
       || v.bloque!==p.bloque || (v.aplaz||0)>0 || v.folio;
     if(cambiado){ tocados++;
@@ -360,7 +367,7 @@ function cargar(){
     ST.extras = s.extras||[]; ST.bits = s.bits||[]; ST.hechos = s.hechos||{};
     ST.log = s.log||[]; ST.cfg = s.cfg||{}; ST.ts = s.ts;
     if(s.version === D.META.version && s.plan){ ST.plan = s.plan; }
-    else { ST.plan = fusionar(s.plan); ST.version = D.META.version; }
+    else { ST.plan = fusionar(s.plan, s.version); ST.version = D.META.version; }
   }catch(e){ console.warn('estado corrupto', e); } }
 }
 let guardarTO=null;
@@ -376,7 +383,7 @@ cargar();
   IDB = await abrirIDB();
   const g = await idbGet('v1');
   if(g && (!ST.ts || (g.ts||'') > ST.ts)){
-    const planG = (g.version === D.META.version) ? g.plan : fusionar(g.plan);
+    const planG = (g.version === D.META.version) ? g.plan : fusionar(g.plan, g.version);
     ST = Object.assign(ST, g, {plan:planG, version:D.META.version});
     try{ localStorage.setItem(LS, JSON.stringify(ST)); }catch(e){}
     if(typeof ir==='function') refrescar();
