@@ -141,7 +141,9 @@ def tablas(con):
     # Metas por establecimiento: qué falta y cuándo se cumple
     M = D["META"]
     hechas = {r[0] for r in con.execute("SELECT rbd FROM tarjetas WHERE estado='realizada'")}
-    prev_hechas = {r[0] for r in con.execute("SELECT rbd FROM tarjetas WHERE estado='realizada' AND clase LIKE 'PREV%'")}
+    # lo realizado hasta el corte ya viene en prevOK (con sus partes JI/SC); acá solo suma lo posterior
+    prev_hechas = {r[0] for r in con.execute("SELECT rbd FROM tarjetas WHERE estado='realizada' AND clase LIKE 'PREV%' "
+                                             "AND fecha >= ?", (D["META"].get("hoy") or "0000",))}
     prox = {}
     for t in con.execute("SELECT * FROM tarjetas WHERE estado='programada' ORDER BY fecha"):
         prox.setdefault(t["rbd"], t)

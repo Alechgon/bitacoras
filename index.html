@@ -480,7 +480,9 @@ function avance(){
      tienen que estar las dos partes (JI y SC). Viene clasificado del registro. */
   const partes = {};
   todas().filter(p=>p.estado==='realizada' && p.fecha >= D.META.corteS2 && ES_PREV(p.tipoReal))
-    .forEach(p=>{ (partes[p.rbd]=partes[p.rbd]||new Set()).add(p.parte||'JI'); });
+    .forEach(p=>{ const s=(partes[p.rbd]=partes[p.rbd]||new Set());
+      /* una visita puede dejar las dos bitácoras: parte "JI+SC" */
+      String(p.parte||'JI').split('+').forEach(x=>s.add(x.trim()||'JI')); });
   /* en jardines una correctiva NO suma: solo entra la preventiva */
   (D.DC||[]).filter(d=>d.tipo==='Preventiva').forEach(d=>{
     (partes[d.rbd]=partes[d.rbd]||new Set()).add('JI'); });
@@ -557,7 +559,8 @@ function acumulado(inst){
   eventos.forEach(p=>{
     if(jard){
       if(!ES_PREV(p.tipoReal)) return;
-      (partes[p.rbd] = partes[p.rbd] || new Set()).add(p.parte || 'JI');
+      const s = (partes[p.rbd] = partes[p.rbd] || new Set());
+      String(p.parte || 'JI').split('+').forEach(x=>s.add(x.trim() || 'JI'));
     } else {
       if(p._dc){ if(!p.cuenta) return; }
       else if(p.fecha < D.META.datacoraCorte) return;
@@ -1862,7 +1865,8 @@ function res(txt,q){ if(!q||q.length<2) return txt;
 function vPend(){
   const cs=[...D.CORR].sort((a,b)=>b.pts-a.pts);
   let h=`<div class="card"><h2>Correctivos abiertos (${cs.length})</h2>
-   <div class="dim">Salen del grupo de WhatsApp y de tu validación del 30-09. Ordenados por criticidad.</div></div>
+   <div class="dim">Salen del grupo de WhatsApp, revisados contra Datácora al ${fmt(D.META.revisadoWsp||D.META.datacoraCorte)}. Ordenados por criticidad.
+   PROVEEDOR y ADMIN no ocupan bloque de técnico: los coordinas tú.</div></div>
    <div class="card"><div class="scroll"><table><tr><th>Pts</th><th>RBD</th><th>Establecimiento</th>
    <th>Tipo</th><th>Estado</th><th>Reportado</th><th>Días</th><th>Trabajo</th><th>Agendado</th></tr>`;
   cs.forEach(c=>{const e=E[c.rbd]||{};
@@ -1948,11 +1952,19 @@ function vDatacora(){
 }
 
 /* ============================ SUPERVISORAS ============================ */
+/* La tarjeta que cierra un requerimiento: la próxima pendiente del establecimiento; si no hay,
+   la realizada después del reclamo. Antes tomaba la primera que encontraba, aunque fuera vieja. */
+function tarjetaDeCorr(c){
+  const cand=todas().filter(p=>p.rbd===c.rbd && p.estado!=='anulada');
+  return cand.filter(p=>p.estado!=='realizada').sort((a,b)=>a.fecha<b.fecha?-1:1)[0]
+    || cand.filter(p=>p.fecha>=c.freporte).sort((a,b)=>a.fecha<b.fecha?1:-1)[0];
+}
 function compromisos(){
   const g={};
   D.CORR.forEach(c=>{
     const e=E[c.rbd]||{}; const sup=e.sup||'Sin supervisora';
-    const pr=todas().find(p=>p.rbd===c.rbd && p.clase.includes('CORRECTIVO') && p.estado!=='anulada');
+    /* lo de proveedor o gestión no lo cierra una visita del técnico */
+    const pr = (c.quien && c.quien!=='tecnico') ? null : tarjetaDeCorr(c);
     (g[sup]=g[sup]||[]).push({...c, nombre:e.nombre, comuna:e.comuna, inst:e.inst,
       fecha: pr?pr.fecha:c.agendado, tec: pr?pr.tec:'', hecho: pr?pr.estado==='realizada':false});
   });
@@ -2215,7 +2227,7 @@ function exportarExcel(){
   }),[11,10,12,22,7,14,22,9,32,11,17,28,20,8,12,13,9,70]);
 
   add('Correctivos', D.CORR.map(c=>{ const e=E[c.rbd]||{};
-    const pr=todas().find(p=>p.rbd===c.rbd && p.clase.includes('CORRECTIVO') && p.estado!=='anulada');
+    const pr=tarjetaDeCorr(c);
     return {Puntaje:c.pts, RBD:c.rbd, Establecimiento:e.nombre||'', Supervisora:e.sup||'',
       Comuna:e.comuna||'', Tipo:c.crit, Estado:c.estado, Reportado:c.freporte,
       'Dias abiertos':c.dias, Prioridad:c.prio?'SI':'', Agendado:pr?pr.fecha:'',

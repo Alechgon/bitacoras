@@ -93,10 +93,34 @@ lleguen con la página cerrada hay que conectarlo al bot de Telegram.
 
 ## Regenerar los datos
 
-`datos.js` sale de los scripts de Python a partir de `BBDD_RBD_San_Pablo.xlsx`,
+`datos.js` salió de los scripts de Python a partir de `BBDD_RBD_San_Pablo.xlsx`,
 `Registro_Unificado_SOSER.xlsx`, las capturas de Datácora y el export del grupo de
-WhatsApp. Si cambian los pesos del puntaje o entra un lote nuevo de bitácoras, se
-regenera el archivo completo y se reemplaza.
+WhatsApp.
+
+Para ponerlo al día sin rehacerlo entero está `herramientas/actualizar_datos.py`:
+
+```bash
+python3 herramientas/actualizar_datos.py \
+  --datacora Datacora_completadas_AAAA-MM-DD.xlsx \
+  --registro Libro1.xlsx \
+  --novedades herramientas/novedades_2026-10-20.json \
+  --desde 2026-10-21 --reporte herramientas/reporte_2026-10-20.txt
+```
+
+- Reemplaza la pestaña Datácora con el export (sin las cuentas de prueba) y suma al
+  historial cada bitácora nueva, venga de Datácora, del registro o de un aviso.
+- Cada visita realizada marca como hecha la tarjeta planificada que cumple, en su fecha y
+  técnico reales. Si no estaba en el plan, entra como planificada y realizada.
+- `novedades_*.json` trae los requerimientos del chat ya revisados uno por uno (cerrado,
+  pendiente, parcial, proveedor, gestión) y las visitas que todavía no se suben a Datácora.
+  Con eso arma Pendientes y lo que dijeron las supervisoras.
+- Replanifica desde `--desde`: primero los JUNAEB que faltan en Datácora (bloque 1), después
+  los correctivos (bloque 3), y adelanta la preventiva de los jardines con algo pendiente para
+  cerrar todo en una visita. Las tarjetas conservan su id, así no se pierde lo que marcaste.
+- Una preventiva puede dejar las dos bitácoras de un jardín con sala cuna: la tarjeta lleva
+  parte `JI+SC` y cuenta para las dos.
+
+Se corre una vez sobre el `datos.js` anterior (si hay que repetirlo: `git checkout datos.js`).
 
 ## Estructura de la bitácora
 

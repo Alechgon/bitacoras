@@ -577,8 +577,10 @@ def metas(con):
     jun = [e for e in D["ESTAB"] if e["inst"] == "Junaeb"]
     jar = [e for e in D["ESTAB"] if e["inst"] != "Junaeb"]
     jun_ok = sum(1 for e in jun if e.get("enDatacora") or e["rbd"] in hechas)
+    # lo realizado hasta el corte ya viene en prevOK (con sus partes JI/SC); acá solo suma lo posterior
+    corte = D["META"].get("hoy") or "0000"
     prev_hechas = {r[0] for r in con.execute(
-        "SELECT rbd FROM tarjetas WHERE estado='realizada' AND clase LIKE 'PREV%'")}
+        "SELECT rbd FROM tarjetas WHERE estado='realizada' AND clase LIKE 'PREV%' AND fecha >= ?", (corte,))}
     jar_ok = sum(1 for e in jar if e.get("prevOK") or e["rbd"] in prev_hechas)
     return {"junaeb": (jun_ok, len(jun), D["META"]["metaJunaeb"]),
             "jardines": (jar_ok, len(jar), D["META"]["metaJardines"])}
