@@ -192,10 +192,11 @@ def main():
     M = D["META"]
     # Firmas de cada tarjeta tal como venía en las versiones anteriores. El panel las usa para
     # distinguir lo que tú cambiaste a mano de lo que solo venía del plan viejo (ver fusionar()).
-    previas = {M["version"]: firmas(D)}
+    previas = {}
+    juntar_firmas(previas, M.get("version"), firmas(D))
     for ruta in a.firmas_de:
         X = cargar_js(ruta)
-        previas.setdefault(X["META"]["version"], firmas(X))
+        juntar_firmas(previas, X.get("META", {}).get("version"), firmas(X))
     version_entrada = M["version"]
     E = {e["rbd"]: e for e in D["ESTAB"]}
     DESDE = a.desde
@@ -752,6 +753,19 @@ def main():
     CORR.sort(key=lambda c: -c["pts"])
     D["CORR"] = CORR
 
+    # una preventiva realizada con JI y SC queda en dos tarjetas, una por bitácora, como en el histórico
+    for p in list(P):
+        if p["estado"] == "realizada" and "+" in (p.get("parte") or ""):
+            partes = p["parte"].split("+")
+            p["parte"] = partes[0]
+            for x in partes[1:]:
+                q = dict(p)
+                q["id"] = nuevo_id("C" if p["origen"] == "historico" else "P")
+                q["parte"] = x
+                q["detalle"] = f"Bitácora {x} de la misma visita ({p['id']})  ||  " + p["detalle"]
+                q.pop("absorbidaPor", None)
+                P.append(q)
+
     # bloques ordenados en los días ya pasados (las realizadas que se sumaron)
     for (d, tec) in {(p["fecha"], p["tec"]) for p in P if p["origen"] == "plan" and p["fecha"] < DESDE}:
         ts = [p for p in P if p["fecha"] == d and p["tec"] == tec and p["estado"] != "anulada"]
@@ -792,11 +806,32 @@ def main():
         open(a.reporte, "w", encoding="utf-8").write(texto + "\n")
 
 
+def firma(p):
+    """Lo mismo que firmaTarjeta() del panel: estado, fecha, técnico, bloque, aplazamientos y folio."""
+    return (str(p.get("estado") or "-")[0] + str(p.get("fecha") or "")[5:] + str(p.get("tec") or "-")[0]
+            + str(p.get("bloque") if p.get("bloque") is not None else "") + str(p.get("aplaz") or 0)
+            + "|" + str(p.get("folio") or ""))
+
+
 def firmas(D):
-    """id -> 'estado|fecha|tec|bloque|aplaz|folio', lo mismo que compara fusionar() en el panel."""
-    return {p["id"]: "|".join(str(x) for x in (p.get("estado", ""), p.get("fecha", ""), p.get("tec", ""),
-                                                 p.get("bloque", ""), p.get("aplaz") or 0, p.get("folio") or ""))
-            for p in D["PLAN"]}
+    return {p["id"]: firma(p) for p in D["PLAN"]}
+
+
+def juntar_firmas(previas, ver, F):
+    """Varias versiones con el mismo nombre (o sin nombre): se guardan todas las firmas posibles."""
+    ver = "undefined" if ver is None else str(ver)     # así lo busca el navegador si no había versión
+    if ver not in previas:
+        previas[ver] = dict(F)
+        return
+    G = previas[ver]
+    for k, v in F.items():
+        if k not in G:
+            G[k] = v
+        else:
+            l = G[k] if isinstance(G[k], list) else [G[k]]
+            if v not in l:
+                l.append(v)
+            G[k] = l if len(l) > 1 else l[0]
 
 
 def sumar_habiles(desde, n, M):

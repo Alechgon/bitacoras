@@ -333,7 +333,12 @@ async function persistirDuro(){
   return false;
 }
 let MIGRADO = 0;
-function firmaTarjeta(p){ return [p.estado, p.fecha, p.tec, p.bloque, p.aplaz||0, p.folio||''].join('|'); }
+/* misma firma que herramientas/actualizar_datos.py: estado, fecha, técnico, bloque, aplazamientos y folio */
+function firmaTarjeta(p){
+  return String(p.estado||'-')[0] + String(p.fecha||'').slice(5) + String(p.tec||'-')[0]
+    + (p.bloque==null?'':String(p.bloque)) + String(p.aplaz||0) + '|' + String(p.folio||'');
+}
+function mismaFirma(f, p){ const s=firmaTarjeta(p); return Array.isArray(f) ? f.includes(s) : f===s; }
 function fusionar(guardado, verGuardada){
   /* Parte del plan nuevo de datos.js y le vuelve a aplicar lo que el usuario editó,
      emparejando por id. Así entran las visitas nuevas sin perder cambios.
@@ -347,7 +352,7 @@ function fusionar(guardado, verGuardada){
   base.forEach(p=>{
     const v = prev[p.id]; if(!v) return;
     if(v.rbd!==undefined && v.rbd!==p.rbd) return;   /* el id pasó a otra visita: no mezclar */
-    if(firmas && firmas[p.id]!==undefined && firmas[p.id]===firmaTarjeta(v)) return;
+    if(firmas && firmas[p.id]!==undefined && mismaFirma(firmas[p.id], v)) return;
     const cambiado = v.estado!=='programada' || v.fecha!==p.fecha || v.tec!==p.tec
       || v.bloque!==p.bloque || (v.aplaz||0)>0 || v.folio;
     if(cambiado){ tocados++;
