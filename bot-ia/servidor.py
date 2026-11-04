@@ -828,8 +828,10 @@ AYUDA = """🤖 *Comandos del bot*
 *🛰️ Datácora en vivo (cualquiera del grupo, terminando en !)*
 donde esta camilo! · donde esta rodrigo! · donde estan los tecnicos!
 ruta para hoy! · ruta para mañana! · ruta para la semana!
-verificadores de hoy annahi! — PDFs renombrados (sin nombre: los de quien pregunta)
-verificadores de la semana carla! — ZIP con PDFs y fotos
+necesito verificadores de ayer · del lunes · del 03-11 · del 2 al 4 de noviembre (sin "!")
+verificadores de hoy annahi · del falabella de ayer — PDFs renombrados (sin nombre: los de quien pregunta)
+verificadores de la semana carla — ZIP con PDFs y fotos
+!leer aqui (en otro grupo) · !dejar aqui · !grupos — grupos extra donde contesto Datácora
 
 *📚 Bitácoras*
 📎 PDF con texto: Nombre, dd/mm/aaaa

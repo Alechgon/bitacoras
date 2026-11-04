@@ -79,6 +79,8 @@ El bot lee Datácora directo (`datacora.py`) y contesta en el grupo o en tu priv
 | `ruta para hoy!` · `ruta para mañana!` · `ruta para la semana!` | Tareas por día y técnico, ✅ cerradas con hora y ⏳ pendientes |
 | `verificadores de hoy annahi!` | PDF de cada bitácora cerrada hoy en sus establecimientos, renombrado *Establecimiento dd-mm-aaaa.pdf*. Sin nombre: los de la supervisora que pregunta |
 | `verificadores de la semana carla!` | Un ZIP con una carpeta por establecimiento: PDF + fotos |
+| `necesito verificadores de ayer` (sin "!") | Fechas en palabras: hoy, ayer, antier, *lunes…domingo* (el de esta semana; si ese día aún no llega, el de la anterior; "el lunes pasado" = semana anterior), *semana*, *semana pasada*, *03-11*, *3 de noviembre*, *del 02-11 al 04-11*, *del lunes al miércoles*. Si nombran un colegio (*verificador del Falabella de ayer*), solo ese |
+| `!leer aqui` · `!dejar aqui` · `!grupos` | Tú, escrito en otro grupo: el bot empieza (o deja) de leerlo. En esos grupos solo contesta lo de Datácora |
 
 Conectar (una vez, en Termux): `python ~/bitacoras/bot-ia/datacora.py configurar` (correo y clave quedan solo en
 `~/.datacora.json`, fuera del repo). Probar: `python ~/bitacoras/bot-ia/datacora.py probar`.

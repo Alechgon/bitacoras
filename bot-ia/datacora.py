@@ -437,7 +437,18 @@ def _bajar_fotos(t, det):
     return out
 
 
-def verificadores(desde, hasta, sup=None, con_fotos=False, etiqueta="hoy"):
+def _rbds_en(texto):
+    """RBD o nombre de establecimiento dentro de la frase (mismo diccionario del panel)."""
+    try:
+        sys.path.insert(0, AQUI)
+        import nucleo
+        limpio = re.sub(r"\b(" + "|".join(list(SUPS) + list(DIAS_RX)) + r")\b", " ", norm(texto))
+        return [str(r) for r in nucleo.en_texto(limpio)]
+    except Exception:
+        return []
+
+
+def verificadores(desde, hasta, sup=None, con_fotos=False, etiqueta="hoy", rbds=None):
     """
     Bitácoras cerradas entre desde y hasta (si hay supervisora, solo sus establecimientos), con el
     PDF renombrado 'Establecimiento dd-mm-aaaa.pdf'. Con fotos (o si son muchos) va todo en un ZIP.
@@ -455,9 +466,13 @@ def verificadores(desde, hasta, sup=None, con_fotos=False, etiqueta="hoy"):
             continue                                    # fuera de la sucursal
         if sup and s != sup:
             continue
+        if rbds and rbd not in rbds:
+            continue
         sel.append(t)
     quien = f" de {sup.split()[0]}" if sup else ""
-    rango = desde.strftime("%d-%m") if desde == hasta else f"{desde.strftime('%d-%m')} al {hasta.strftime('%d-%m')}"
+    if rbds and sel:
+        quien += f" · {_corto(establecimiento(sel[0])[0], 30)}"
+    rango = (_dm(desde) if desde == hasta else f"{desde.strftime('%d-%m')} al {hasta.strftime('%d-%m')}")
     if not sel:
         return f"📭 No hay bitácoras cerradas{quien} ({rango}) en Datácora.", []
     sel.sort(key=cuando_hecha)
@@ -528,26 +543,105 @@ def _limpiar_viejos(dias=3):
 PATRON = re.compile(r"(donde\s+(esta|anda|estan|andan)|ruta|verificador)")
 
 
+DIAS_RX = {"lunes": 0, "martes": 1, "miercoles": 2, "jueves": 3, "viernes": 4, "sabado": 5, "domingo": 6}
+MESES = {"enero": 1, "ene": 1, "febrero": 2, "feb": 2, "marzo": 3, "mar": 3, "abril": 4, "abr": 4, "mayo": 5,
+         "may": 5, "junio": 6, "jun": 6, "julio": 7, "jul": 7, "agosto": 8, "ago": 8, "septiembre": 9,
+         "setiembre": 9, "sep": 9, "sept": 9, "octubre": 10, "oct": 10, "noviembre": 11, "nov": 11,
+         "diciembre": 12, "dic": 12}
+_RX_DMA = r"\b(\d{1,2})\s*[-/.]\s*(\d{1,2})(?:\s*[-/.]\s*(\d{2,4}))?\b"
+_RX_DE = r"\b(\d{1,2})\s+de\s+(" + "|".join(sorted(MESES, key=len, reverse=True)) + r")\b(?:\s+(?:de\s+)?(\d{4}))?"
+FECHA_RX = (r"\b(hoy|ayer|antier|anteayer|manana|semana|" + "|".join(DIAS_RX) + r")\b|" + _RX_DMA + "|" + _RX_DE)
+
+
+def tiene_fecha(texto):
+    return bool(re.search(FECHA_RX, norm(texto)))
+
+
 def es_consulta(texto):
     t = norm(texto)
+    if "verificador" in t and tiene_fecha(t):
+        return True                                # "necesito verificadores de ayer" (sin "!")
     return "!" in t and bool(PATRON.search(t))
 
 
-def _rango(t, hoy):
+def _armar(dd, mm, aa, hoy):
+    try:
+        if aa:
+            aa = int(aa)
+            aa = aa + 2000 if aa < 100 else aa
+            return date(aa, mm, dd)
+        d = date(hoy.year, mm, dd)
+        return d.replace(year=hoy.year - 1) if d > hoy + timedelta(days=7) else d   # "28-12" en enero = el año pasado
+    except ValueError:
+        return None
+
+
+def _fechas_exactas(t, hoy):
+    out = []
+    for m in re.finditer(_RX_DMA, t):
+        d = _armar(int(m.group(1)), int(m.group(2)), m.group(3), hoy)
+        if d:
+            out.append((m.start(), d))
+    for m in re.finditer(_RX_DE, t):
+        d = _armar(int(m.group(1)), MESES[m.group(2)], m.group(3), hoy)
+        if d:
+            out.append((m.start(), d))
+    return [d for _, d in sorted(out)]
+
+
+def _dia_semana(nombre, hoy, pasado=False):
+    """'lunes' = el lunes de la semana en curso; si ese día todavía no llega (o dicen 'pasado'), el anterior."""
+    d = hoy - timedelta(days=hoy.weekday()) + timedelta(days=DIAS_RX[nombre])
+    if pasado or d > hoy:
+        d -= timedelta(days=7)
+    return d
+
+
+def _etq(d, hoy):
+    if d == hoy:
+        return "hoy"
+    if d == hoy - timedelta(days=1):
+        return "ayer"
+    return _dm(d)
+
+
+def _rango(t, hoy, futuro=False):
+    """
+    (desde, hasta, etiqueta). Entiende: hoy, ayer, antier, mañana, lunes…domingo (de la semana en curso;
+    'el lunes pasado' = el de la semana anterior), esta semana, la semana pasada, 04-11, 4/11/2026,
+    4 de noviembre, y rangos 'del 02-11 al 04-11' o 'del lunes al miércoles'.
+    """
+    exactas = _fechas_exactas(t, hoy)
+    if len(exactas) >= 2:
+        a, b = min(exactas[:2]), max(exactas[:2])
+        return a, b, f"{a.strftime('%d-%m')} al {b.strftime('%d-%m')}"
+    if exactas:
+        return exactas[0], exactas[0], _etq(exactas[0], hoy)
+    dias = [(m.start(), m.group(1)) for m in re.finditer(r"\b(" + "|".join(DIAS_RX) + r")\b", t)]
+    pasado = bool(re.search(r"\b(pasado|anterior)\b", t)) and "semana pasada" not in t
+    if len(dias) >= 2:
+        a = _dia_semana(dias[0][1], hoy, pasado)
+        b = a + timedelta(days=(DIAS_RX[dias[1][1]] - DIAS_RX[dias[0][1]]) % 7)
+        return a, b, f"{_dm(a)} al {_dm(b)}"
+    if dias:
+        d = _dia_semana(dias[0][1], hoy, pasado)
+        if futuro and not pasado:
+            d2 = hoy - timedelta(days=hoy.weekday()) + timedelta(days=DIAS_RX[dias[0][1]])
+            d = d2 if d2 >= hoy else d2 + timedelta(days=7)
+        return d, d, _dm(d)
     if re.search(r"\bsemana pasada\b", t):
         return (*_semana(hoy - timedelta(days=7)), "la semana pasada")
     if "semana" in t:
         return (*_semana(hoy), "la semana")
+    if re.search(r"\b(antier|anteayer)\b", t):
+        d = hoy - timedelta(days=2)
+        return d, d, _dm(d)
     if re.search(r"\bmanana\b", t):
         d = hoy + timedelta(days=1)
         return d, d, "mañana"
     if re.search(r"\bayer\b", t):
         d = hoy - timedelta(days=1)
         return d, d, "ayer"
-    m = re.search(r"\b(\d{1,2})[-/](\d{1,2})\b", t)
-    if m:
-        d = date(hoy.year, int(m.group(2)), int(m.group(1)))
-        return d, d, d.strftime("%d-%m")
     return hoy, hoy, "hoy"
 
 
@@ -577,13 +671,16 @@ def responder(texto, autor="", sup_autor=None):
         if re.search(r"donde\s+(estan|andan)", t):
             return {"texto": donde_estan(), "archivos": []}
         if "verificador" in t:
+            if "!" not in texto and not tiene_fecha(t):
+                return None                              # "verificador del Nemesio" sin fecha: lo ve verificadores.py
             desde, hasta, lbl = _rango(t, hoy)
-            sup = sup_en_texto(t) or sup_autor
-            fotos = "foto" in t or "semana" in t
-            txt, arch = verificadores(desde, hasta, sup, con_fotos=fotos, etiqueta=lbl)
+            rbds = _rbds_en(texto)
+            sup = sup_en_texto(t) or (None if rbds else sup_autor)
+            fotos = "foto" in t or "semana" in t or "zip" in t
+            txt, arch = verificadores(desde, hasta, sup, con_fotos=fotos, etiqueta=lbl, rbds=rbds)
             return {"texto": txt, "archivos": arch}
         if "ruta" in t:
-            desde, hasta, lbl = _rango(t, hoy)
+            desde, hasta, lbl = _rango(t, hoy, futuro=True)
             titulo = (f"Ruta de {lbl} · {_dm(desde)}" if desde == hasta
                       else f"Ruta de {lbl} · {desde.strftime('%d-%m')} al {hasta.strftime('%d-%m')}")
             return {"texto": ruta(desde, hasta, titulo), "archivos": []}

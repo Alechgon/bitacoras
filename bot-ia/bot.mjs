@@ -336,8 +336,33 @@ async function manejar (m) {
   const admin = esAdmin(m)
   const privadoAdmin = admin && !jid.endsWith('@g.us')
 
+  // ---------------- grupos extra a elección: ahí el bot SOLO contesta consultas de Datácora
+  //   !leer aqui (tú, escrito en ese grupo) → empieza a leerlo · !dejar aqui → deja de leerlo · !grupos → lista
+  estado.grupos_extra = estado.grupos_extra || {}
+  const cmdG = texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
+  if (admin && jid.endsWith('@g.us') && !enGrupo && /^!(leer|activar)( aqui| este grupo)?$/.test(cmdG)) {
+    let nom = ''
+    try { nom = (await sock.groupMetadata(jid)).subject } catch {}
+    estado.grupos_extra[jid] = nom || jid; guardarEstado()
+    encolar(jid, { text: `✅ Desde ahora leo este grupo${nom ? ` (*${nom}*)` : ''}: contesto *donde esta camilo!*, *ruta para hoy!* y *verificadores de ayer*. Para que deje de leerlo: *!dejar aqui*` }, { quoted: m }, 1500)
+    return
+  }
+  if (admin && jid.endsWith('@g.us') && /^!(dejar|desactivar)( aqui| este grupo)?$/.test(cmdG)) {
+    const nom = estado.grupos_extra[jid]
+    delete estado.grupos_extra[jid]; guardarEstado()
+    encolar(jid, { text: nom ? '👋 Listo, dejo de leer este grupo.' : 'Este grupo no estaba en mi lista.' }, { quoted: m }, 1500)
+    return
+  }
+  if (admin && cmdG === '!grupos') {
+    const l = Object.entries(estado.grupos_extra)
+    encolar(jid, { text: '👥 *Grupos que leo*\n• ' + (nombresGrupo[grupoDestino()] || cfg().grupo_nombre || 'grupo de supervisoras') + ' (completo)\n'
+      + (l.length ? l.map(([, n]) => `• ${n} (solo Datácora)`).join('\n') : '_Ningún grupo extra. En el grupo que quieras escribe *!leer aqui*._') }, { quoted: m }, 1500)
+    return
+  }
+  const grupoExtra = jid.endsWith('@g.us') && !enGrupo && Boolean(estado.grupos_extra[jid])
+
   // de cualquier otro chat de la cuenta (clientes, otros grupos) no se hace NADA
-  if (!enGrupo && !privadoAdmin) {
+  if (!enGrupo && !privadoAdmin && !grupoExtra) {
     if (admin && texto.toLowerCase() === '!id') encolar(jid, { text: `🆔 ${jid}` }, { quoted: m }, 1500)
     return
   }
@@ -347,9 +372,12 @@ async function manejar (m) {
 
   // ---------------- Datácora en vivo: "donde esta camilo!", "ruta para hoy!", "verificadores de hoy annahi!"
   // Cualquiera del grupo o tú en privado. Frases que terminan en "!" (o lo llevan) y hablan de dónde/ruta/verificadores.
-  if (texto && (enGrupo || privadoAdmin) && /!/.test(texto) && !/^!\s*[a-z]/i.test(texto.trim())) {
-    const n = texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
-    const esDc = /(donde\s+(esta|anda|estan|andan)|ruta|verificador)/.test(n)
+  const nDc = texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  const fechaDc = /\b(hoy|ayer|antier|anteayer|manana|semana|lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b|\b\d{1,2}\s*[-/.]\s*\d{1,2}\b|\b\d{1,2}\s+de\s+[a-z]+/.test(nDc)
+  const verifFecha = /verificador/.test(nDc) && fechaDc          // "necesito verificadores de ayer" (sin "!")
+  if (texto && (enGrupo || privadoAdmin || grupoExtra) && (verifFecha || (/!/.test(texto) && !/^!\s*[a-z]/i.test(texto.trim())))) {
+    const n = nDc
+    const esDc = verifFecha || /(donde\s+(esta|anda|estan|andan)|ruta|verificador)/.test(n)
     if (esDc || /!\s*$/.test(texto)) {
       try {
         if (/verificador/.test(n)) encolar(jid, { text: '⏳ Bajando los verificadores desde Datácora…' }, { quoted: m }, 1200)
@@ -365,6 +393,7 @@ async function manejar (m) {
       }
     }
   }
+  if (grupoExtra) return                 // en los grupos extra no se hace nada más que Datácora
 
   // ---------------- Manuel en el grupo: solo se le responde si antepone "!" (incluidos comandos)
   if (enGrupo && admin && texto) {
