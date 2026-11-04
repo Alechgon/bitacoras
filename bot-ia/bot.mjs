@@ -430,9 +430,9 @@ async function manejar (m) {
     const esDc = /(donde\s+(esta|anda|estan|andan)|ruta|verificador)/.test(n)
     if (esDc || /!\s*$/.test(texto)) {
       try {
-        if (/verificador/.test(n)) encolar(jid, { text: '⏳ Bajando los verificadores desde Datácora…' }, { quoted: m }, 1200)
+        if (/verificador/.test(n)) encolar(jid, { text: 'Dame un segundo, los organizo y envío :D' }, { quoted: m }, 1200)
         const t0 = Date.now()
-        const r = await api('/datacora', { texto, autor: m.pushName || '', numero, es_admin: admin }, 30 * 60000, 1)
+        const r = await api('/datacora', { texto, autor: m.pushName || '', numero, es_admin: admin }, 120 * 60000, 1)
         log('🛰️ datacora', Math.round((Date.now() - t0) / 1000) + ' s', r?.nada ? '(no era consulta)' : (r?.texto || '').slice(0, 60).replace(/\n/g, ' '))
         if (r && !r.nada) {
           if (r.texto) encolar(jid, { text: r.texto }, { quoted: m }, azar(2, 5) * 1000)

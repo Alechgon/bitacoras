@@ -81,7 +81,7 @@ El bot lee Datácora directo (`datacora.py`) y contesta en el grupo o en tu priv
 | `verificadores de la semana carla!` | Un ZIP con una carpeta por establecimiento: PDF + fotos |
 | `verificadores hoy!` · `ayer!` · `lunes!` · `03-11!` · `entre 02-11 y 04-11!` | Solo con "!". Si lo pide una supervisora, el bot la reconoce por su número o nombre de WhatsApp y manda los de sus establecimientos. Tú: `verificadores de annahi!`. Lunes…domingo = el de esta semana (si aún no llega, el de la anterior) |
 | `verificadores falabella!` | Lista numerada de las fechas que hay de ese colegio (hasta 15); eliges con `1!`, `1 3!`, `1-3!`, `primero!` o `todos!` (el menú dura 30 min). Con fecha (`verificador falabella 24-09!`) manda esa directo |
-| _ritmo suave_ | Una consulta a Datácora a la vez, lista de tareas guardada 5 min, 3 s entre cada PDF, máx 10 PDF (3 con fotos) por pedido; si Datácora se pone lento, para y avisa |
+| _cómo baja_ | Una consulta a la vez, **todos** los verificadores del rango (sin tope), de a uno con 3 s de pausa; 5 o más van en un ZIP. Cada PDF queda guardado en `Descargas/Verificadores SOSER/<año-mes>/` (si corriste `termux-setup-storage`; si no, en `~/verificadores_soser`) y si lo vuelven a pedir se manda desde ahí sin ir a Datácora. Si Datácora no responde 3 seguidos, para y avisa |
 | `!grupos` (desde tu número, en privado) | Lista numerada de todos los grupos donde está el bot: ✅ los que lee, ⬜ los que no. `!grupos 3 5` los cambia; `+3` leer, `-3` no leer. En los grupos extra solo contesta lo de Datácora |
 
 Conectar (una vez, en Termux): `python ~/bitacoras/bot-ia/datacora.py configurar` (correo y clave quedan solo en

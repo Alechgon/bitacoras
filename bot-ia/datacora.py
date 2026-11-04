@@ -59,8 +59,16 @@ import threading
 UNA_A_LA_VEZ = threading.Lock()      # una sola consulta a Datácora a la vez
 SEG_TAREAS = 300                     # la lista de tareas se pide como mucho cada 5 min
 PAUSA_DESCARGA = 3                   # segundos entre un PDF y el siguiente
-MAX_PDF = 10                         # máximo de verificadores por pedido
-MAX_CON_FOTOS = 3                    # máximo de colegios con fotos por pedido
+ZIP_DESDE = 5                        # de 5 verificadores para arriba van en un ZIP
+
+
+def carpeta_guardados():
+    """Donde quedan guardados los verificadores ya bajados (se reusan si los piden de nuevo).
+    Si Termux tiene acceso al almacenamiento: Descargas/Verificadores SOSER (se ven en el celular)."""
+    for base in (os.path.expanduser("~/storage/downloads"), os.path.expanduser("~/storage/shared/Download")):
+        if os.path.isdir(base):
+            return os.path.join(base, "Verificadores SOSER")
+    return os.path.expanduser("~/verificadores_soser")
 
 
 # ============================================================ configuración y sesión
@@ -846,15 +854,24 @@ def verificadores(desde, hasta, sup=None, con_fotos=False, etiqueta="hoy", rbds=
         return f"📭 No hay bitácoras cerradas{quien} ({rango}) en Datácora.", []
     sel.sort(key=cuando_hecha)
     total = len(sel)
-    tope = MAX_CON_FOTOS if con_fotos else MAX_PDF
-    sobran = sel[tope:]
-    sel = sel[:tope]
-    carpeta = os.path.join(SALIDA, f"{datetime.now().strftime('%Y%m%d-%H%M%S')}")
-    os.makedirs(carpeta, exist_ok=True)
+    os.makedirs(SALIDA, exist_ok=True)
     _limpiar_viejos()
+    G = carpeta_guardados()
+    os.makedirs(G, exist_ok=True)
+    ruta_idx = os.path.join(G, "indice.json")
+    try:
+        idx = json.load(open(ruta_idx, encoding="utf-8"))
+    except Exception:
+        idx = {}
+
+    def guardar_idx():
+        tmp = ruta_idx + ".tmp"
+        json.dump(idx, open(tmp, "w", encoding="utf-8"), ensure_ascii=False, indent=0)
+        os.replace(tmp, ruta_idx)
+
     archivos, malos, usados, lineas = [], [], set(), []
-    zip_todo = con_fotos or len(sel) > 8
-    # 1) se arma la lista con el nombre final de cada PDF
+    zip_todo = con_fotos or len(sel) >= ZIP_DESDE
+    # 1) la lista con el nombre final de cada PDF: "Colegio dd-mm-aaaa.pdf"
     items = []
     for t in sel:
         n, rbd = establecimiento(t)
@@ -865,35 +882,67 @@ def verificadores(desde, hasta, sup=None, con_fotos=False, etiqueta="hoy", rbds=
             nom, k = f"{base} ({k})", k + 1
         usados.add(nom)
         lineas.append(f"• {d.strftime('%d-%m')} {_corto(n, 30)} — {_primer_nombre(tecnico(t))}")
-        sub = os.path.join(carpeta, nom) if zip_todo else carpeta
-        items.append({"t": t, "n": n, "nom": nom, "ruta": os.path.join(sub, nom + ".pdf"), "sub": sub, "ok": False, "err": ""})
+        items.append({"t": t, "n": n, "nom": nom, "sid": str(envio_id(t)), "mes": d.strftime("%Y-%m"),
+                      "pdf": None, "fotos": [], "ok": False, "err": "", "bajado": False})
+
+    def ya_guardado(it):
+        e = idx.get(it["sid"]) or {}
+        p = os.path.join(G, e.get("pdf", "")) if e.get("pdf") else ""
+        if not (p and os.path.isfile(p) and os.path.getsize(p) > 500):
+            return False
+        fotos = [os.path.join(G, f) for f in e.get("fotos", []) if os.path.isfile(os.path.join(G, f))]
+        if con_fotos and not e.get("fotos_listas"):
+            return False
+        it.update(pdf=p, fotos=fotos, ok=True)
+        return True
 
     def bajar(it):
-        """Baja UN PDF completo y lo guarda; recién ahí se pasa al siguiente."""
+        """Baja UN verificador completo y lo deja guardado; recién ahí se pasa al siguiente."""
         try:
-            det = api("GET", f"/api/submissions/{envio_id(it['t'])}/detail", timeout=60)
-            pdf = _bajar_pdf(it["t"], det)
-            if not pdf.startswith(b"%PDF") or len(pdf) < 500:
-                raise ErrorDatacora("el PDF llegó incompleto")
-            os.makedirs(it["sub"], exist_ok=True)
-            tmp = it["ruta"] + ".parcial"
-            with open(tmp, "wb") as f:
-                f.write(pdf)
-            os.replace(tmp, it["ruta"])                  # queda guardado solo si llegó entero
+            det = api("GET", f"/api/submissions/{it['sid']}/detail", timeout=60)
+            e = idx.get(it["sid"]) or {}
+            p = os.path.join(G, e["pdf"]) if e.get("pdf") and os.path.isfile(os.path.join(G, e["pdf"])) else ""
+            if not p:
+                pdf = _bajar_pdf(it["t"], det)
+                if not pdf.startswith(b"%PDF") or len(pdf) < 500:
+                    raise ErrorDatacora("el PDF llegó incompleto")
+                os.makedirs(os.path.join(G, it["mes"]), exist_ok=True)
+                rel, k = os.path.join(it["mes"], it["nom"] + ".pdf"), 2
+                while os.path.exists(os.path.join(G, rel)):
+                    rel, k = os.path.join(it["mes"], f"{it['nom']} ({k}).pdf"), k + 1
+                p = os.path.join(G, rel)
+                with open(p + ".parcial", "wb") as f:
+                    f.write(pdf)
+                os.replace(p + ".parcial", p)             # queda guardado solo si llegó entero
+                e["pdf"] = rel
+            fotos = []
             if con_fotos:
+                dir_f = os.path.join(it["mes"], os.path.splitext(os.path.basename(e["pdf"]))[0] + " fotos")
+                os.makedirs(os.path.join(G, dir_f), exist_ok=True)
+                rels = []
                 for j, (ext, b2) in enumerate(_bajar_fotos(it["t"], det), 1):
-                    open(os.path.join(it["sub"], f"foto {j:02d}.{ext}"), "wb").write(b2)
-            it["ok"] = True
-        except Exception as e:
-            it["err"] = str(e)
+                    rel = os.path.join(dir_f, f"foto {j:02d}.{ext}")
+                    open(os.path.join(G, rel), "wb").write(b2)
+                    rels.append(rel)
+                e["fotos"], e["fotos_listas"] = rels, True
+                fotos = [os.path.join(G, r) for r in rels]
+            idx[it["sid"]] = e
+            guardar_idx()
+            it.update(pdf=p, fotos=fotos, ok=True, bajado=True)
+        except Exception as ex:
+            it["err"] = str(ex)
 
-    # 2) de a uno: termina uno, pausa, empieza el siguiente
-    seguidos_malos, cortado = 0, []
+    # 2) primero se busca en lo guardado; lo que falta se baja de a uno (termina uno, pausa, sigue el otro)
+    guardados = sum(1 for it in items if ya_guardado(it))
+    seguidos_malos, cortado, primero = 0, [], True
     for i, it in enumerate(items):
-        if i:
+        if it["ok"]:
+            continue
+        if not primero:
             time.sleep(PAUSA_DESCARGA)
+        primero = False
         if seguidos_malos >= 3:                          # Datácora caída: no se insiste
-            cortado = [x for x in items[i:]]
+            cortado = [x for x in items[i:] if not x["ok"]]
             break
         bajar(it)
         seguidos_malos = 0 if it["ok"] else seguidos_malos + 1
@@ -908,32 +957,32 @@ def verificadores(desde, hasta, sup=None, con_fotos=False, etiqueta="hoy", rbds=
         if not it["ok"] and it not in cortado:
             malos.append(f"{_corto(it['n'], 30)} ({it['err']})")
     # 4) se juntan todos y recién ahí se mandan (en orden de fecha)
-    if not zip_todo:
-        archivos += [{"ruta": it["ruta"], "nombre": it["nom"] + ".pdf"} for it in items if it["ok"]]
-    if zip_todo and any(it["ok"] for it in items):
+    listos = [it for it in items if it["ok"]]
+    if listos and not zip_todo:
+        archivos += [{"ruta": it["pdf"], "nombre": it["nom"] + ".pdf"} for it in listos]
+    if listos and zip_todo:
         nombre_zip = _nombre_archivo(f"Verificadores{quien} {rango}{' con fotos' if con_fotos else ''}") + ".zip"
-        ruta_zip = os.path.join(SALIDA, nombre_zip)
+        ruta_zip = os.path.join(SALIDA, f"{datetime.now().strftime('%H%M%S')} {nombre_zip}")
         with zipfile.ZipFile(ruta_zip, "w", zipfile.ZIP_DEFLATED) as z:
-            for raiz, _, fs in os.walk(carpeta):
-                for f in fs:
-                    p = os.path.join(raiz, f)
-                    z.write(p, os.path.relpath(p, carpeta))
-        if os.path.getsize(ruta_zip) > 22:
-            archivos.append({"ruta": ruta_zip, "nombre": nombre_zip})
-    ok = sum(1 for it in items if it["ok"])
+            for it in listos:
+                if con_fotos:
+                    z.write(it["pdf"], f"{it['nom']}/{it['nom']}.pdf")
+                    for f in it["fotos"]:
+                        z.write(f, f"{it['nom']}/{os.path.basename(f)}")
+                else:
+                    z.write(it["pdf"], f"{it['nom']}.pdf")
+        archivos.append({"ruta": ruta_zip, "nombre": nombre_zip})
+    ok = len(listos)
     txt = [f"📄 *Verificadores{quien} · {rango}*: {ok} de {total}"
            + (" (en un ZIP" + (" con fotos" if con_fotos else "") + ")" if zip_todo and ok else "")]
-    txt += lineas[:40]
-    if len(lineas) > 40:
-        txt.append(f"… y {len(lineas) - 40} más")
+    txt += lineas[:60]
+    if len(lineas) > 60:
+        txt.append(f"… y {len(lineas) - 60} más")
     if malos:
         txt.append("⚠️ Sin PDF: " + "; ".join(malos[:10]))
     if cortado:
-        txt.append(f"⏸️ Datácora no estaba respondiendo y paré para no cargarla; faltaron {len(cortado)}. Pídelos de nuevo en unos minutos.")
-    if sobran:
-        txt.append(f"➕ Mando de a {tope} para no cargar Datácora; faltan {len(sobran)} "
-                   f"(desde el {cuando_hecha(sobran[0]).strftime('%d-%m')}). Pídelos por día, ej: *verificadores "
-                   f"{cuando_hecha(sobran[0]).strftime('%d-%m')}!*")
+        txt.append(f"⏸️ Datácora no estaba respondiendo y paré para no cargarla; faltaron {len(cortado)}. "
+                   "Pídelos de nuevo en unos minutos (los que ya bajé quedan guardados).")
     return "\n".join(txt), archivos
 
 
