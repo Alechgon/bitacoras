@@ -207,7 +207,26 @@ def tecnico(t):
         tid = str(t.get("assigned_to") or t.get("assignedTo") or "")
         u = next((u for u in usuarios() if str(u.get("id")) == tid), None) if tid else None
         nom = (u or {}).get("full_name") or (u or {}).get("fullName") or ""
+    if not nom:
+        nom = _tec_del_colegio(establecimiento(t)[1])
     return nom or "Sin técnico"
+
+
+def _tec_del_colegio(rbd):
+    """Técnico que atiende ese colegio según el cronograma (la última visita programada o hecha)."""
+    def cargar():
+        try:
+            sys.path.insert(0, AQUI)
+            import nucleo
+            D = nucleo.datos()
+            m = {}
+            for p in sorted(D["PLAN"], key=lambda p: p.get("fecha", "")):
+                if p.get("tec"):
+                    m[str(p["rbd"])] = D["META"]["tecnicos"].get(p["tec"], {}).get("nombre") or p["tec"].title()
+            return m
+        except Exception:
+            return {}
+    return _cache("tec_colegio", 3600, cargar).get(str(rbd), "")
 
 
 def establecimiento(t):
@@ -249,14 +268,15 @@ def subida(t):
     return _fecha(t.get("assigned_at") or t.get("created_at") or t.get("assignedAt") or t.get("createdAt"))
 
 
+def fecha_tarea(t):
+    """La fecha que le pones al agregar la tarea (programada / fecha de la tarea). Si no trae, el día en que se subió."""
+    d = _fecha(t.get("scheduled_date") or t.get("scheduledDate") or t.get("due_date") or t.get("dueDate")) or subida(t)
+    return d.date() if d else None
+
+
 def dia_objetivo(t):
-    """
-    Día en que le toca una tarea PENDIENTE: la fecha programada si la tiene; si no, el día en que la
-    subieron/asignaron (una emergencia subida hoy es para hoy). Lo atrasado pasa a hoy.
-    """
-    hoy = ahora().date()
-    d = _fecha(t.get("scheduled_date") or t.get("scheduledDate")) or subida(t) or _fecha(t.get("due_date"))
-    return max(d.date(), hoy) if d else hoy
+    """Día en que le toca una tarea pendiente (= su fecha)."""
+    return fecha_tarea(t) or ahora().date()
 
 
 def prioridad(t):
@@ -361,13 +381,11 @@ def donde_esta(quien):
         mins = int((ya - cuando_hecha(ult)).total_seconds() // 60)
         lineas.append(f"📍 *{nombre}* está en *{n}* (RBD {rbd}): cerró la bitácora hace {mins} min "
                       f"({_hhmm(cuando_hecha(ult))}){_geo(ult)}.")
-    n_hoy = sum(1 for t in cerradas if cuando_hecha(t).date() == hoy)
     pend_hoy = [t for t in mias if pendiente(t) and dia_objetivo(t) == hoy]
     # primero lo último que le asignaron/autoasignó hoy; después emergencias y lo más antiguo
     pend_hoy.sort(key=lambda t: (not (subida(t) and subida(t).date() == hoy), prioridad(t),
                                  -(subida(t) or ya).timestamp() if subida(t) and subida(t).date() == hoy
                                  else (subida(t) or ya).timestamp()))
-    pend_hoy = pend_hoy[:max(credenciales()["max_por_dia"] - n_hoy, 1)]   # lo que cabe hoy (máx 4 al día)
     if pend_hoy:
         n, rbd = establecimiento(pend_hoy[0])
         auto = str(pend_hoy[0].get("created_by") or "") and str(pend_hoy[0].get("created_by")) == str(
@@ -473,74 +491,60 @@ def _linea(marca, nombre, rbd, extra):
 
 def ruta(desde, hasta, titulo):
     """
-    Por técnico y día, máximo N visitas (max_por_dia, 4 por defecto):
-      ✅ lo que ya cerró ese día
-      🚨/⏳ lo que está PENDIENTE en Datácora (emergencias, correctivas, preventivas que subiste tú o el admin;
-            lo atrasado se pone primero en el día de hoy y lo que no cabe se corre al día siguiente)
-      📅 si queda espacio, lo del cronograma
+    Por técnico y día:
+      ✅ lo que cerró ese día
+      🚨/⏳ las tareas pendientes de Datácora con FECHA de ese día (las que agregas tú o el admin)
+      📅 si no llega a 4, se completa con el cronograma
+      ⚠️ hoy además avisa lo atrasado (fecha anterior y sin cerrar), sin contarlo en los 4
     """
     hoy = ahora().date()
     cupo = credenciales()["max_por_dia"]
-    # si piden un día futuro, se "juega" desde hoy para que lo que se hace antes no se repita
-    ini = hoy if hoy < desde else desde
-    ts = [t for t in tareas() if not cancelada(t)]
-    hechas, cola = {}, {}
-    nombres = {}
-    for t in ts:
+    hechas, pend, atrasadas, nombres = {}, {}, {}, {}
+    for t in tareas():
+        if cancelada(t):
+            continue
         k = clave_tec(tecnico(t))
         nombres.setdefault(k, _primer_nombre(tecnico(t)) or "Sin técnico")
         if hecha(t):
-            d = cuando_hecha(t).date() if cuando_hecha(t) else dia_tarea(t)
-            if d and ini <= d <= hasta:
+            d = cuando_hecha(t).date() if cuando_hecha(t) else fecha_tarea(t)
+            if d and desde <= d <= hasta:
                 hechas.setdefault((d, k), []).append(t)
-        elif dia_objetivo(t) <= hasta and hasta >= hoy:
-            cola.setdefault(k, []).append(t)
-    for k in cola:                                   # emergencias primero, después lo más antiguo
-        cola[k].sort(key=lambda t: (prioridad(t), dia_objetivo(t), (subida(t) or ahora()).timestamp()))
+            continue
+        f = fecha_tarea(t)
+        if f and desde <= f <= hasta:
+            pend.setdefault((f, k), []).append(t)
+        elif f and f < hoy and desde <= hoy <= hasta:
+            atrasadas.setdefault(k, []).append(t)
     plan = {}
-    for c in cronograma(max(ini, hoy), hasta) if hasta >= hoy else []:
+    for c in (cronograma(max(desde, hoy), hasta) if hasta >= hoy else []):
         plan.setdefault((c["fecha"], c["tec"]), []).append(c)
         nombres.setdefault(c["tec"], c["tec"].title())
 
-    dias, d = [], ini
+    dias, d = [], desde
     while d <= hasta:
-        if d.weekday() < 5 or any(k[0] == d for k in hechas):
+        if d.weekday() < 5 or any(k[0] == d for k in list(hechas) + list(pend)):
             dias.append(d)
         d += timedelta(days=1)
     orden = sorted(nombres, key=lambda k: (k == "SIN TECNICO", k))
     out = [f"🗓️ *{titulo}*"]
-    usadas = set()
     algo = False
     for d in dias:
         bloque = []
         for k in orden:
-            lineas, n_hechas, n_items = [], 0, 0
-            rbds = set()
+            lineas, rbds, n_hechas = [], set(), 0
             for t in sorted(hechas.get((d, k), []), key=lambda t: cuando_hecha(t) or ahora()):
                 n, rbd = establecimiento(t)
                 rbds.add(rbd)
                 lineas.append(_linea(f"✅ {_hhmm(cuando_hecha(t))}", n, rbd, tipo_corto(t)))
                 n_hechas += 1
-            n_items = n_hechas
+            for t in sorted(pend.get((d, k), []), key=lambda t: (prioridad(t), (subida(t) or ahora()).timestamp())):
+                n, rbd = establecimiento(t)
+                rbds.add(rbd)
+                marca = ("🚨" if prioridad(t) == 0 else "⏳") if d >= hoy else "❌"
+                lineas.append(_linea(marca, n, rbd, tipo_corto(t) + (" · no se cerró" if d < hoy else "")))
+            n_items = len(lineas)
             corridas = []
             if d >= hoy:
-                tope = cupo if k != "SIN TECNICO" else 99
-                for t in cola.get(k, []):
-                    if id(t) in usadas or dia_objetivo(t) > d:
-                        continue
-                    if n_items >= tope:
-                        break
-                    usadas.add(id(t))
-                    n, rbd = establecimiento(t)
-                    rbds.add(rbd)
-                    sb = subida(t)
-                    nota = tipo_corto(t)
-                    if sb and sb.date() == hoy and d == hoy:
-                        nota += " · subida hoy"
-                    elif sb and sb.date() < hoy:
-                        nota += f" · desde {_dm(sb)}"
-                    lineas.append(_linea("🚨" if prioridad(t) == 0 else "⏳", n, rbd, nota))
-                    n_items += 1
                 for c in plan.get((d, k), []):
                     if c["rbd"] in rbds:
                         continue
@@ -550,26 +554,26 @@ def ruta(desde, hasta, titulo):
                     rbds.add(c["rbd"])
                     lineas.append(_linea("📅", c["nombre"], c["rbd"], c["clase"]))
                     n_items += 1
-            if not lineas:
+            atr = atrasadas.get(k, []) if d == hoy else []
+            if not lineas and not atr:
                 continue
             bloque.append(f"👷 *{nombres[k]}* ({n_hechas}/{n_items})")
             bloque += lineas
             if corridas:
-                bloque.append("   ↪️ Cronograma que no cabe hoy: " + ", ".join(_corto(c["nombre"], 22) for c in corridas))
-            if d == dias[-1]:
-                resto = [t for t in cola.get(k, []) if id(t) not in usadas]
-                if resto:
-                    bloque.append(f"   ➕ {len(resto)} pendiente{'s' if len(resto) > 1 else ''} más: "
-                                  + ", ".join(_corto(establecimiento(t)[0], 22) for t in resto[:6])
-                                  + (" y más" if len(resto) > 6 else ""))
-        if bloque and d >= desde:
+                bloque.append("   ↪️ Del cronograma no alcanza: " + ", ".join(_corto(c["nombre"], 22) for c in corridas))
+            if atr:
+                atr.sort(key=lambda t: fecha_tarea(t))
+                bloque.append(f"   ⚠️ Atrasada{'s' if len(atr) > 1 else ''} sin cerrar: " + ", ".join(
+                    f"{_corto(establecimiento(t)[0], 22)} ({fecha_tarea(t).strftime('%d-%m')})" for t in atr[:6])
+                    + (f" y {len(atr) - 6} más" if len(atr) > 6 else ""))
+        if bloque:
             algo = True
             if desde != hasta:
                 out.append(f"\n*{_dm(d).capitalize()}*")
             out += bloque
     if not algo:
         return f"🗓️ *{titulo}*\nNo hay nada en Datácora ni en el cronograma para esos días."
-    out.append(f"\n_✅ cerrada · 🚨 emergencia · ⏳ pendiente en Datácora · 📅 cronograma · máx {cupo} por día_")
+    out.append(f"\n_✅ cerrada · 🚨 emergencia · ⏳ tarea con fecha de ese día · 📅 cronograma (completa hasta {cupo})_")
     return "\n".join(out)
 
 
@@ -957,7 +961,7 @@ def _ollama(args):
 def _pendientes():
     """Muestra cada tarea pendiente con sus fechas tal como vienen de Datácora (para revisar)."""
     ts = [t for t in tareas() if pendiente(t)]
-    print(f"{len(ts)} pendientes:")
+    print(f"{len(ts)} pendientes (fecha = la que le pusiste al agregarla):")
     for t in sorted(ts, key=lambda t: (clave_tec(tecnico(t)), dia_objetivo(t))):
         n, rbd = establecimiento(t)
         f = {k: t.get(k) for k in ("status", "task_type", "due_date", "scheduled_date", "assigned_at", "created_at")
