@@ -11,6 +11,8 @@ echo "=== Datácora directo"
 timeout 120 python datacora.py "ruta para hoy!" 2>&1 | head -6
 echo "=== Últimas líneas del bot"
 tail -n 35 logs/bot.log 2>/dev/null
+echo "=== Caídas y reconexiones del bot"
+grep -E "se cayó|Reconectando|440|🐕|❌|Killed|heap" logs/bot.log 2>/dev/null | tail -n 10
 echo "=== Errores del servidor"
 grep -E "Error|Traceback|cayó" logs/servidor.log 2>/dev/null | tail -n 8
 echo "=== Actualizaciones"

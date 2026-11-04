@@ -489,36 +489,49 @@ def _linea(marca, nombre, rbd, extra):
     return f"   {marca} {_corto(nombre)} ({rbd}){' · ' + extra if extra else ''}"
 
 
+def _nombre_tec(k, nombre_dc):
+    """'CAMILO' -> 'Camilo Santis' (nombre y primer apellido)."""
+    try:
+        sys.path.insert(0, AQUI)
+        import nucleo
+        n = nucleo.datos()["META"]["tecnicos"].get(k, {}).get("nombre")
+        if n:
+            return " ".join(n.split()[:2])
+    except Exception:
+        pass
+    return " ".join((nombre_dc or k.title()).split()[:2])
+
+
 def ruta(desde, hasta, titulo):
     """
-    Por técnico y día:
-      ✅ lo que cerró ese día
-      🚨/⏳ las tareas pendientes de Datácora con FECHA de ese día (las que agregas tú o el admin)
-      📅 si no llega a 4, se completa con el cronograma
-      ⚠️ hoy además avisa lo atrasado (fecha anterior y sin cerrar), sin contarlo en los 4
+    Por técnico y día, máximo 4 colegios (solo lectura de Datácora):
+      1) los que cerró ese día -> "(finalizado HH:MM)"
+      2) las tareas pendientes de Datácora con la fecha de ese día (emergencias primero) -> sin nada al lado
+      3) si no llega a 4, lo que sigue en el cronograma (si el día no tiene, se adelanta lo próximo)
+    Lo atrasado de otros días no se muestra (se va moviendo en el cronograma).
     """
     hoy = ahora().date()
     cupo = credenciales()["max_por_dia"]
-    hechas, pend, atrasadas, nombres = {}, {}, {}, {}
+    hechas, pend, nombres = {}, {}, {}
     for t in tareas():
         if cancelada(t):
             continue
         k = clave_tec(tecnico(t))
-        nombres.setdefault(k, _primer_nombre(tecnico(t)) or "Sin técnico")
+        nombres.setdefault(k, tecnico(t))
         if hecha(t):
             d = cuando_hecha(t).date() if cuando_hecha(t) else fecha_tarea(t)
             if d and desde <= d <= hasta:
                 hechas.setdefault((d, k), []).append(t)
-            continue
-        f = fecha_tarea(t)
-        if f and desde <= f <= hasta:
-            pend.setdefault((f, k), []).append(t)
-        elif f and f < hoy and desde <= hoy <= hasta:
-            atrasadas.setdefault(k, []).append(t)
+        else:
+            f = fecha_tarea(t)
+            if f and desde <= f <= hasta and f >= hoy:
+                pend.setdefault((f, k), []).append(t)
+    # cronograma por técnico, en orden: si un día queda con cupo, se adelanta lo que viene
     plan = {}
-    for c in (cronograma(max(desde, hoy), hasta) if hasta >= hoy else []):
-        plan.setdefault((c["fecha"], c["tec"]), []).append(c)
-        nombres.setdefault(c["tec"], c["tec"].title())
+    for c in (cronograma(max(desde, hoy), hasta + timedelta(days=30)) if hasta >= hoy else []):
+        plan.setdefault(c["tec"], []).append(c)
+        nombres.setdefault(c["tec"], "")
+    usados = set()
 
     dias, d = [], desde
     while d <= hasta:
@@ -531,41 +544,29 @@ def ruta(desde, hasta, titulo):
     for d in dias:
         bloque = []
         for k in orden:
-            lineas, rbds, n_hechas = [], set(), 0
+            lineas, rbds = [], set()
             for t in sorted(hechas.get((d, k), []), key=lambda t: cuando_hecha(t) or ahora()):
                 n, rbd = establecimiento(t)
                 rbds.add(rbd)
-                lineas.append(_linea(f"✅ {_hhmm(cuando_hecha(t))}", n, rbd, tipo_corto(t)))
-                n_hechas += 1
+                lineas.append(f"- {n} (finalizado {_hhmm(cuando_hecha(t))})")
             for t in sorted(pend.get((d, k), []), key=lambda t: (prioridad(t), (subida(t) or ahora()).timestamp())):
                 n, rbd = establecimiento(t)
+                if rbd in rbds or len(lineas) >= cupo:
+                    continue
                 rbds.add(rbd)
-                marca = ("🚨" if prioridad(t) == 0 else "⏳") if d >= hoy else "❌"
-                lineas.append(_linea(marca, n, rbd, tipo_corto(t) + (" · no se cerró" if d < hoy else "")))
-            n_items = len(lineas)
-            corridas = []
+                lineas.append(f"- {n}")
             if d >= hoy:
-                for c in plan.get((d, k), []):
-                    if c["rbd"] in rbds:
+                for c in plan.get(k, []):
+                    if len(lineas) >= cupo:
+                        break
+                    if id(c) in usados or c["rbd"] in rbds:
                         continue
-                    if n_items >= cupo:
-                        corridas.append(c)
-                        continue
+                    usados.add(id(c))
                     rbds.add(c["rbd"])
-                    lineas.append(_linea("📅", c["nombre"], c["rbd"], c["clase"]))
-                    n_items += 1
-            atr = atrasadas.get(k, []) if d == hoy else []
-            if not lineas and not atr:
-                continue
-            bloque.append(f"👷 *{nombres[k]}* ({n_hechas}/{n_items})")
-            bloque += lineas
-            if corridas:
-                bloque.append("   ↪️ Del cronograma no alcanza: " + ", ".join(_corto(c["nombre"], 22) for c in corridas))
-            if atr:
-                atr.sort(key=lambda t: fecha_tarea(t))
-                bloque.append(f"   ⚠️ Atrasada{'s' if len(atr) > 1 else ''} sin cerrar: " + ", ".join(
-                    f"{_corto(establecimiento(t)[0], 22)} ({fecha_tarea(t).strftime('%d-%m')})" for t in atr[:6])
-                    + (f" y {len(atr) - 6} más" if len(atr) > 6 else ""))
+                    lineas.append(f"- {c['nombre']}")
+            if lineas:
+                bloque.append(f"👷 *{_nombre_tec(k, nombres[k])}*")
+                bloque += lineas
         if bloque:
             algo = True
             if desde != hasta:
@@ -573,7 +574,6 @@ def ruta(desde, hasta, titulo):
             out += bloque
     if not algo:
         return f"🗓️ *{titulo}*\nNo hay nada en Datácora ni en el cronograma para esos días."
-    out.append(f"\n_✅ cerrada · 🚨 emergencia · ⏳ tarea con fecha de ese día · 📅 cronograma (completa hasta {cupo})_")
     return "\n".join(out)
 
 
@@ -813,6 +813,10 @@ def _rango(t, hoy, futuro=False):
     'el lunes pasado' = el de la semana anterior), esta semana, la semana pasada, 04-11, 4/11/2026,
     4 de noviembre, y rangos 'del 02-11 al 04-11' o 'del lunes al miércoles'.
     """
+    if re.search(r"\b(desde|adelante|a la fecha|hasta hoy)\b", t) and not re.search(r"\bhasta\s+(el\s+)?(?!hoy)", t):
+        d, _, lbl = _rango(re.sub(r"\b(desde|adelante|en|a la fecha|hasta hoy)\b", " ", t), hoy, futuro=False)
+        if d < hoy:
+            return d, hoy, f"{_dm(d)} a hoy"
     exactas = _fechas_exactas(t, hoy)
     if len(exactas) >= 2:
         a, b = min(exactas[:2]), max(exactas[:2])
