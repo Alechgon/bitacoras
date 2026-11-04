@@ -675,6 +675,21 @@ async function conectar () {
     }
   })
 
+  // cuando agregan el bot a un grupo nuevo, te avisa en privado con el número para activarlo
+  sock.ev.on('groups.upsert', async (grupos) => {
+    try {
+      for (const g of grupos || []) {
+        nombresGrupo[g.id] = g.subject || g.id
+        const todos = Object.values(await sock.groupFetchAllParticipating())
+          .map(x => ({ id: x.id, nombre: x.subject || x.id })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+        estado.lista_grupos = todos.map(x => x.id); guardarEstado()
+        const n = todos.findIndex(x => x.id === g.id) + 1
+        const yo = adminJid()
+        if (yo) encolar(yo, { text: `👥 Me agregaron al grupo *${g.subject || g.id}*.\nPor ahora no lo leo. Para que conteste ahí lo de Datácora: *!grupos +${n}*` }, {}, 2000)
+      }
+    } catch (e) { log('❌ grupo nuevo:', e.message) }
+  })
+
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return
     for (const m of messages) manejar(m).catch(e => log('❌', e.message))
