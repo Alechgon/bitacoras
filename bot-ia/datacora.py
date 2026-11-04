@@ -54,6 +54,14 @@ except Exception:                                   # Termux sin tzdata: Chile e
 
 DIAS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
 
+# ---- ritmo suave con Datácora (para no cargar el servidor)
+import threading
+UNA_A_LA_VEZ = threading.Lock()      # una sola consulta a Datácora a la vez
+SEG_TAREAS = 300                     # la lista de tareas se pide como mucho cada 5 min
+PAUSA_DESCARGA = 3                   # segundos entre un PDF y el siguiente
+MAX_PDF = 10                         # máximo de verificadores por pedido
+MAX_CON_FOTOS = 3                    # máximo de colegios con fotos por pedido
+
 
 # ============================================================ configuración y sesión
 def credenciales():
@@ -130,20 +138,35 @@ def _token(renovar=False):
 
 
 def api(method, ruta, cuerpo=None, timeout=45):
-    """Llama al backend con la sesión; si el token venció, entra de nuevo una vez."""
+    """Llama al backend con la sesión; si el token venció, entra de nuevo una vez.
+    Si Datácora está lento (500/502/503/504), espera 10 s y prueba solo una vez más."""
     try:
         return _http(method, ruta, cuerpo, _token(), timeout)
     except ErrorDatacora as e:
-        if getattr(e, "status", 0) == 401:
+        st = getattr(e, "status", 0)
+        if st == 401:
             return _http(method, ruta, cuerpo, _token(renovar=True), timeout)
+        if st in (500, 502, 503, 504):
+            time.sleep(10)
+            try:
+                return _http(method, ruta, cuerpo, _token(), timeout)
+            except ErrorDatacora as e2:
+                if getattr(e2, "status", 0) in (500, 502, 503, 504):
+                    raise ErrorDatacora("Datácora está lento ahora (no respondió a tiempo). Prueba en unos minutos.")
+                raise
         raise
 
 
-def _cache(clave, seg, fn):
+def _cache(clave, seg, fn, viejo_ok=1800):
     v = _CACHE.get(clave)
     if v and time.time() - v[0] < seg:
         return v[1]
-    r = fn()
+    try:
+        r = fn()
+    except ErrorDatacora:
+        if v and time.time() - v[0] < viejo_ok:   # Datácora lento: se usa lo último que se bajó
+            return v[1]
+        raise
     _CACHE[clave] = (time.time(), r)
     return r
 
@@ -157,11 +180,11 @@ def tareas():
             return ts
         nuestros = _tecs_sucursal()
         return [t for t in ts if establecimiento(t)[1] in mapa or clave_tec(tecnico(t)) in nuestros]
-    return _cache("tasks", 60, cargar)
+    return _cache("tasks", SEG_TAREAS, cargar)
 
 
 def usuarios():
-    return _cache("users", 600, lambda: api("GET", "/api/users") or [])
+    return _cache("users", 3600, lambda: api("GET", "/api/users") or [])
 
 
 # ============================================================ ayudas sobre una tarea
@@ -643,6 +666,68 @@ def _rbds_en(texto):
         return []
 
 
+MENUS = {}          # quien -> {"ts", "ids": [task_id...], "fotos": bool}
+ORDINALES = {"primero": 1, "primer": 1, "primera": 1, "segundo": 2, "segunda": 2, "tercero": 3, "tercera": 3,
+             "tercer": 3, "cuarto": 4, "cuarta": 4, "quinto": 5, "quinta": 5, "sexto": 6, "sexta": 6,
+             "septimo": 7, "septima": 7, "octavo": 8, "octava": 8, "noveno": 9, "novena": 9, "decimo": 10, "decima": 10}
+
+
+def verificadores_menu(rbds, quien, con_fotos=False):
+    """'verificadores falabella!' -> lista numerada de las fechas que hay; después se elige con '2!' o '1 3!'."""
+    hechas = [t for t in tareas() if hecha(t) and cuando_hecha(t) and envio_id(t) and establecimiento(t)[1] in rbds]
+    if not hechas:
+        return "📭 No encuentro bitácoras cerradas de ese establecimiento en Datácora.", []
+    hechas.sort(key=cuando_hecha, reverse=True)
+    hechas = hechas[:15]
+    if len(hechas) == 1:
+        d = cuando_hecha(hechas[0]).date()
+        return verificadores(d, d, None, con_fotos=con_fotos, etiqueta=_dm(d), ids={str(hechas[0].get("id"))})
+    MENUS[quien] = {"ts": time.time(), "ids": [str(t.get("id")) for t in hechas], "fotos": con_fotos}
+    varios = len({establecimiento(t)[1] for t in hechas}) > 1
+    txt = [f"📄 *{'Verificadores' if varios else _corto(establecimiento(hechas[0])[0], 40)}* — tengo estos:"]
+    for i, t in enumerate(hechas, 1):
+        d = cuando_hecha(t)
+        extra = f" · {_corto(establecimiento(t)[0], 24)}" if varios else ""
+        txt.append(f"{i}. {d.strftime('%d/%m/%Y')} · {tipo_corto(t)} · {_primer_nombre(tecnico(t))}{extra}")
+    txt.append("\n¿Cuál te mando? Responde con el número y *!*: *1!* · varios: *1 3!* · *1-3!* · *todos!*")
+    return "\n".join(txt), []
+
+
+def _eleccion(t, n_max):
+    """'2' / '1 3' / '1-3' / 'primero y tercero' / 'todos' -> [índices base 1] o None si no es una elección."""
+    t = re.sub(r"\b(el|la|los|las|y|e|verificador(es)?|mandame|manda|dame|quiero|numero|nro|n)\b", " ", t)
+    t = re.sub(r"[,.;]", " ", t).strip()
+    if not t:
+        return None
+    if re.fullmatch(r"(todos|todas|todo)", t):
+        return list(range(1, n_max + 1))
+    out = []
+    for p in t.split():
+        if p in ORDINALES:
+            out.append(ORDINALES[p])
+        elif p in ("ultimo", "ultima"):
+            out.append(1)
+        elif re.fullmatch(r"\d{1,2}", p):
+            out.append(int(p))
+        elif re.fullmatch(r"\d{1,2}-\d{1,2}", p):
+            a, b = map(int, p.split("-"))
+            out += list(range(min(a, b), max(a, b) + 1))
+        else:
+            return None
+    return [x for x in dict.fromkeys(out) if 1 <= x <= n_max] or None
+
+
+def verificadores_elegidos(quien, idx):
+    m = MENUS.get(quien)
+    ids = {m["ids"][i - 1] for i in idx}
+    sel = [t for t in tareas() if str(t.get("id")) in ids]
+    if not sel:
+        return "📭 Ya no encuentro esas bitácoras en Datácora.", []
+    ds = [cuando_hecha(t).date() for t in sel]
+    a, b = min(ds), max(ds)
+    return verificadores(a, b, None, con_fotos=m["fotos"], etiqueta=_dm(a), ids=ids)
+
+
 def verificador_ultimo(rbds, con_fotos=False):
     """La última bitácora cerrada de ese colegio (o colegios)."""
     hechas = [t for t in tareas() if hecha(t) and cuando_hecha(t) and envio_id(t) and establecimiento(t)[1] in rbds]
@@ -652,7 +737,7 @@ def verificador_ultimo(rbds, con_fotos=False):
     return verificadores(d, d, None, con_fotos=con_fotos, etiqueta=_dm(d), rbds=rbds)
 
 
-def verificadores(desde, hasta, sup=None, con_fotos=False, etiqueta="hoy", rbds=None):
+def verificadores(desde, hasta, sup=None, con_fotos=False, etiqueta="hoy", rbds=None, ids=None):
     """
     Bitácoras cerradas entre desde y hasta (si hay supervisora, solo sus establecimientos), con el
     PDF renombrado 'Establecimiento dd-mm-aaaa.pdf'. Con fotos (o si son muchos) va todo en un ZIP.
@@ -672,20 +757,33 @@ def verificadores(desde, hasta, sup=None, con_fotos=False, etiqueta="hoy", rbds=
             continue
         if rbds and rbd not in rbds:
             continue
+        if ids and str(t.get("id")) not in ids:
+            continue
         sel.append(t)
     quien = f" de {sup.split()[0]}" if sup else ""
-    if rbds and sel:
+    if (rbds or ids) and sel and len({establecimiento(x)[1] for x in sel}) == 1:
         quien += f" · {_corto(establecimiento(sel[0])[0], 30)}"
     rango = (_dm(desde) if desde == hasta else f"{desde.strftime('%d-%m')} al {hasta.strftime('%d-%m')}")
     if not sel:
         return f"📭 No hay bitácoras cerradas{quien} ({rango}) en Datácora.", []
     sel.sort(key=cuando_hecha)
+    total = len(sel)
+    tope = MAX_CON_FOTOS if con_fotos else MAX_PDF
+    sobran = sel[tope:]
+    sel = sel[:tope]
     carpeta = os.path.join(SALIDA, f"{datetime.now().strftime('%Y%m%d-%H%M%S')}")
     os.makedirs(carpeta, exist_ok=True)
     _limpiar_viejos()
     archivos, malos, usados, lineas = [], [], set(), []
     zip_todo = con_fotos or len(sel) > 8
-    for t in sel:
+    seguidos_malos = 0
+    cortado = []
+    for i, t in enumerate(sel):
+        if i:
+            time.sleep(PAUSA_DESCARGA)                 # de a uno y con pausa, para no cargar Datácora
+        if seguidos_malos >= 2:                         # Datácora lento: se para aquí
+            cortado = sel[i:]
+            break
         n, rbd = establecimiento(t)
         d = cuando_hecha(t)
         base = _nombre_archivo(f"{n} {d.strftime('%d-%m-%Y')}")
@@ -699,7 +797,9 @@ def verificadores(desde, hasta, sup=None, con_fotos=False, etiqueta="hoy", rbds=
             pdf = _bajar_pdf(t, det)
         except Exception as e:
             malos.append(f"{_corto(n, 30)} ({e})")
+            seguidos_malos += 1
             continue
+        seguidos_malos = 0
         sub = os.path.join(carpeta, nom) if zip_todo else carpeta
         os.makedirs(sub, exist_ok=True)
         ruta_pdf = os.path.join(sub, nom + ".pdf")
@@ -719,14 +819,20 @@ def verificadores(desde, hasta, sup=None, con_fotos=False, etiqueta="hoy", rbds=
                     z.write(p, os.path.relpath(p, carpeta))
         if os.path.getsize(ruta_zip) > 22:
             archivos.append({"ruta": ruta_zip, "nombre": nombre_zip})
-    ok = len(sel) - len(malos)
-    txt = [f"📄 *Verificadores{quien} · {rango}*: {ok} de {len(sel)}"
+    ok = len(sel) - len(malos) - len(cortado)
+    txt = [f"📄 *Verificadores{quien} · {rango}*: {ok} de {total}"
            + (" (en un ZIP" + (" con fotos" if con_fotos else "") + ")" if zip_todo and ok else "")]
     txt += lineas[:40]
     if len(lineas) > 40:
         txt.append(f"… y {len(lineas) - 40} más")
     if malos:
         txt.append("⚠️ Sin PDF: " + "; ".join(malos[:10]))
+    if cortado:
+        txt.append(f"⏸️ Datácora se puso lento y paré para no cargarlo; faltaron {len(cortado)}. Pídelos de nuevo en unos minutos.")
+    if sobran:
+        txt.append(f"➕ Mando de a {tope} para no cargar Datácora; faltan {len(sobran)} "
+                   f"(desde el {cuando_hecha(sobran[0]).strftime('%d-%m')}). Pídelos por día, ej: *verificadores "
+                   f"{cuando_hecha(sobran[0]).strftime('%d-%m')}!*")
     return "\n".join(txt), archivos
 
 
@@ -851,14 +957,33 @@ def _rango(t, hoy, futuro=False):
     return hoy, hoy, "hoy"
 
 
-def responder(texto, autor="", sup_autor=None):
+def responder(texto, autor="", sup_autor=None, quien=None):
     """
     Devuelve {"texto": str, "archivos": [{ruta, nombre}]} o None si la frase no es de Datácora.
     sup_autor = nombre de la supervisora que escribió (si es supervisora): sus verificadores por defecto.
+    quien = número de quien escribe (para recordar el menú de fechas que se le mostró).
     """
     if "!" not in texto:
         return None                                      # solo frases con "!"
     t = norm(texto).replace("!", " ").strip()
+    quien = quien or autor or "?"
+    menu = MENUS.get(quien)
+    if menu and time.time() - menu["ts"] > 1800:
+        MENUS.pop(quien, None)
+        menu = None
+    if menu:
+        idx = _eleccion(t, len(menu["ids"]))
+        if idx:
+            if not UNA_A_LA_VEZ.acquire(blocking=False):
+                return {"texto": "⏳ Estoy terminando otra consulta de Datácora; voy de a una para no cargarla. "
+                                 "Pídemelo de nuevo en un par de minutos.", "archivos": []}
+            try:
+                txt, arch = verificadores_elegidos(quien, idx)
+                return {"texto": txt, "archivos": arch}
+            except ErrorDatacora as e:
+                return {"texto": f"❌ Datácora: {e}", "archivos": []}
+            finally:
+                UNA_A_LA_VEZ.release()
     if not PATRON.search(t):
         if not credenciales()["ollama_activo"]:
             return None
@@ -868,6 +993,16 @@ def responder(texto, autor="", sup_autor=None):
     if not configurado():
         return {"texto": "⚙️ Falta conectar Datácora en el celular: en Termux corre "
                          "`python ~/bitacoras/bot-ia/datacora.py configurar`", "archivos": []}
+    if not UNA_A_LA_VEZ.acquire(blocking=False):
+        return {"texto": "⏳ Estoy terminando otra consulta de Datácora; voy de a una para no cargarla. "
+                         "Pídemelo de nuevo en un par de minutos.", "archivos": []}
+    try:
+        return _responder(t, texto, sup_autor, quien)
+    finally:
+        UNA_A_LA_VEZ.release()
+
+
+def _responder(t, texto, sup_autor, quien="?"):
     hoy = ahora().date()
     try:
         if re.search(r"donde\s+(esta|anda)\b", t):
@@ -880,8 +1015,8 @@ def responder(texto, autor="", sup_autor=None):
             return {"texto": donde_estan(), "archivos": []}
         if "verificador" in t:
             rbds = _rbds_en(texto)
-            if rbds and not tiene_fecha(t):              # "verificador de falabella!" -> el último de ese colegio
-                txt, arch = verificador_ultimo(rbds, con_fotos="foto" in t or "zip" in t)
+            if rbds and not tiene_fecha(t):              # "verificadores falabella!" -> menú con las fechas que hay
+                txt, arch = verificadores_menu(rbds, quien, con_fotos="foto" in t or "zip" in t)
                 return {"texto": txt, "archivos": arch}
             desde, hasta, lbl = _rango(t, hoy)
             sup = sup_en_texto(t) or (None if rbds else sup_autor)

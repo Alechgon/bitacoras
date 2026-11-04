@@ -80,7 +80,8 @@ El bot lee Datácora directo (`datacora.py`) y contesta en el grupo o en tu priv
 | `verificadores de hoy annahi!` | PDF de cada bitácora cerrada hoy en sus establecimientos, renombrado *Establecimiento dd-mm-aaaa.pdf*. Sin nombre: los de la supervisora que pregunta |
 | `verificadores de la semana carla!` | Un ZIP con una carpeta por establecimiento: PDF + fotos |
 | `verificadores hoy!` · `ayer!` · `lunes!` · `03-11!` · `entre 02-11 y 04-11!` | Solo con "!". Si lo pide una supervisora, el bot la reconoce por su número o nombre de WhatsApp y manda los de sus establecimientos. Tú: `verificadores de annahi!`. Lunes…domingo = el de esta semana (si aún no llega, el de la anterior) |
-| `verificador de falabella!` | La última bitácora de ese colegio (con fecha: solo esa fecha) |
+| `verificadores falabella!` | Lista numerada de las fechas que hay de ese colegio (hasta 15); eliges con `1!`, `1 3!`, `1-3!`, `primero!` o `todos!` (el menú dura 30 min). Con fecha (`verificador falabella 24-09!`) manda esa directo |
+| _ritmo suave_ | Una consulta a Datácora a la vez, lista de tareas guardada 5 min, 3 s entre cada PDF, máx 10 PDF (3 con fotos) por pedido; si Datácora se pone lento, para y avisa |
 | `!grupos` (desde tu número, en privado) | Lista numerada de todos los grupos donde está el bot: ✅ los que lee, ⬜ los que no. `!grupos 3 5` los cambia; `+3` leer, `-3` no leer. En los grupos extra solo contesta lo de Datácora |
 
 Conectar (una vez, en Termux): `python ~/bitacoras/bot-ia/datacora.py configurar` (correo y clave quedan solo en

@@ -829,7 +829,7 @@ AYUDA = """🤖 *Comandos del bot*
 donde esta camilo! · donde esta rodrigo! · donde estan los tecnicos!
 ruta para hoy! · ruta para mañana! · ruta para la semana! — cerrado ✅, tareas con fecha de ese día 🚨⏳ y cronograma 📅 hasta 4
 verificadores hoy! · ayer! · lunes! · 03-11! · entre 02-11 y 04-11! — los de la supervisora que pregunta
-verificadores de annahi! (tú) · verificador de falabella! (el último de ese colegio) · verificadores semana carla! (ZIP con fotos)
+verificadores de annahi! (tú) · verificadores falabella! (lista de fechas; eliges con 1! · 1 3! · todos!) · verificadores semana carla! (ZIP con fotos)
 !grupos — lista numerada de todos los grupos (✅ leo / ⬜ no) · !grupos 3 5 — cambiarlos · !leer aqui / !dejar aqui
 
 *📚 Bitácoras*
@@ -1564,7 +1564,7 @@ class H(BaseHTTPRequestHandler):
                     except Exception:
                         sup = None
                     sup = sup or personas._sup_por_nombre(autor)
-                r = datacora.responder(data.get("texto", ""), autor, sup)
+                r = datacora.responder(data.get("texto", ""), autor, sup, quien=data.get("numero") or autor)
                 return self._json(200, r or {"nada": True})
             if self.path == "/comando":
                 return self._json(200, procesar_comando(data.get("texto", ""), data.get("autor", ""),
