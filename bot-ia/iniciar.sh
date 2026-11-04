@@ -20,7 +20,7 @@ sleep 2
     b=$(git -C .. rev-parse HEAD 2>/dev/null)
     if [ -n "$a" ] && [ "$a" != "$b" ] && git -C .. diff --name-only "$a" "$b" | grep -qE "^bot-ia/.*\.(py|mjs)$"; then
       echo "$(date) código nuevo ($b), reinicio el bot" >> logs/git.log
-      pkill -f "python servidor.py"; sleep 4; pkill -f "node bot.mjs"
+      pkill -f "^python servidor.py"; sleep 4; pkill -f "^node bot.mjs"
     fi
     sleep 1800
   done' ) &

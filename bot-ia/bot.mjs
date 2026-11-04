@@ -591,9 +591,16 @@ setInterval(async () => {
 
 // ------------------------------------------------------------ conexión
 let intentosVinculo = 0
+let versionWA
+let desconectadoDesde = null
 async function conectar () {
   const { state, saveCreds } = await useMultiFileAuthState(path.join(DIR, 'auth'))
-  const { version } = await fetchLatestBaileysVersion().catch(() => ({ version: undefined }))
+  // la versión de WhatsApp Web se pide UNA vez y con tope de 8 s: si internet o GitHub fallan,
+  // antes se quedaba pegado minutos sin reconectar
+  if (!versionWA) {
+    try { versionWA = (await conTope(fetchLatestBaileysVersion(), 8000, 'versión WhatsApp')).version } catch {}
+  }
+  const version = versionWA
   sock = makeWASocket({
     version,
     auth: state,
@@ -638,9 +645,10 @@ async function conectar () {
     }
     if (connection === 'open') {
       conectado = true
+      desconectadoDesde = null
       log('✅ Conectado a WhatsApp como', sock.user?.id)
       try {
-        const grupos = await sock.groupFetchAllParticipating()
+        const grupos = await conTope(sock.groupFetchAllParticipating(), 30000, 'lista de grupos')
         log('👥 Grupos donde está el bot:')
         for (const g of Object.values(grupos)) {
           nombresGrupo[g.id] = g.subject
@@ -666,6 +674,7 @@ async function conectar () {
     }
     if (connection === 'close') {
       conectado = false
+      desconectadoDesde = desconectadoDesde || Date.now()
       const code = lastDisconnect?.error?.output?.statusCode
       // ---- modo vinculación: nunca abandonar, pedir código nuevo
       if (TELEFONO) {
@@ -726,6 +735,9 @@ setInterval(() => {
     log('🐕 la cola lleva 4 min sin enviar nada; reconecto WhatsApp')
     ultimoEnvio = Date.now()
     try { sock?.ws?.close() } catch {}
+  }
+  if (!TELEFONO && desconectadoDesde && Date.now() - desconectadoDesde > 3 * 60000) {
+    log('🐕 3 min sin poder reconectar a WhatsApp; reinicio el bot desde cero'); process.exit(1)
   }
   if (fallosSeguidos >= 3) { log('🐕 3 envíos seguidos fallidos; reinicio el bot'); process.exit(1) }
 }, 60000)
