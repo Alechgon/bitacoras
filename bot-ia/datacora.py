@@ -291,9 +291,35 @@ def subida(t):
     return _fecha(t.get("assigned_at") or t.get("created_at") or t.get("assignedAt") or t.get("createdAt"))
 
 
+CAMPOS_FECHA = ("scheduled_date", "scheduledDate", "due_date", "dueDate", "task_date", "taskDate", "fecha",
+                "fecha_programada", "planned_date", "plannedDate", "visit_date", "visitDate", "start_date", "startDate",
+                "date")
+
+
+def _dia(v):
+    """
+    Fecha de calendario de un campo 'fecha' de la tarea. '2026-11-04' o '2026-11-04T00:00:00Z' es el 04-11 tal cual
+    (si se convirtiera a hora de Chile quedaría 03-11 21:00 = el día anterior: ese era el error).
+    """
+    if not v:
+        return None
+    s = str(v)
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?", s)
+    if not m:
+        return None
+    if m.group(4) is None or (m.group(4), m.group(5)) in (("00", "00"), ("03", "00")):
+        return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    d = _fecha(s)
+    return d.date() if d else None
+
+
 def fecha_tarea(t):
-    """La fecha que le pones al agregar la tarea (programada / fecha de la tarea). Si no trae, el día en que se subió."""
-    d = _fecha(t.get("scheduled_date") or t.get("scheduledDate") or t.get("due_date") or t.get("dueDate")) or subida(t)
+    """La fecha que le pones al agregar la tarea. Si no trae ninguna, el día en que se subió."""
+    for k in CAMPOS_FECHA:
+        d = _dia(t.get(k))
+        if d:
+            return d
+    d = subida(t)
     return d.date() if d else None
 
 
@@ -525,17 +551,52 @@ def _nombre_tec(k, nombre_dc):
     return " ".join((nombre_dc or k.title()).split()[:2])
 
 
+def _colegios():
+    """{rbd: {nombre, lat, lon, tec}} de los establecimientos de la sucursal (datos.js)."""
+    try:
+        sys.path.insert(0, AQUI)
+        import nucleo
+        out = {}
+        for e in nucleo.datos()["ESTAB"]:
+            r = str(e["rbd"])
+            out[r] = {"nombre": e.get("nombre") or f"RBD {r}", "lat": e.get("lat"), "lon": e.get("lon"),
+                      "tec": clave_tec(_tec_del_colegio(r) or "")}
+        return out
+    except Exception:
+        return {}
+
+
+def _km(a, b):
+    try:
+        return ((a["lat"] - b["lat"]) * 111) ** 2 + ((a["lon"] - b["lon"]) * 93) ** 2
+    except (TypeError, KeyError):
+        return 9e9
+
+
+def visitas():
+    """{rbd: (cantidad de bitácoras cerradas en Datácora, fecha de la última)}."""
+    v = {}
+    for t in tareas():
+        if hecha(t) and cuando_hecha(t):
+            rbd = establecimiento(t)[1]
+            n, ult = v.get(rbd, (0, None))
+            d = cuando_hecha(t).date()
+            v[rbd] = (n + 1, max(ult, d) if ult else d)
+    return v
+
+
 def ruta(desde, hasta, titulo):
     """
-    Por técnico y día, máximo 4 colegios (solo lectura de Datácora):
-      1) los que cerró ese día -> "(finalizado HH:MM)"
-      2) las tareas pendientes de Datácora con la fecha de ese día (emergencias primero) -> sin nada al lado
-      3) si no llega a 4, lo que sigue en el cronograma (si el día no tiene, se adelanta lo próximo)
-    Lo atrasado de otros días no se muestra (se va moviendo en el cronograma).
+    Por técnico y día (máx 4), solo lectura de Datácora:
+      1) lo que cerró ese día -> "(finalizado HH:MM)"
+      2) las tareas que TÚ le asignaste con la fecha de ese día -> sin nada al lado
+      3) desde mañana, si queda cupo: sugeridos = los colegios de ese técnico con MENOS visitas en Datácora (y entre ellos los
+         más cercanos al primero), para que todos vayan quedando con la misma cantidad de visitas.
     """
     hoy = ahora().date()
     cupo = credenciales()["max_por_dia"]
     hechas, pend, nombres = {}, {}, {}
+    ocupados = set()                                  # colegios que ya tienen algo esta semana: no se sugieren
     for t in tareas():
         if cancelada(t):
             continue
@@ -545,16 +606,38 @@ def ruta(desde, hasta, titulo):
             d = cuando_hecha(t).date() if cuando_hecha(t) else fecha_tarea(t)
             if d and desde <= d <= hasta:
                 hechas.setdefault((d, k), []).append(t)
+                ocupados.add(establecimiento(t)[1])
         else:
             f = fecha_tarea(t)
-            if f and desde <= f <= hasta and f >= hoy:
+            if f and desde <= f <= hasta:
                 pend.setdefault((f, k), []).append(t)
-    # cronograma por técnico, en orden: si un día queda con cupo, se adelanta lo que viene
-    plan = {}
-    for c in (cronograma(max(desde, hoy), hasta + timedelta(days=30)) if hasta >= hoy else []):
-        plan.setdefault(c["tec"], []).append(c)
-        nombres.setdefault(c["tec"], "")
-    usados = set()
+                ocupados.add(establecimiento(t)[1])
+    col = _colegios()
+    vis = visitas()
+    cand = {}                                         # técnico -> colegios ordenados de menos a más visitas
+    for rbd, c in col.items():
+        if c["tec"] and c["tec"] != "SIN TECNICO":
+            cand.setdefault(c["tec"], []).append(rbd)
+            nombres.setdefault(c["tec"], "")
+    for k in cand:
+        cand[k].sort(key=lambda r: (vis.get(r, (0, None))[0], vis.get(r, (0, None))[1] or date(2000, 1, 1)))
+
+    def sugerir(k, n):
+        """n colegios de k con menos visitas; el primero manda y los demás, los más cercanos a él."""
+        libres = [r for r in cand.get(k, []) if r not in ocupados]
+        if not libres or n <= 0:
+            return []
+        minimo = vis.get(libres[0], (0, None))[0]
+        tanda = [r for r in libres if vis.get(r, (0, None))[0] <= minimo + 1][:12] or libres[:12]
+        elegidos = [tanda[0]]
+        resto = [r for r in tanda[1:]]
+        while len(elegidos) < n and resto:
+            r = min(resto, key=lambda x: (vis.get(x, (0, None))[0], _km(col[elegidos[0]], col[x])))
+            elegidos.append(r)
+            resto.remove(r)
+        for r in elegidos:
+            ocupados.add(r)
+        return elegidos
 
     dias, d = [], desde
     while d <= hasta:
@@ -563,7 +646,7 @@ def ruta(desde, hasta, titulo):
         d += timedelta(days=1)
     orden = sorted(nombres, key=lambda k: (k == "SIN TECNICO", k))
     out = [f"🗓️ *{titulo}*"]
-    algo = False
+    algo = hubo_sug = False
     for d in dias:
         bloque = []
         for k in orden:
@@ -574,19 +657,15 @@ def ruta(desde, hasta, titulo):
                 lineas.append(f"- {n} (finalizado {_hhmm(cuando_hecha(t))})")
             for t in sorted(pend.get((d, k), []), key=lambda t: (prioridad(t), (subida(t) or ahora()).timestamp())):
                 n, rbd = establecimiento(t)
-                if rbd in rbds or len(lineas) >= cupo:
+                if rbd in rbds:
                     continue
                 rbds.add(rbd)
-                lineas.append(f"- {n}")
-            if d >= hoy:
-                for c in plan.get(k, []):
-                    if len(lineas) >= cupo:
-                        break
-                    if id(c) in usados or c["rbd"] in rbds:
-                        continue
-                    usados.add(id(c))
-                    rbds.add(c["rbd"])
-                    lineas.append(f"- {c['nombre']}")
+                lineas.append(f"- {n}" + (" (no se cerró)" if d < hoy else ""))
+            if d > hoy and k != "SIN TECNICO":           # hoy = solo lo que asignaste; sugeridos desde mañana
+                for r in sugerir(k, cupo - len(lineas)):
+                    nv = vis.get(r, (0, None))[0]
+                    lineas.append(f"- _{col[r]['nombre']}_ (sugerido · {nv} visita{'' if nv == 1 else 's'})")
+                    hubo_sug = True
             if lineas:
                 bloque.append(f"👷 *{_nombre_tec(k, nombres[k])}*")
                 bloque += lineas
@@ -596,7 +675,9 @@ def ruta(desde, hasta, titulo):
                 out.append(f"\n*{_dm(d).capitalize()}*")
             out += bloque
     if not algo:
-        return f"🗓️ *{titulo}*\nNo hay nada en Datácora ni en el cronograma para esos días."
+        return f"🗓️ *{titulo}*\nNo hay tareas en Datácora para esos días."
+    if hubo_sug:
+        out.append("\n_sugerido = colegio de ese técnico con menos visitas en Datácora (para emparejar), cerca de los otros del día_")
     return "\n".join(out)
 
 
@@ -1126,8 +1207,8 @@ def _pendientes():
     print(f"{len(ts)} pendientes (fecha = la que le pusiste al agregarla):")
     for t in sorted(ts, key=lambda t: (clave_tec(tecnico(t)), dia_objetivo(t))):
         n, rbd = establecimiento(t)
-        f = {k: t.get(k) for k in ("status", "task_type", "due_date", "scheduled_date", "assigned_at", "created_at")
-             if t.get(k)}
+        f = {k: v for k, v in t.items() if v and (k in ("status", "task_type") or "date" in k.lower()
+                                                   or "fecha" in k.lower() or k.endswith("_at"))}
         print(f"- {_primer_nombre(tecnico(t)):8} {_dm(dia_objetivo(t))}  {_corto(n, 30)} ({rbd})  {f}")
 
 
