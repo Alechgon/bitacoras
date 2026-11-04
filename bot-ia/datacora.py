@@ -776,14 +776,9 @@ def verificadores(desde, hasta, sup=None, con_fotos=False, etiqueta="hoy", rbds=
     _limpiar_viejos()
     archivos, malos, usados, lineas = [], [], set(), []
     zip_todo = con_fotos or len(sel) > 8
-    seguidos_malos = 0
-    cortado = []
-    for i, t in enumerate(sel):
-        if i:
-            time.sleep(PAUSA_DESCARGA)                 # de a uno y con pausa, para no cargar Datácora
-        if seguidos_malos >= 2:                         # Datácora lento: se para aquí
-            cortado = sel[i:]
-            break
+    # 1) se arma la lista con el nombre final de cada PDF
+    items = []
+    for t in sel:
         n, rbd = establecimiento(t)
         d = cuando_hecha(t)
         base = _nombre_archivo(f"{n} {d.strftime('%d-%m-%Y')}")
@@ -792,24 +787,52 @@ def verificadores(desde, hasta, sup=None, con_fotos=False, etiqueta="hoy", rbds=
             nom, k = f"{base} ({k})", k + 1
         usados.add(nom)
         lineas.append(f"• {d.strftime('%d-%m')} {_corto(n, 30)} — {_primer_nombre(tecnico(t))}")
-        try:
-            det = api("GET", f"/api/submissions/{envio_id(t)}/detail", timeout=60)
-            pdf = _bajar_pdf(t, det)
-        except Exception as e:
-            malos.append(f"{_corto(n, 30)} ({e})")
-            seguidos_malos += 1
-            continue
-        seguidos_malos = 0
         sub = os.path.join(carpeta, nom) if zip_todo else carpeta
-        os.makedirs(sub, exist_ok=True)
-        ruta_pdf = os.path.join(sub, nom + ".pdf")
-        open(ruta_pdf, "wb").write(pdf)
-        if con_fotos:
-            for i, (ext, b) in enumerate(_bajar_fotos(t, det), 1):
-                open(os.path.join(sub, f"foto {i:02d}.{ext}"), "wb").write(b)
-        if not zip_todo:
-            archivos.append({"ruta": ruta_pdf, "nombre": nom + ".pdf"})
-    if zip_todo:
+        items.append({"t": t, "n": n, "nom": nom, "ruta": os.path.join(sub, nom + ".pdf"), "sub": sub, "ok": False, "err": ""})
+
+    def bajar(it):
+        """Baja UN PDF completo y lo guarda; recién ahí se pasa al siguiente."""
+        try:
+            det = api("GET", f"/api/submissions/{envio_id(it['t'])}/detail", timeout=60)
+            pdf = _bajar_pdf(it["t"], det)
+            if not pdf.startswith(b"%PDF") or len(pdf) < 500:
+                raise ErrorDatacora("el PDF llegó incompleto")
+            os.makedirs(it["sub"], exist_ok=True)
+            tmp = it["ruta"] + ".parcial"
+            with open(tmp, "wb") as f:
+                f.write(pdf)
+            os.replace(tmp, it["ruta"])                  # queda guardado solo si llegó entero
+            if con_fotos:
+                for j, (ext, b2) in enumerate(_bajar_fotos(it["t"], det), 1):
+                    open(os.path.join(it["sub"], f"foto {j:02d}.{ext}"), "wb").write(b2)
+            it["ok"] = True
+        except Exception as e:
+            it["err"] = str(e)
+
+    # 2) de a uno: termina uno, pausa, empieza el siguiente
+    seguidos_malos, cortado = 0, []
+    for i, it in enumerate(items):
+        if i:
+            time.sleep(PAUSA_DESCARGA)
+        if seguidos_malos >= 3:                          # Datácora caída: no se insiste
+            cortado = [x for x in items[i:]]
+            break
+        bajar(it)
+        seguidos_malos = 0 if it["ok"] else seguidos_malos + 1
+    # 3) los que fallaron se reintentan una vez más, con calma
+    faltan = [it for it in items if not it["ok"] and it not in cortado]
+    if faltan and not cortado:
+        time.sleep(30)
+        for it in faltan:
+            bajar(it)
+            time.sleep(PAUSA_DESCARGA)
+    for it in items:
+        if not it["ok"] and it not in cortado:
+            malos.append(f"{_corto(it['n'], 30)} ({it['err']})")
+    # 4) se juntan todos y recién ahí se mandan (en orden de fecha)
+    if not zip_todo:
+        archivos += [{"ruta": it["ruta"], "nombre": it["nom"] + ".pdf"} for it in items if it["ok"]]
+    if zip_todo and any(it["ok"] for it in items):
         nombre_zip = _nombre_archivo(f"Verificadores{quien} {rango}{' con fotos' if con_fotos else ''}") + ".zip"
         ruta_zip = os.path.join(SALIDA, nombre_zip)
         with zipfile.ZipFile(ruta_zip, "w", zipfile.ZIP_DEFLATED) as z:
@@ -819,7 +842,7 @@ def verificadores(desde, hasta, sup=None, con_fotos=False, etiqueta="hoy", rbds=
                     z.write(p, os.path.relpath(p, carpeta))
         if os.path.getsize(ruta_zip) > 22:
             archivos.append({"ruta": ruta_zip, "nombre": nombre_zip})
-    ok = len(sel) - len(malos) - len(cortado)
+    ok = sum(1 for it in items if it["ok"])
     txt = [f"📄 *Verificadores{quien} · {rango}*: {ok} de {total}"
            + (" (en un ZIP" + (" con fotos" if con_fotos else "") + ")" if zip_todo and ok else "")]
     txt += lineas[:40]
@@ -828,7 +851,7 @@ def verificadores(desde, hasta, sup=None, con_fotos=False, etiqueta="hoy", rbds=
     if malos:
         txt.append("⚠️ Sin PDF: " + "; ".join(malos[:10]))
     if cortado:
-        txt.append(f"⏸️ Datácora se puso lento y paré para no cargarlo; faltaron {len(cortado)}. Pídelos de nuevo en unos minutos.")
+        txt.append(f"⏸️ Datácora no estaba respondiendo y paré para no cargarla; faltaron {len(cortado)}. Pídelos de nuevo en unos minutos.")
     if sobran:
         txt.append(f"➕ Mando de a {tope} para no cargar Datácora; faltan {len(sobran)} "
                    f"(desde el {cuando_hecha(sobran[0]).strftime('%d-%m')}). Pídelos por día, ej: *verificadores "
