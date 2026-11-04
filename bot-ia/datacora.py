@@ -5,6 +5,8 @@ datacora.py — el bot lee Datácora EN VIVO (solo lectura) y contesta en WhatsA
 Frases que entiende (en el grupo o en tu privado; el "!" puede ir al final o al principio):
   donde esta camilo!        donde esta rodrigo!        donde estan los tecnicos!
   ruta para hoy!            ruta para mañana!          ruta para la semana!
+      = por técnico, máx 4 al día: lo cerrado, lo pendiente en Datácora (emergencias primero,
+        lo atrasado entra hoy) y, si queda espacio, lo del cronograma.
   verificadores de hoy!     verificadores de ayer!     verificadores de la semana!
       + nombre de la supervisora (annahi / stephania / carla). Si no lo pones y lo pide una
         supervisora, se usan los de ella. "de hoy" manda los PDF sueltos; "de la semana" (o
@@ -18,6 +20,7 @@ No escribe NADA en Datácora: login + lecturas. Lo único que escribe es la resp
 Credenciales: quedan SOLO en el celular, en ~/.datacora.json (fuera del repo, permiso 600).
   python datacora.py configurar        -> te pide correo y clave y las guarda
   python datacora.py probar            -> login + cuántas tareas ve
+  python datacora.py pendientes        -> lista lo pendiente con sus fechas (para revisar la ruta)
   python datacora.py "donde esta camilo!"   -> prueba una consulta en la terminal
 También sirven variables de entorno: DATACORA_API_BASE, DATACORA_EMAIL, DATACORA_PASSWORD, DATACORA_TOKEN.
 
@@ -69,6 +72,7 @@ def credenciales():
         "ollama_modelo": c.get("ollama_modelo", "qwen2.5:1.5b"),
         "ollama_activo": bool(c.get("ollama_activo", False)),
         "minutos_en_sitio": int(c.get("minutos_en_sitio", 60)),
+        "max_por_dia": int(c.get("max_por_dia", 4)),
     }
 
 
@@ -149,7 +153,10 @@ def tareas():
     def cargar():
         ts = api("GET", "/api/tasks", timeout=90) or []
         mapa = _sup_de_rbd()
-        return [t for t in ts if establecimiento(t)[1] in mapa] if mapa else ts
+        if not mapa:
+            return ts
+        nuestros = _tecs_sucursal()
+        return [t for t in ts if establecimiento(t)[1] in mapa or clave_tec(tecnico(t)) in nuestros]
     return _cache("tasks", 60, cargar)
 
 
@@ -228,6 +235,65 @@ def es_jardin(t):
     return "junji" in txt or "integra" in txt or "jardin" in txt or "sala cuna" in txt
 
 
+def cancelada(t):
+    return norm(t.get("status")) in ("cancelada", "cancelado", "anulada", "anulado", "cancelled", "canceled",
+                                     "eliminada", "eliminado", "deleted")
+
+
+def pendiente(t):
+    return not hecha(t) and not cancelada(t)
+
+
+def subida(t):
+    """Cuándo la subieron o asignaron."""
+    return _fecha(t.get("assigned_at") or t.get("created_at") or t.get("assignedAt") or t.get("createdAt"))
+
+
+def dia_objetivo(t):
+    """
+    Día en que le toca una tarea PENDIENTE: la fecha programada si la tiene; si no, el día en que la
+    subieron/asignaron (una emergencia subida hoy es para hoy). Lo atrasado pasa a hoy.
+    """
+    hoy = ahora().date()
+    d = _fecha(t.get("scheduled_date") or t.get("scheduledDate")) or subida(t) or _fecha(t.get("due_date"))
+    return max(d.date(), hoy) if d else hoy
+
+
+def prioridad(t):
+    """0 = emergencia/urgente, 1 = correctiva, 2 = preventiva, 3 = otra."""
+    txt = norm(f"{tipo(t)} {t.get('priority') or ''} {t.get('prioridad') or ''}")
+    if "emerg" in txt or "urgent" in txt or re.search(r"\balta\b", txt):
+        return 0
+    if "correct" in txt:
+        return 1
+    if "prevent" in txt:
+        return 2
+    return 3
+
+
+def tipo_corto(t):
+    tp = norm(tipo(t))
+    for k, v in (("emerg", "Emergencia"), ("correct", "Correctiva"), ("prevent", "Preventiva"), ("visita", "Visita")):
+        if k in tp:
+            return v
+    return _corto(tipo(t), 22)
+
+
+def clave_tec(nombre):
+    """'Camilo Santis Mora' -> 'CAMILO' (así se llaman en el cronograma)."""
+    n = norm(nombre).split()
+    return n[0].upper() if n and nombre != "Sin técnico" else "SIN TECNICO"
+
+
+def _tecs_sucursal():
+    try:
+        sys.path.insert(0, AQUI)
+        import nucleo
+        return {clave_tec(k) for k in nucleo.datos()["META"]["tecnicos"]}
+    except Exception:
+        return set()
+
+
 def _hhmm(d):
     return d.strftime("%H:%M") if d else ""
 
@@ -295,20 +361,30 @@ def donde_esta(quien):
         mins = int((ya - cuando_hecha(ult)).total_seconds() // 60)
         lineas.append(f"📍 *{nombre}* está en *{n}* (RBD {rbd}): cerró la bitácora hace {mins} min "
                       f"({_hhmm(cuando_hecha(ult))}){_geo(ult)}.")
-    pend_hoy = [t for t in mias if not hecha(t) and dia_tarea(t) == hoy]
-    pend_hoy.sort(key=lambda t: _fecha(t.get("assigned_at") or t.get("created_at")) or ya, reverse=True)
+    n_hoy = sum(1 for t in cerradas if cuando_hecha(t).date() == hoy)
+    pend_hoy = [t for t in mias if pendiente(t) and dia_objetivo(t) == hoy]
+    # primero lo último que le asignaron/autoasignó hoy; después emergencias y lo más antiguo
+    pend_hoy.sort(key=lambda t: (not (subida(t) and subida(t).date() == hoy), prioridad(t),
+                                 -(subida(t) or ya).timestamp() if subida(t) and subida(t).date() == hoy
+                                 else (subida(t) or ya).timestamp()))
+    pend_hoy = pend_hoy[:max(credenciales()["max_por_dia"] - n_hoy, 1)]   # lo que cabe hoy (máx 4 al día)
     if pend_hoy:
         n, rbd = establecimiento(pend_hoy[0])
         auto = str(pend_hoy[0].get("created_by") or "") and str(pend_hoy[0].get("created_by")) == str(
             pend_hoy[0].get("assigned_to") or "")
         if not lineas:
             lineas.append(f"📍 *{nombre}* tiene {'autoasignado' if auto else 'asignado'} hoy *{n}* (RBD {rbd})"
-                          f"{' · ' + tipo(pend_hoy[0]) if tipo(pend_hoy[0]) else ''}.")
+                          f"{' · ' + tipo_corto(pend_hoy[0]) if tipo(pend_hoy[0]) else ''}.")
         else:
             lineas.append(f"➡️ Después le queda *{n}*.")
         if len(pend_hoy) > 1:
             lineas.append("También le quedan hoy: " + ", ".join(_corto(establecimiento(t)[0], 26) for t in pend_hoy[1:5])
                           + (" y más" if len(pend_hoy) > 5 else "") + ".")
+    if not lineas:
+        plan = [c for c in cronograma(hoy, hoy) if c["tec"] == clave_tec(tecnico(mias[0]))]
+        if plan:
+            lineas.append(f"📍 *{nombre}* no tiene tareas subidas hoy en Datácora. En el cronograma le toca "
+                          + ", ".join(f"*{_corto(c['nombre'], 30)}* ({c['rbd']})" for c in plan) + ".")
     if not lineas:
         if ult:
             n, rbd = establecimiento(ult)
@@ -350,35 +426,150 @@ def _geo(t):
 
 
 def donde_estan():
+    hoy = ahora().date()
     tecs = sorted({_primer_nombre(tecnico(t)) for t in tareas()
-                   if (dia_tarea(t) == ahora().date() or (cuando_hecha(t) and cuando_hecha(t).date() == ahora().date()))
+                   if ((pendiente(t) and dia_objetivo(t) == hoy) or (cuando_hecha(t) and cuando_hecha(t).date() == hoy))
                    and tecnico(t) != "Sin técnico"})
     if not tecs:
         return "Hoy nadie tiene tareas en Datácora."
     return "\n\n".join(donde_esta(t) for t in tecs)
 
 
+def cronograma(desde, hasta):
+    """Lo programado en el cronograma del bot (agenda.db, que se mueve con las emergencias); si no hay, datos.js."""
+    filas = []
+    try:
+        sys.path.insert(0, AQUI)
+        import nucleo
+        D = nucleo.datos()
+        try:
+            con = nucleo.db()
+            try:
+                if con.execute("SELECT COUNT(*) FROM tarjetas").fetchone()[0]:
+                    filas = [dict(r) for r in nucleo.agenda(con, desde, hasta)]
+                else:
+                    filas = None
+            finally:
+                con.close()
+        except Exception:
+            filas = None
+        if filas is None:
+            filas = [p for p in D["PLAN"] if p.get("estado") == "programada"
+                     and desde.isoformat() <= p["fecha"] <= hasta.isoformat()]
+        out = []
+        for c in filas:
+            e = D["E"].get(int(c["rbd"])) or {}
+            out.append({"fecha": date.fromisoformat(str(c["fecha"])[:10]), "tec": str(c["tec"]).upper(),
+                        "bloque": int(c.get("bloque") or 9), "rbd": str(c["rbd"]),
+                        "nombre": e.get("nombre") or f"RBD {c['rbd']}", "clase": str(c.get("clase") or "").title()})
+        return sorted(out, key=lambda c: (c["fecha"], c["tec"], c["bloque"]))
+    except Exception:
+        return []
+
+
+def _linea(marca, nombre, rbd, extra):
+    return f"   {marca} {_corto(nombre)} ({rbd}){' · ' + extra if extra else ''}"
+
+
 def ruta(desde, hasta, titulo):
-    filas = {}
-    for t in tareas():
-        d = cuando_hecha(t).date() if hecha(t) and cuando_hecha(t) else dia_tarea(t)
-        if not d or not (desde <= d <= hasta):
-            continue
-        filas.setdefault(d, {}).setdefault(_primer_nombre(tecnico(t)) or "Sin técnico", []).append(t)
-    if not filas:
-        return f"🗓️ *{titulo}*\nNo hay tareas en Datácora para esos días."
+    """
+    Por técnico y día, máximo N visitas (max_por_dia, 4 por defecto):
+      ✅ lo que ya cerró ese día
+      🚨/⏳ lo que está PENDIENTE en Datácora (emergencias, correctivas, preventivas que subiste tú o el admin;
+            lo atrasado se pone primero en el día de hoy y lo que no cabe se corre al día siguiente)
+      📅 si queda espacio, lo del cronograma
+    """
+    hoy = ahora().date()
+    cupo = credenciales()["max_por_dia"]
+    # si piden un día futuro, se "juega" desde hoy para que lo que se hace antes no se repita
+    ini = hoy if hoy < desde else desde
+    ts = [t for t in tareas() if not cancelada(t)]
+    hechas, cola = {}, {}
+    nombres = {}
+    for t in ts:
+        k = clave_tec(tecnico(t))
+        nombres.setdefault(k, _primer_nombre(tecnico(t)) or "Sin técnico")
+        if hecha(t):
+            d = cuando_hecha(t).date() if cuando_hecha(t) else dia_tarea(t)
+            if d and ini <= d <= hasta:
+                hechas.setdefault((d, k), []).append(t)
+        elif dia_objetivo(t) <= hasta and hasta >= hoy:
+            cola.setdefault(k, []).append(t)
+    for k in cola:                                   # emergencias primero, después lo más antiguo
+        cola[k].sort(key=lambda t: (prioridad(t), dia_objetivo(t), (subida(t) or ahora()).timestamp()))
+    plan = {}
+    for c in cronograma(max(ini, hoy), hasta) if hasta >= hoy else []:
+        plan.setdefault((c["fecha"], c["tec"]), []).append(c)
+        nombres.setdefault(c["tec"], c["tec"].title())
+
+    dias, d = [], ini
+    while d <= hasta:
+        if d.weekday() < 5 or any(k[0] == d for k in hechas):
+            dias.append(d)
+        d += timedelta(days=1)
+    orden = sorted(nombres, key=lambda k: (k == "SIN TECNICO", k))
     out = [f"🗓️ *{titulo}*"]
-    for d in sorted(filas):
-        if desde != hasta:
-            out.append(f"\n*{_dm(d).capitalize()}*")
-        for tec in sorted(filas[d]):
-            ts = sorted(filas[d][tec], key=lambda t: (not hecha(t), cuando_hecha(t) or datetime.max.replace(tzinfo=TZ)))
-            out.append(f"👷 *{tec}* ({sum(1 for t in ts if hecha(t))}/{len(ts)})")
-            for t in ts:
+    usadas = set()
+    algo = False
+    for d in dias:
+        bloque = []
+        for k in orden:
+            lineas, n_hechas, n_items = [], 0, 0
+            rbds = set()
+            for t in sorted(hechas.get((d, k), []), key=lambda t: cuando_hecha(t) or ahora()):
                 n, rbd = establecimiento(t)
-                tp = tipo(t)
-                marca = f"✅ {_hhmm(cuando_hecha(t))}" if hecha(t) else "⏳"
-                out.append(f"   {marca} {_corto(n)} ({rbd}){' · ' + _corto(tp, 22) if tp else ''}")
+                rbds.add(rbd)
+                lineas.append(_linea(f"✅ {_hhmm(cuando_hecha(t))}", n, rbd, tipo_corto(t)))
+                n_hechas += 1
+            n_items = n_hechas
+            corridas = []
+            if d >= hoy:
+                tope = cupo if k != "SIN TECNICO" else 99
+                for t in cola.get(k, []):
+                    if id(t) in usadas or dia_objetivo(t) > d:
+                        continue
+                    if n_items >= tope:
+                        break
+                    usadas.add(id(t))
+                    n, rbd = establecimiento(t)
+                    rbds.add(rbd)
+                    sb = subida(t)
+                    nota = tipo_corto(t)
+                    if sb and sb.date() == hoy and d == hoy:
+                        nota += " · subida hoy"
+                    elif sb and sb.date() < hoy:
+                        nota += f" · desde {_dm(sb)}"
+                    lineas.append(_linea("🚨" if prioridad(t) == 0 else "⏳", n, rbd, nota))
+                    n_items += 1
+                for c in plan.get((d, k), []):
+                    if c["rbd"] in rbds:
+                        continue
+                    if n_items >= cupo:
+                        corridas.append(c)
+                        continue
+                    rbds.add(c["rbd"])
+                    lineas.append(_linea("📅", c["nombre"], c["rbd"], c["clase"]))
+                    n_items += 1
+            if not lineas:
+                continue
+            bloque.append(f"👷 *{nombres[k]}* ({n_hechas}/{n_items})")
+            bloque += lineas
+            if corridas:
+                bloque.append("   ↪️ Cronograma que no cabe hoy: " + ", ".join(_corto(c["nombre"], 22) for c in corridas))
+            if d == dias[-1]:
+                resto = [t for t in cola.get(k, []) if id(t) not in usadas]
+                if resto:
+                    bloque.append(f"   ➕ {len(resto)} pendiente{'s' if len(resto) > 1 else ''} más: "
+                                  + ", ".join(_corto(establecimiento(t)[0], 22) for t in resto[:6])
+                                  + (" y más" if len(resto) > 6 else ""))
+        if bloque and d >= desde:
+            algo = True
+            if desde != hasta:
+                out.append(f"\n*{_dm(d).capitalize()}*")
+            out += bloque
+    if not algo:
+        return f"🗓️ *{titulo}*\nNo hay nada en Datácora ni en el cronograma para esos días."
+    out.append(f"\n_✅ cerrada · 🚨 emergencia · ⏳ pendiente en Datácora · 📅 cronograma · máx {cupo} por día_")
     return "\n".join(out)
 
 
@@ -691,8 +882,11 @@ def responder(texto, autor="", sup_autor=None):
             return {"texto": txt, "archivos": arch}
         if "ruta" in t:
             desde, hasta, lbl = _rango(t, hoy, futuro=True)
-            titulo = (f"Ruta de {lbl} · {_dm(desde)}" if desde == hasta
-                      else f"Ruta de {lbl} · {desde.strftime('%d-%m')} al {hasta.strftime('%d-%m')}")
+            if desde == hasta:
+                titulo = f"Ruta de {lbl} · {_dm(desde)}" if lbl in ("hoy", "mañana", "ayer") else f"Ruta del {_dm(desde)}"
+            else:
+                titulo = (f"Ruta de {lbl} · " if "semana" in lbl else "Ruta del ") + \
+                    f"{desde.strftime('%d-%m')} al {hasta.strftime('%d-%m')}"
             return {"texto": ruta(desde, hasta, titulo), "archivos": []}
     except ErrorDatacora as e:
         return {"texto": f"❌ Datácora: {e}", "archivos": []}
@@ -760,13 +954,24 @@ def _ollama(args):
     print(f"Ollama {'activado' if c['ollama_activo'] else 'apagado'} ({c.get('ollama_modelo', 'qwen2.5:1.5b')}).")
 
 
+def _pendientes():
+    """Muestra cada tarea pendiente con sus fechas tal como vienen de Datácora (para revisar)."""
+    ts = [t for t in tareas() if pendiente(t)]
+    print(f"{len(ts)} pendientes:")
+    for t in sorted(ts, key=lambda t: (clave_tec(tecnico(t)), dia_objetivo(t))):
+        n, rbd = establecimiento(t)
+        f = {k: t.get(k) for k in ("status", "task_type", "due_date", "scheduled_date", "assigned_at", "created_at")
+             if t.get(k)}
+        print(f"- {_primer_nombre(tecnico(t)):8} {_dm(dia_objetivo(t))}  {_corto(n, 30)} ({rbd})  {f}")
+
+
 def _probar():
     try:
         ts = tareas()
         us = usuarios()
         hoy = ahora().date()
         print(f"✅ Conectado a {credenciales()['base']}: {len(ts)} tareas, {len(us)} usuarios.")
-        print(f"   Hoy ({hoy}): {sum(1 for t in ts if dia_tarea(t) == hoy)} asignadas, "
+        print(f"   Hoy ({hoy}): {sum(1 for t in ts if pendiente(t) and dia_objetivo(t) == hoy)} pendientes, "
               f"{sum(1 for t in ts if hecha(t) and cuando_hecha(t) and cuando_hecha(t).date() == hoy)} cerradas.")
     except ErrorDatacora as e:
         print(f"❌ {e}")
@@ -778,6 +983,8 @@ if __name__ == "__main__":
         _configurar()
     elif len(sys.argv) > 1 and sys.argv[1] == "probar":
         _probar()
+    elif len(sys.argv) > 1 and sys.argv[1] == "pendientes":
+        _pendientes()
     elif len(sys.argv) > 1 and sys.argv[1] == "ollama":
         _ollama(sys.argv[2:])
     elif len(sys.argv) > 1:

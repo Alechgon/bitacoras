@@ -76,7 +76,7 @@ El bot lee Datácora directo (`datacora.py`) y contesta en el grupo o en tu priv
 |---|---|
 | `donde esta camilo!` | Si cerró una bitácora hace menos de 1 hora, dónde (y a cuántos metros del colegio la envió); si no, lo asignado o autoasignado para hoy; si no, su última bitácora |
 | `donde estan los tecnicos!` | Lo mismo para todos |
-| `ruta para hoy!` · `ruta para mañana!` · `ruta para la semana!` | Tareas por día y técnico, ✅ cerradas con hora y ⏳ pendientes |
+| `ruta para hoy!` · `ruta para mañana!` · `ruta para la semana!` | Por técnico y día, **máx 4**: ✅ lo cerrado, 🚨/⏳ lo pendiente en Datácora (emergencias, correctivas, preventivas que subiste tú o el admin; lo atrasado entra hoy y lo que no cabe se corre al día siguiente) y 📅 lo del cronograma si queda espacio. `python bot-ia/datacora.py pendientes` lista lo pendiente con sus fechas. El tope se cambia con `"max_por_dia"` en `~/.datacora.json` |
 | `verificadores de hoy annahi!` | PDF de cada bitácora cerrada hoy en sus establecimientos, renombrado *Establecimiento dd-mm-aaaa.pdf*. Sin nombre: los de la supervisora que pregunta |
 | `verificadores de la semana carla!` | Un ZIP con una carpeta por establecimiento: PDF + fotos |
 | `verificadores hoy!` · `ayer!` · `lunes!` · `03-11!` · `entre 02-11 y 04-11!` | Solo con "!". Si lo pide una supervisora, el bot la reconoce por su número o nombre de WhatsApp y manda los de sus establecimientos. Tú: `verificadores de annahi!`. Lunes…domingo = el de esta semana (si aún no llega, el de la anterior) |
