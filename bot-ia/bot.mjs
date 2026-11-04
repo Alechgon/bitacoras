@@ -20,6 +20,7 @@ const API = 'http://127.0.0.1:8765'
 const log = (...a) => console.log(new Date().toLocaleString('es-CL'), ...a)
 const esperar = ms => new Promise(r => setTimeout(r, ms))
 const azar = (a, b) => Math.floor(a + Math.random() * (b - a + 1))
+const soloComandos = () => cfg().solo_comandos !== false   // Manuel: en grupos solo se responde lo que lleva "!"
 const normal = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 const soloDigitos = s => String(s || '').replace(/\D/g, '')
 
@@ -458,6 +459,13 @@ async function manejar (m) {
     return
   }
 
+  // ---------------- modo solo comandos: en el grupo nada se contesta salvo lo de arriba (Datácora con "!" y !comandos);
+  // el resto solo se transcribe a la planilla, sin respuesta ni borrador
+  if (enGrupo && soloComandos()) {
+    if (texto) api('/entrada', { origen: 'grupo', texto, autor: m.pushName || 'supervisora', numero, wa_id: m.key.id, citado: citadoDe(m), ts: tsDe(m), solo_registrar: true }).catch(() => {})
+    return
+  }
+
   // ---------------- FOTO (se analiza con IA y se pega al caso)
   const img = imgDe(m)
   if (img) {
@@ -539,9 +547,11 @@ setInterval(async () => {
     // cada minuto: recordatorios, gas automático, respaldo
     if (hecho.tick !== hhmm) {
       hecho.tick = hhmm
-      await despachar(await api('/tick', {}))
+      const rt = await api('/tick', {})
+      if (soloComandos() && rt) { delete rt.grupo; delete rt.envios_grupo; delete rt.archivos_grupo; delete rt.pedidos }
+      await despachar(rt)
     }
-    if (habil && c.agenda_matutina?.activa && grupoDestino() && hhmm === c.agenda_matutina.hora && hecho.agenda !== dia) {
+    if (habil && !soloComandos() && c.agenda_matutina?.activa && grupoDestino() && hhmm === c.agenda_matutina.hora && hecho.agenda !== dia) {
       hecho.agenda = dia
       const r = await api('/agenda_dia')
       encolar(grupoDestino(), { text: r.texto }, {}, azar(5, 40) * 1000)

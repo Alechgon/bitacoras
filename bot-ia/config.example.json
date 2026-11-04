@@ -44,6 +44,8 @@
   "grupo_id": "",
   "ignorar": [],
   "_aprobacion": "modo_borrador true = todo pasa por ti antes del grupo. Minutos en 0 desactivan esa función.",
+  "_solo_comandos": "true = en los grupos el bot SOLO contesta frases con \"!\" (verificadores ayer!, donde esta camilo!, !hoy…); lo demás solo se transcribe, sin respuestas ni avisos automáticos al grupo. false = vuelve a contestar como antes.",
+  "solo_comandos": true,
   "modo_borrador": true,
   "borrador": {
     "recordatorio_min": 30,
