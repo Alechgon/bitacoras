@@ -71,6 +71,9 @@ const procesados = new Set()
 // ------------------------------------------------------------ cola de envío (una cosa a la vez, con pausas)
 const cola = []
 let enviando = false
+let ultimoEnvio = Date.now()
+let fallosSeguidos = 0
+const INICIO = Date.now()
 function encolar (jid, contenido, opciones = {}, delay = null) {
   if (!jid) { log('⚠️ mensaje sin destino, descartado'); return }
   cola.push({ jid, contenido, opciones, delay })
@@ -110,6 +113,12 @@ async function vaciarCola () {
         await esperar(4000 * intento)
       }
     }
+    ultimoEnvio = Date.now()
+    if (!ok) {
+      fallosSeguidos++
+      log('🔌 envío fallido; fuerzo reconexión de WhatsApp')
+      try { sock?.ws?.close() } catch {}
+    } else fallosSeguidos = 0
     if (!ok && jid !== adminJid()) {
       const que = contenido.text ? `«${contenido.text.slice(0, 200)}»` : 'un archivo'
       cola.unshift({ jid: adminJid(), contenido: { text: `⚠️ No pude enviar al ${jid.endsWith('@g.us') ? 'grupo' : 'chat ' + jid} ${que}\nError: ${ultimoError}` }, opciones: {}, delay: 1500 })
@@ -119,8 +128,8 @@ async function vaciarCola () {
 }
 
 // ------------------------------------------------------------ hablar con el servidor Python
-async function api (ruta, datos, timeoutMs = 120000) {
-  for (let intento = 1; intento <= 3; intento++) {
+async function api (ruta, datos, timeoutMs = 120000, intentos = 3) {
+  for (let intento = 1; intento <= intentos; intento++) {
     const ctrl = new AbortController()
     const t = setTimeout(() => ctrl.abort(), timeoutMs)
     try {
@@ -129,7 +138,7 @@ async function api (ruta, datos, timeoutMs = 120000) {
         : { signal: ctrl.signal })
       return await r.json()
     } catch (e) {
-      if (intento === 3) throw e
+      if (intento >= intentos) throw e
       await esperar(3000)            // servidor reiniciándose: espera y reintenta
     } finally { clearTimeout(t) }
   }
@@ -176,7 +185,7 @@ async function esGrupoSupervisoras (jid) {
   if (c.grupo_id) return jid === c.grupo_id
   if (!c.grupo_nombre) return false
   if (!(jid in nombresGrupo)) {
-    try { nombresGrupo[jid] = (await sock.groupMetadata(jid)).subject } catch { nombresGrupo[jid] = '' }
+    try { nombresGrupo[jid] = (await conTope(sock.groupMetadata(jid), 15000, 'datos del grupo')).subject } catch { delete nombresGrupo[jid]; return false }
   }
   const ok = normal(nombresGrupo[jid]).includes(normal(c.grupo_nombre))
   if (ok && estado.grupo_jid !== jid) { estado.grupo_jid = jid; guardarEstado() }
@@ -333,8 +342,22 @@ async function manejar (m) {
   const jid = m.key.remoteJid
   const texto = textoDe(m).trim()
   const doc = docDe(m)
-  const enGrupo = await esGrupoSupervisoras(jid)
   const admin = esAdmin(m)
+  if (texto.includes('!')) log('📩', jid.endsWith('@g.us') ? 'grupo ' + (nombresGrupo[jid] || jid) : 'privado ' + jid,
+    admin ? '(admin)' : '(no admin: ' + [m.key.participant, m.key.participantAlt, m.key.remoteJidAlt].filter(Boolean).join(' ') + ')',
+    '«' + texto.slice(0, 80) + '»')
+  // !ping → contesta al tiro, sin pasar por Python ni por la cola (para saber si el bot está vivo)
+  if (admin && /^!ping$/i.test(texto)) {
+    const min = Math.round((Date.now() - INICIO) / 60000)
+    let py = '❌ no responde'
+    try { const t0 = Date.now(); await api('/salud', null, 8000, 1); py = `✅ ${Date.now() - t0} ms` } catch {}
+    try {
+      await conTope(sock.sendMessage(jid, { text: `🏓 Vivo hace ${min} min · WhatsApp ${conectado ? '✅' : '❌'} · Python ${py}\n` +
+        `Cola: ${cola.length} mensaje(s)${enviando ? ' (enviando)' : ''} · último envío hace ${Math.round((Date.now() - ultimoEnvio) / 1000)} s` }, { quoted: m }), 20000, 'ping')
+    } catch (e) { log('❌ ping:', e.message) }
+    return
+  }
+  const enGrupo = await esGrupoSupervisoras(jid)
   const privadoAdmin = admin && !jid.endsWith('@g.us')
 
   // ---------------- grupos extra a elección: ahí el bot SOLO contesta consultas de Datácora
@@ -358,7 +381,7 @@ async function manejar (m) {
   // !grupos 3 5 → cambia esos (lee ↔ no lee) · !grupos +3 → leer · !grupos -3 → dejar de leer
   if (admin && /^!grupos?(\s+[+-]?\d+(\s*,?\s*[+-]?\d+)*)?$/.test(cmdG)) {
     let todos = {}
-    try { todos = await sock.groupFetchAllParticipating() } catch (e) { log('❌ grupos:', e.message) }
+    try { todos = await conTope(sock.groupFetchAllParticipating(), 30000, 'lista de grupos') } catch (e) { log('❌ grupos:', e.message) }
     const lista = Object.values(todos).map(g => ({ id: g.id, nombre: g.subject || g.id }))
       .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
     for (const g of lista) nombresGrupo[g.id] = g.nombre
@@ -408,7 +431,9 @@ async function manejar (m) {
     if (esDc || /!\s*$/.test(texto)) {
       try {
         if (/verificador/.test(n)) encolar(jid, { text: '⏳ Bajando los verificadores desde Datácora…' }, { quoted: m }, 1200)
-        const r = await api('/datacora', { texto, autor: m.pushName || '', numero, es_admin: admin }, 15 * 60000)
+        const t0 = Date.now()
+        const r = await api('/datacora', { texto, autor: m.pushName || '', numero, es_admin: admin }, 15 * 60000, 1)
+        log('🛰️ datacora', Math.round((Date.now() - t0) / 1000) + ' s', r?.nada ? '(no era consulta)' : (r?.texto || '').slice(0, 60).replace(/\n/g, ' '))
         if (r && !r.nada) {
           if (r.texto) encolar(jid, { text: r.texto }, { quoted: m }, azar(2, 5) * 1000)
           for (const a of (r.archivos || [])) enviarArchivo(jid, a, {})
@@ -695,6 +720,15 @@ async function conectar () {
     for (const m of messages) manejar(m).catch(e => log('❌', e.message))
   })
 }
+
+setInterval(() => {
+  if (cola.length && enviando && Date.now() - ultimoEnvio > 4 * 60000) {
+    log('🐕 la cola lleva 4 min sin enviar nada; reconecto WhatsApp')
+    ultimoEnvio = Date.now()
+    try { sock?.ws?.close() } catch {}
+  }
+  if (fallosSeguidos >= 3) { log('🐕 3 envíos seguidos fallidos; reinicio el bot'); process.exit(1) }
+}, 60000)
 
 process.on('unhandledRejection', e => log('⚠️ promesa sin manejar:', e?.message || e))
 conectar()
