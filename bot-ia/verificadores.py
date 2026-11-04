@@ -38,6 +38,8 @@ def conf():
 def es_pedido(texto):
     if not conf().get("activa", True):
         return False
+    if "!" not in (texto or "") and not conf().get("sin_exclamacion", False):
+        return False                       # Manuel: el bot solo sigue pedidos con "!" (los lee datacora.py)
     t = norm(texto)
     if re.search(PIDE_RX, t):
         return True

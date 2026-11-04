@@ -448,6 +448,15 @@ def _rbds_en(texto):
         return []
 
 
+def verificador_ultimo(rbds, con_fotos=False):
+    """La última bitácora cerrada de ese colegio (o colegios)."""
+    hechas = [t for t in tareas() if hecha(t) and cuando_hecha(t) and envio_id(t) and establecimiento(t)[1] in rbds]
+    if not hechas:
+        return "📭 No encuentro bitácoras cerradas de ese establecimiento en Datácora.", []
+    d = max(cuando_hecha(t) for t in hechas).date()
+    return verificadores(d, d, None, con_fotos=con_fotos, etiqueta=_dm(d), rbds=rbds)
+
+
 def verificadores(desde, hasta, sup=None, con_fotos=False, etiqueta="hoy", rbds=None):
     """
     Bitácoras cerradas entre desde y hasta (si hay supervisora, solo sus establecimientos), con el
@@ -559,8 +568,6 @@ def tiene_fecha(texto):
 
 def es_consulta(texto):
     t = norm(texto)
-    if "verificador" in t and tiene_fecha(t):
-        return True                                # "necesito verificadores de ayer" (sin "!")
     return "!" in t and bool(PATRON.search(t))
 
 
@@ -650,6 +657,8 @@ def responder(texto, autor="", sup_autor=None):
     Devuelve {"texto": str, "archivos": [{ruta, nombre}]} o None si la frase no es de Datácora.
     sup_autor = nombre de la supervisora que escribió (si es supervisora): sus verificadores por defecto.
     """
+    if "!" not in texto:
+        return None                                      # solo frases con "!"
     t = norm(texto).replace("!", " ").strip()
     if not PATRON.search(t):
         if not credenciales()["ollama_activo"]:
@@ -671,10 +680,11 @@ def responder(texto, autor="", sup_autor=None):
         if re.search(r"donde\s+(estan|andan)", t):
             return {"texto": donde_estan(), "archivos": []}
         if "verificador" in t:
-            if "!" not in texto and not tiene_fecha(t):
-                return None                              # "verificador del Nemesio" sin fecha: lo ve verificadores.py
-            desde, hasta, lbl = _rango(t, hoy)
             rbds = _rbds_en(texto)
+            if rbds and not tiene_fecha(t):              # "verificador de falabella!" -> el último de ese colegio
+                txt, arch = verificador_ultimo(rbds, con_fotos="foto" in t or "zip" in t)
+                return {"texto": txt, "archivos": arch}
+            desde, hasta, lbl = _rango(t, hoy)
             sup = sup_en_texto(t) or (None if rbds else sup_autor)
             fotos = "foto" in t or "semana" in t or "zip" in t
             txt, arch = verificadores(desde, hasta, sup, con_fotos=fotos, etiqueta=lbl, rbds=rbds)

@@ -344,7 +344,7 @@ async function manejar (m) {
     let nom = ''
     try { nom = (await sock.groupMetadata(jid)).subject } catch {}
     estado.grupos_extra[jid] = nom || jid; guardarEstado()
-    encolar(jid, { text: `✅ Desde ahora leo este grupo${nom ? ` (*${nom}*)` : ''}: contesto *donde esta camilo!*, *ruta para hoy!* y *verificadores de ayer*. Para que deje de leerlo: *!dejar aqui*` }, { quoted: m }, 1500)
+    encolar(jid, { text: `✅ Desde ahora leo este grupo${nom ? ` (*${nom}*)` : ''}: contesto *donde esta camilo!*, *ruta para hoy!* y *verificadores ayer!*. Para que deje de leerlo: *!dejar aqui*` }, { quoted: m }, 1500)
     return
   }
   if (admin && jid.endsWith('@g.us') && /^!(dejar|desactivar)( aqui| este grupo)?$/.test(cmdG)) {
@@ -353,10 +353,37 @@ async function manejar (m) {
     encolar(jid, { text: nom ? '👋 Listo, dejo de leer este grupo.' : 'Este grupo no estaba en mi lista.' }, { quoted: m }, 1500)
     return
   }
-  if (admin && cmdG === '!grupos') {
-    const l = Object.entries(estado.grupos_extra)
-    encolar(jid, { text: '👥 *Grupos que leo*\n• ' + (nombresGrupo[grupoDestino()] || cfg().grupo_nombre || 'grupo de supervisoras') + ' (completo)\n'
-      + (l.length ? l.map(([, n]) => `• ${n} (solo Datácora)`).join('\n') : '_Ningún grupo extra. En el grupo que quieras escribe *!leer aqui*._') }, { quoted: m }, 1500)
+  // !grupos → lista numerada de TODOS los grupos donde está el bot (✅ los que lee, ⬜ los que no)
+  // !grupos 3 5 → cambia esos (lee ↔ no lee) · !grupos +3 → leer · !grupos -3 → dejar de leer
+  if (admin && /^!grupos?(\s+[+-]?\d+(\s*,?\s*[+-]?\d+)*)?$/.test(cmdG)) {
+    let todos = {}
+    try { todos = await sock.groupFetchAllParticipating() } catch (e) { log('❌ grupos:', e.message) }
+    const lista = Object.values(todos).map(g => ({ id: g.id, nombre: g.subject || g.id }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+    for (const g of lista) nombresGrupo[g.id] = g.nombre
+    const principal = grupoDestino() || lista.find(g => normal(g.nombre).includes(normal(cfg().grupo_nombre || '')))?.id
+    const cambios = []
+    const nums = (cmdG.match(/[+-]?\d+/g) || [])
+    if (nums.length) {
+      const previa = estado.lista_grupos || lista.map(g => g.id)
+      for (const x of nums) {
+        const k = Math.abs(parseInt(x, 10)) - 1
+        const id = previa[k]
+        const g = lista.find(z => z.id === id)
+        if (!g) { cambios.push(`• ${Math.abs(parseInt(x, 10))}: no existe en la lista`); continue }
+        if (id === principal) { cambios.push(`• ${g.nombre}: es el grupo principal, siempre lo leo completo`); continue }
+        const leer = x.startsWith('+') ? true : x.startsWith('-') ? false : !estado.grupos_extra[id]
+        if (leer) estado.grupos_extra[id] = g.nombre; else delete estado.grupos_extra[id]
+        cambios.push(`• ${g.nombre}: ${leer ? '✅ ahora lo leo (solo Datácora)' : '⬜ dejo de leerlo'}`)
+      }
+      guardarEstado()
+    }
+    estado.lista_grupos = lista.map(g => g.id); guardarEstado()
+    const filas = lista.map((g, i) => `${i + 1}. ${g.id === principal ? '✅ ' + g.nombre + ' — principal, completo'
+      : estado.grupos_extra[g.id] ? '✅ ' + g.nombre + ' — solo Datácora' : '⬜ ' + g.nombre}`)
+    encolar(jid, { text: (cambios.length ? '*Cambios*\n' + cambios.join('\n') + '\n\n' : '')
+      + `👥 *Grupos donde está el bot* (${lista.length})\n` + (filas.join('\n') || '_El bot no está en ningún grupo._')
+      + '\n\n✅ = lo leo · ⬜ = no lo leo\nPara cambiar: *!grupos 3* (o varios: *!grupos 2 5*). *+3* = leer, *-3* = no leer.' }, { quoted: m }, 1500)
     return
   }
   const grupoExtra = jid.endsWith('@g.us') && !enGrupo && Boolean(estado.grupos_extra[jid])
@@ -373,15 +400,14 @@ async function manejar (m) {
   // ---------------- Datácora en vivo: "donde esta camilo!", "ruta para hoy!", "verificadores de hoy annahi!"
   // Cualquiera del grupo o tú en privado. Frases que terminan en "!" (o lo llevan) y hablan de dónde/ruta/verificadores.
   const nDc = texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
-  const fechaDc = /\b(hoy|ayer|antier|anteayer|manana|semana|lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b|\b\d{1,2}\s*[-/.]\s*\d{1,2}\b|\b\d{1,2}\s+de\s+[a-z]+/.test(nDc)
-  const verifFecha = /verificador/.test(nDc) && fechaDc          // "necesito verificadores de ayer" (sin "!")
-  if (texto && (enGrupo || privadoAdmin || grupoExtra) && (verifFecha || (/!/.test(texto) && !/^!\s*[a-z]/i.test(texto.trim())))) {
+  // solo frases con "!" (al final o en medio): "verificadores ayer!", "donde esta camilo!"
+  if (texto && (enGrupo || privadoAdmin || grupoExtra) && /!/.test(texto) && !/^!\s*[a-z]/i.test(texto.trim())) {
     const n = nDc
-    const esDc = verifFecha || /(donde\s+(esta|anda|estan|andan)|ruta|verificador)/.test(n)
+    const esDc = /(donde\s+(esta|anda|estan|andan)|ruta|verificador)/.test(n)
     if (esDc || /!\s*$/.test(texto)) {
       try {
         if (/verificador/.test(n)) encolar(jid, { text: '⏳ Bajando los verificadores desde Datácora…' }, { quoted: m }, 1200)
-        const r = await api('/datacora', { texto, autor: m.pushName || '', es_admin: admin }, 15 * 60000)
+        const r = await api('/datacora', { texto, autor: m.pushName || '', numero, es_admin: admin }, 15 * 60000)
         if (r && !r.nada) {
           if (r.texto) encolar(jid, { text: r.texto }, { quoted: m }, azar(2, 5) * 1000)
           for (const a of (r.archivos || [])) enviarArchivo(jid, a, {})

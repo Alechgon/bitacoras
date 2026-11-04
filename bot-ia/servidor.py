@@ -828,10 +828,9 @@ AYUDA = """🤖 *Comandos del bot*
 *🛰️ Datácora en vivo (cualquiera del grupo, terminando en !)*
 donde esta camilo! · donde esta rodrigo! · donde estan los tecnicos!
 ruta para hoy! · ruta para mañana! · ruta para la semana!
-necesito verificadores de ayer · del lunes · del 03-11 · del 2 al 4 de noviembre (sin "!")
-verificadores de hoy annahi · del falabella de ayer — PDFs renombrados (sin nombre: los de quien pregunta)
-verificadores de la semana carla — ZIP con PDFs y fotos
-!leer aqui (en otro grupo) · !dejar aqui · !grupos — grupos extra donde contesto Datácora
+verificadores hoy! · ayer! · lunes! · 03-11! · entre 02-11 y 04-11! — los de la supervisora que pregunta
+verificadores de annahi! (tú) · verificador de falabella! (el último de ese colegio) · verificadores semana carla! (ZIP con fotos)
+!grupos — lista numerada de todos los grupos (✅ leo / ⬜ no) · !grupos 3 5 — cambiarlos · !leer aqui / !dejar aqui
 
 *📚 Bitácoras*
 📎 PDF con texto: Nombre, dd/mm/aaaa
@@ -1557,7 +1556,14 @@ class H(BaseHTTPRequestHandler):
             if self.path == "/datacora":       # "donde esta camilo!", "ruta para hoy!", "verificadores de hoy!"
                 import datacora
                 autor = data.get("autor", "")
-                sup = None if data.get("es_admin") else personas._sup_por_nombre(autor)
+                sup = None
+                if not data.get("es_admin"):              # la supervisora que escribe, por su número o su nombre
+                    try:
+                        with LOCK:
+                            sup = (personas.identificar(db(), data.get("numero", ""), autor) or {}).get("sup") or None
+                    except Exception:
+                        sup = None
+                    sup = sup or personas._sup_por_nombre(autor)
                 r = datacora.responder(data.get("texto", ""), autor, sup)
                 return self._json(200, r or {"nada": True})
             if self.path == "/comando":
