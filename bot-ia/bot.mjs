@@ -345,6 +345,27 @@ async function manejar (m) {
 
   const numero = soloDigitos(m.key.participant || m.key.participantPn || m.key.participantAlt || m.key.remoteJid)
 
+  // ---------------- Datácora en vivo: "donde esta camilo!", "ruta para hoy!", "verificadores de hoy annahi!"
+  // Cualquiera del grupo o tú en privado. Frases que terminan en "!" (o lo llevan) y hablan de dónde/ruta/verificadores.
+  if (texto && (enGrupo || privadoAdmin) && /!/.test(texto) && !/^!\s*[a-z]/i.test(texto.trim())) {
+    const n = texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    const esDc = /(donde\s+(esta|anda|estan|andan)|ruta|verificador)/.test(n)
+    if (esDc || /!\s*$/.test(texto)) {
+      try {
+        if (/verificador/.test(n)) encolar(jid, { text: '⏳ Bajando los verificadores desde Datácora…' }, { quoted: m }, 1200)
+        const r = await api('/datacora', { texto, autor: m.pushName || '', es_admin: admin }, 15 * 60000)
+        if (r && !r.nada) {
+          if (r.texto) encolar(jid, { text: r.texto }, { quoted: m }, azar(2, 5) * 1000)
+          for (const a of (r.archivos || [])) enviarArchivo(jid, a, {})
+          return
+        }
+      } catch (e) {
+        log('❌ datacora:', e.message)
+        if (esDc) { encolar(jid, { text: '❌ No pude consultar Datácora ahora: ' + e.message }, { quoted: m }, 1500); return }
+      }
+    }
+  }
+
   // ---------------- Manuel en el grupo: solo se le responde si antepone "!" (incluidos comandos)
   if (enGrupo && admin && texto) {
     if (!texto.startsWith('!')) {

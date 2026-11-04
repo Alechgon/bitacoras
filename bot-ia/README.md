@@ -68,6 +68,23 @@ Samsung, además, *inicio automático*).
 
 Ver qué hace: `tail -f ~/bitacoras/bot-ia/logs/bot.log` · Detenerlo: `bash ~/bitacoras/bot-ia/detener.sh`
 
+## Datácora en vivo (solo lectura)
+
+El bot lee Datácora directo (`datacora.py`) y contesta en el grupo o en tu privado. Frases, con "!" al final:
+
+| Frase | Qué hace |
+|---|---|
+| `donde esta camilo!` | Si cerró una bitácora hace menos de 1 hora, dónde (y a cuántos metros del colegio la envió); si no, lo asignado o autoasignado para hoy; si no, su última bitácora |
+| `donde estan los tecnicos!` | Lo mismo para todos |
+| `ruta para hoy!` · `ruta para mañana!` · `ruta para la semana!` | Tareas por día y técnico, ✅ cerradas con hora y ⏳ pendientes |
+| `verificadores de hoy annahi!` | PDF de cada bitácora cerrada hoy en sus establecimientos, renombrado *Establecimiento dd-mm-aaaa.pdf*. Sin nombre: los de la supervisora que pregunta |
+| `verificadores de la semana carla!` | Un ZIP con una carpeta por establecimiento: PDF + fotos |
+
+Conectar (una vez, en Termux): `python ~/bitacoras/bot-ia/datacora.py configurar` (correo y clave quedan solo en
+`~/.datacora.json`, fuera del repo). Probar: `python ~/bitacoras/bot-ia/datacora.py probar`.
+Ollama es opcional: `python ~/bitacoras/bot-ia/datacora.py ollama on qwen2.5:1.5b` hace que el modelo elija la
+consulta cuando la frase no calza (no inventa datos). No escribe nada en Datácora.
+
 ## Comandos en el grupo
 
 | Comando | Qué hace |

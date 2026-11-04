@@ -4,3 +4,4 @@ bot/estado.json
 bot/node_modules/
 *.log
 __pycache__/
+bot-ia/verificadores_dc/

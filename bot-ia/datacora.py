@@ -1,0 +1,685 @@
+#!/usr/bin/env python3
+"""
+datacora.py — el bot lee Datácora EN VIVO (solo lectura) y contesta en WhatsApp.
+
+Frases que entiende (en el grupo o en tu privado; el "!" puede ir al final o al principio):
+  donde esta camilo!        donde esta rodrigo!        donde estan los tecnicos!
+  ruta para hoy!            ruta para mañana!          ruta para la semana!
+  verificadores de hoy!     verificadores de ayer!     verificadores de la semana!
+      + nombre de la supervisora (annahi / stephania / carla). Si no lo pones y lo pide una
+        supervisora, se usan los de ella. "de hoy" manda los PDF sueltos; "de la semana" (o
+        "...con fotos!") manda un ZIP con los PDF y las fotos, una carpeta por establecimiento.
+
+Si la frase no calza y tienes Ollama corriendo en el celular, Ollama decide cuál de esas
+consultas es (nada más: el modelo no inventa datos, solo elige la consulta).
+
+No escribe NADA en Datácora: login + lecturas. Lo único que escribe es la respuesta en WhatsApp.
+
+Credenciales: quedan SOLO en el celular, en ~/.datacora.json (fuera del repo, permiso 600).
+  python datacora.py configurar        -> te pide correo y clave y las guarda
+  python datacora.py probar            -> login + cuántas tareas ve
+  python datacora.py "donde esta camilo!"   -> prueba una consulta en la terminal
+También sirven variables de entorno: DATACORA_API_BASE, DATACORA_EMAIL, DATACORA_PASSWORD, DATACORA_TOKEN.
+
+Cómo habla con el backend: lo mismo que la app oficial Datácora JM 2.0 (POST /auth/login,
+GET /api/tasks, /api/users, /api/submissions/{id}/detail y la función upload-onedrive-pdf con
+download-pdf / submission-photos / download-photo para bajar lo que está en OneDrive).
+"""
+import base64
+import getpass
+import json
+import os
+import re
+import shutil
+import sys
+import time
+import unicodedata
+import urllib.error
+import urllib.request
+import zipfile
+from datetime import date, datetime, timedelta, timezone
+
+AQUI = os.path.dirname(os.path.abspath(__file__))
+CRED = os.path.expanduser("~/.datacora.json")
+BASE_DEF = "http://190.151.96.148:8081"
+SALIDA = os.path.join(AQUI, "verificadores_dc")
+try:
+    from zoneinfo import ZoneInfo
+    TZ = ZoneInfo("America/Santiago")
+except Exception:                                   # Termux sin tzdata: Chile en horario de verano
+    TZ = timezone(timedelta(hours=-3))
+
+DIAS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
+
+
+# ============================================================ configuración y sesión
+def credenciales():
+    c = {}
+    if os.path.exists(CRED):
+        try:
+            c = json.load(open(CRED, encoding="utf-8"))
+        except Exception:
+            c = {}
+    return {
+        "base": os.environ.get("DATACORA_API_BASE") or c.get("base") or BASE_DEF,
+        "email": os.environ.get("DATACORA_EMAIL") or c.get("email") or "",
+        "password": os.environ.get("DATACORA_PASSWORD") or c.get("password") or "",
+        "token": os.environ.get("DATACORA_TOKEN") or c.get("token") or "",
+        "ollama": c.get("ollama", "http://127.0.0.1:11434"),
+        "ollama_modelo": c.get("ollama_modelo", "qwen2.5:1.5b"),
+        "ollama_activo": bool(c.get("ollama_activo", False)),
+        "minutos_en_sitio": int(c.get("minutos_en_sitio", 60)),
+    }
+
+
+def configurado():
+    c = credenciales()
+    return bool(c["token"] or (c["email"] and c["password"]))
+
+
+_SES = {"token": None, "ts": 0}
+_CACHE = {}
+
+
+class ErrorDatacora(Exception):
+    pass
+
+
+def _http(method, ruta, cuerpo=None, token=None, timeout=45):
+    c = credenciales()
+    datos = json.dumps(cuerpo).encode() if cuerpo is not None else None
+    h = {"Content-Type": "application/json", "Accept": "application/json"}
+    if token:
+        h["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(c["base"].rstrip("/") + ruta, data=datos, headers=h, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            txt = r.read()
+            return json.loads(txt) if txt else {}
+    except urllib.error.HTTPError as e:
+        try:
+            msg = json.loads(e.read() or b"{}")
+            msg = msg.get("error") or msg.get("message") or ""
+        except Exception:
+            msg = ""
+        err = ErrorDatacora(f"HTTP {e.code} {msg}".strip())
+        err.status = e.code
+        raise err
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise ErrorDatacora(f"no llego al servidor de Datácora ({getattr(e, 'reason', e)})")
+
+
+def _token(renovar=False):
+    c = credenciales()
+    if c["token"] and not renovar:
+        return c["token"]
+    if _SES["token"] and not renovar and time.time() - _SES["ts"] < 6 * 3600:
+        return _SES["token"]
+    if not (c["email"] and c["password"]):
+        raise ErrorDatacora("faltan las credenciales: corre  python datacora.py configurar")
+    r = _http("POST", "/auth/login", {"email": c["email"], "password": c["password"]})
+    tok = r.get("access_token") or r.get("token")
+    if not tok:
+        raise ErrorDatacora("el login no devolvió token (revisa correo y clave)")
+    _SES.update(token=tok, ts=time.time())
+    return tok
+
+
+def api(method, ruta, cuerpo=None, timeout=45):
+    """Llama al backend con la sesión; si el token venció, entra de nuevo una vez."""
+    try:
+        return _http(method, ruta, cuerpo, _token(), timeout)
+    except ErrorDatacora as e:
+        if getattr(e, "status", 0) == 401:
+            return _http(method, ruta, cuerpo, _token(renovar=True), timeout)
+        raise
+
+
+def _cache(clave, seg, fn):
+    v = _CACHE.get(clave)
+    if v and time.time() - v[0] < seg:
+        return v[1]
+    r = fn()
+    _CACHE[clave] = (time.time(), r)
+    return r
+
+
+def tareas():
+    """Tareas de la sucursal (los RBD de datos.js); si no hay datos.js, todas las que ve el usuario."""
+    def cargar():
+        ts = api("GET", "/api/tasks", timeout=90) or []
+        mapa = _sup_de_rbd()
+        return [t for t in ts if establecimiento(t)[1] in mapa] if mapa else ts
+    return _cache("tasks", 60, cargar)
+
+
+def usuarios():
+    return _cache("users", 600, lambda: api("GET", "/api/users") or [])
+
+
+# ============================================================ ayudas sobre una tarea
+def norm(s):
+    s = unicodedata.normalize("NFKD", str(s or "")).encode("ascii", "ignore").decode().lower()
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _fecha(v):
+    """ISO del backend -> datetime con hora de Chile (o None)."""
+    if not v:
+        return None
+    s = str(v)
+    try:
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
+            return datetime.fromisoformat(s).replace(tzinfo=TZ)
+        d = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        return (d if d.tzinfo else d.replace(tzinfo=timezone.utc)).astimezone(TZ)
+    except ValueError:
+        return None
+
+
+def ahora():
+    return datetime.now(TZ)
+
+
+def hecha(t):
+    return norm(t.get("status")) in ("completada", "completed")
+
+
+def cuando_hecha(t):
+    return _fecha(t.get("submitted_at") or t.get("completed_at") or (t.get("updated_at") if hecha(t) else None))
+
+
+def dia_tarea(t):
+    d = _fecha(t.get("due_date") or t.get("scheduled_date") or t.get("assigned_at") or t.get("created_at"))
+    return d.date() if d else None
+
+
+def tecnico(t):
+    nom = t.get("assigned_to_full_name") or t.get("assignedToFullName")
+    if not nom:
+        tid = str(t.get("assigned_to") or t.get("assignedTo") or "")
+        u = next((u for u in usuarios() if str(u.get("id")) == tid), None) if tid else None
+        nom = (u or {}).get("full_name") or (u or {}).get("fullName") or ""
+    return nom or "Sin técnico"
+
+
+def establecimiento(t):
+    e = t.get("establishments") or {}
+    nombre = e.get("name") or t.get("establishment_name") or t.get("establishmentName") or ""
+    rbd = str(e.get("rbd") or t.get("rbd") or t.get("establishment_rbd") or "")
+    return (nombre.strip() or f"RBD {rbd}"), rbd
+
+
+def institucion(t):
+    e = t.get("establishments") or {}
+    return t.get("institution_type") or e.get("institution_type") or ""
+
+
+def tipo(t):
+    return t.get("task_type") or t.get("type") or ""
+
+
+def envio_id(t):
+    return t.get("submissionId") or t.get("submission_id") or ""
+
+
+def es_jardin(t):
+    txt = norm(" ".join(str(x) for x in (tipo(t), institucion(t), establecimiento(t)[0])))
+    return "junji" in txt or "integra" in txt or "jardin" in txt or "sala cuna" in txt
+
+
+def _hhmm(d):
+    return d.strftime("%H:%M") if d else ""
+
+
+def _dm(d):
+    return f"{DIAS[d.weekday()]} {d.strftime('%d-%m')}"
+
+
+def _corto(nombre, n=34):
+    return nombre if len(nombre) <= n else nombre[:n - 1] + "…"
+
+
+def _primer_nombre(nom):
+    return (nom or "").split()[0].title() if nom else ""
+
+
+# ============================================================ supervisoras (desde datos.js)
+def _sup_de_rbd():
+    try:
+        sys.path.insert(0, AQUI)
+        import nucleo
+        return {str(e["rbd"]): e.get("sup", "") for e in nucleo.datos()["ESTAB"]}
+    except Exception:
+        ruta = os.path.join(AQUI, "..", "datos.js")
+        try:
+            t = open(ruta, encoding="utf-8").read()
+            d = json.loads(t[t.index("{"): t.rindex("}") + 1])
+            return {str(e["rbd"]): e.get("sup", "") for e in d["ESTAB"]}
+        except Exception:
+            return {}
+
+
+SUPS = {"anahi": "Anahi Uribe", "annahi": "Anahi Uribe", "anahí": "Anahi Uribe", "nangii": "Anahi Uribe",
+        "stephania": "Stephania Fernandez", "stefania": "Stephania Fernandez", "estefania": "Stephania Fernandez",
+        "carla": "Carla Espinoza"}
+
+
+def sup_en_texto(texto):
+    t = norm(texto)
+    for k, v in SUPS.items():
+        if re.search(rf"\b{norm(k)}\b", t):
+            return v
+    return None
+
+
+# ============================================================ consultas
+def donde_esta(quien):
+    """
+    Lo que pediste: si cerró una bitácora hace menos de 1 hora, está (o recién salió) de ahí;
+    si no, el último colegio asignado o autoasignado para hoy; si no hay nada hoy, su última bitácora.
+    """
+    q = norm(quien)
+    mias = [t for t in tareas() if q and q in norm(tecnico(t))]
+    if not mias:
+        return f"🤷 No encuentro tareas de *{quien.title()}* en Datácora."
+    nombre = _primer_nombre(tecnico(mias[0]))
+    ya = ahora()
+    hoy = ya.date()
+    cerradas = sorted((t for t in mias if hecha(t) and cuando_hecha(t)), key=cuando_hecha, reverse=True)
+    ult = cerradas[0] if cerradas else None
+    lim = credenciales()["minutos_en_sitio"]
+    lineas = []
+    if ult and (ya - cuando_hecha(ult)) <= timedelta(minutes=lim):
+        n, rbd = establecimiento(ult)
+        mins = int((ya - cuando_hecha(ult)).total_seconds() // 60)
+        lineas.append(f"📍 *{nombre}* está en *{n}* (RBD {rbd}): cerró la bitácora hace {mins} min "
+                      f"({_hhmm(cuando_hecha(ult))}){_geo(ult)}.")
+    pend_hoy = [t for t in mias if not hecha(t) and dia_tarea(t) == hoy]
+    pend_hoy.sort(key=lambda t: _fecha(t.get("assigned_at") or t.get("created_at")) or ya, reverse=True)
+    if pend_hoy:
+        n, rbd = establecimiento(pend_hoy[0])
+        auto = str(pend_hoy[0].get("created_by") or "") and str(pend_hoy[0].get("created_by")) == str(
+            pend_hoy[0].get("assigned_to") or "")
+        if not lineas:
+            lineas.append(f"📍 *{nombre}* tiene {'autoasignado' if auto else 'asignado'} hoy *{n}* (RBD {rbd})"
+                          f"{' · ' + tipo(pend_hoy[0]) if tipo(pend_hoy[0]) else ''}.")
+        else:
+            lineas.append(f"➡️ Después le queda *{n}*.")
+        if len(pend_hoy) > 1:
+            lineas.append("También le quedan hoy: " + ", ".join(_corto(establecimiento(t)[0], 26) for t in pend_hoy[1:5])
+                          + (" y más" if len(pend_hoy) > 5 else "") + ".")
+    if not lineas:
+        if ult:
+            n, rbd = establecimiento(ult)
+            d = cuando_hecha(ult)
+            cuando = f"hoy a las {_hhmm(d)}" if d.date() == hoy else f"el {_dm(d)} a las {_hhmm(d)}"
+            lineas.append(f"📍 *{nombre}* no tiene nada asignado hoy en Datácora. Su última bitácora fue en "
+                          f"*{n}* (RBD {rbd}), {cuando}{_geo(ult)}.")
+        else:
+            lineas.append(f"📍 *{nombre}* no tiene tareas hoy ni bitácoras cerradas en Datácora.")
+    hechas_hoy = [t for t in cerradas if cuando_hecha(t).date() == hoy]
+    if hechas_hoy:
+        lineas.append(f"✅ Hoy lleva {len(hechas_hoy)}: " + ", ".join(
+            f"{_corto(establecimiento(t)[0], 24)} {_hhmm(cuando_hecha(t))}" for t in reversed(hechas_hoy)) + ".")
+    lineas.append("_(no es GPS en vivo: sale de lo asignado y de las bitácoras de Datácora)_")
+    return "\n".join(lineas)
+
+
+def _geo(t):
+    """' · la envió a 40 m del colegio' si Datácora guardó la ubicación al enviar."""
+    sid = envio_id(t)
+    if not sid:
+        return ""
+    try:
+        det = _cache(f"det:{sid}", 900, lambda: api("GET", f"/api/submissions/{sid}/detail", timeout=25))
+    except Exception:
+        return ""
+    geo = {}
+    for a in (det.get("singleAnswerRows") or []) + (det.get("answerRows") or []):
+        k = norm(a.get("question_code") or (a.get("form_questions") or {}).get("code") or "").replace(" ", "")
+        v = a.get("answer_number") if a.get("answer_number") is not None else a.get("answer_text")
+        if k:
+            geo[k] = v
+    m = geo.get("submitdistancemeters") or geo.get("startdistancemeters")
+    try:
+        m = float(m)
+    except (TypeError, ValueError):
+        return ""
+    return f" · la envió a {int(m)} m del colegio" if m < 1000 else f" · la envió a {m / 1000:.1f} km del colegio"
+
+
+def donde_estan():
+    tecs = sorted({_primer_nombre(tecnico(t)) for t in tareas()
+                   if (dia_tarea(t) == ahora().date() or (cuando_hecha(t) and cuando_hecha(t).date() == ahora().date()))
+                   and tecnico(t) != "Sin técnico"})
+    if not tecs:
+        return "Hoy nadie tiene tareas en Datácora."
+    return "\n\n".join(donde_esta(t) for t in tecs)
+
+
+def ruta(desde, hasta, titulo):
+    filas = {}
+    for t in tareas():
+        d = cuando_hecha(t).date() if hecha(t) and cuando_hecha(t) else dia_tarea(t)
+        if not d or not (desde <= d <= hasta):
+            continue
+        filas.setdefault(d, {}).setdefault(_primer_nombre(tecnico(t)) or "Sin técnico", []).append(t)
+    if not filas:
+        return f"🗓️ *{titulo}*\nNo hay tareas en Datácora para esos días."
+    out = [f"🗓️ *{titulo}*"]
+    for d in sorted(filas):
+        if desde != hasta:
+            out.append(f"\n*{_dm(d).capitalize()}*")
+        for tec in sorted(filas[d]):
+            ts = sorted(filas[d][tec], key=lambda t: (not hecha(t), cuando_hecha(t) or datetime.max.replace(tzinfo=TZ)))
+            out.append(f"👷 *{tec}* ({sum(1 for t in ts if hecha(t))}/{len(ts)})")
+            for t in ts:
+                n, rbd = establecimiento(t)
+                tp = tipo(t)
+                marca = f"✅ {_hhmm(cuando_hecha(t))}" if hecha(t) else "⏳"
+                out.append(f"   {marca} {_corto(n)} ({rbd}){' · ' + _corto(tp, 22) if tp else ''}")
+    return "\n".join(out)
+
+
+def _semana(base):
+    lun = base - timedelta(days=base.weekday())
+    return lun, lun + timedelta(days=4)
+
+
+# ---------------------------------------------------------------- verificadores
+def _nombre_archivo(txt):
+    t = re.sub(r'[\\/:*?"<>|]+', " ", str(txt))
+    return re.sub(r"\s+", " ", t).strip()[:90] or "archivo"
+
+
+def _bajar_pdf(t, det):
+    filas = det.get("attachmentRows") or []
+    filas = sorted(filas, key=lambda r: (str(r.get("file_kind") or "") != "onedrive_bitacora_pdf",
+                                         -(_fecha(r.get("created_at")) or datetime.min.replace(tzinfo=TZ)).timestamp()))
+    adj = next((r for r in filas if ("pdf" in str(r.get("file_kind") or "") and "photo" not in str(r.get("file_kind") or ""))
+                or "pdf" in str(r.get("mime_type") or "").lower()
+                or str(r.get("file_name") or "").lower().endswith(".pdf")), {})
+    jardin = es_jardin(t)
+    r = api("POST", "/functions/upload-onedrive-pdf", {
+        "action": "download-pdf", "submissionId": envio_id(t), "attachmentId": adj.get("id"),
+        "externalId": adj.get("external_id") or adj.get("externalId") or ("" if jardin else t.get("pdfExternalId") or ""),
+        "preferredFileKind": "onedrive_bitacora_pdf" if jardin else ""}, timeout=120)
+    url = r.get("dataUrl") or r.get("data_url") or ""
+    if not url.startswith("data:application/pdf"):
+        raise ErrorDatacora("sin PDF respaldado en OneDrive")
+    return base64.b64decode(url.split(",", 1)[1])
+
+
+def _bajar_fotos(t, det):
+    fotos = [r for r in (det.get("attachmentRows") or []) if r.get("file_kind") == "onedrive_photo"]
+    try:
+        extra = api("POST", "/functions/upload-onedrive-pdf",
+                    {"action": "submission-photos", "submissionId": envio_id(t)}, timeout=90).get("photos") or []
+    except Exception:
+        extra = []
+    vistos, out = set(), []
+    for f in fotos + extra:
+        k = f.get("external_id") or f.get("id") or f.get("file_name")
+        if not k or k in vistos:
+            continue
+        vistos.add(k)
+        try:
+            r = api("POST", "/functions/upload-onedrive-pdf", {
+                "action": "download-photo", "submissionId": envio_id(t), "attachmentId": f.get("id"),
+                "externalId": f.get("external_id") or f.get("externalId")}, timeout=120)
+            url = r.get("dataUrl") or r.get("data_url") or ""
+            if url.startswith("data:image/"):
+                ext = "png" if "png" in url[:30] else "webp" if "webp" in url[:30] else "jpg"
+                out.append((ext, base64.b64decode(url.split(",", 1)[1])))
+        except Exception:
+            continue
+    return out
+
+
+def verificadores(desde, hasta, sup=None, con_fotos=False, etiqueta="hoy"):
+    """
+    Bitácoras cerradas entre desde y hasta (si hay supervisora, solo sus establecimientos), con el
+    PDF renombrado 'Establecimiento dd-mm-aaaa.pdf'. Con fotos (o si son muchos) va todo en un ZIP.
+    Devuelve (texto, [ {ruta, nombre}, ... ]).
+    """
+    mapa = _sup_de_rbd()
+    sel = []
+    for t in tareas():
+        d = cuando_hecha(t)
+        if not hecha(t) or not d or not (desde <= d.date() <= hasta) or not envio_id(t):
+            continue
+        n, rbd = establecimiento(t)
+        s = mapa.get(rbd, "")
+        if mapa and rbd not in mapa:
+            continue                                    # fuera de la sucursal
+        if sup and s != sup:
+            continue
+        sel.append(t)
+    quien = f" de {sup.split()[0]}" if sup else ""
+    rango = desde.strftime("%d-%m") if desde == hasta else f"{desde.strftime('%d-%m')} al {hasta.strftime('%d-%m')}"
+    if not sel:
+        return f"📭 No hay bitácoras cerradas{quien} ({rango}) en Datácora.", []
+    sel.sort(key=cuando_hecha)
+    carpeta = os.path.join(SALIDA, f"{datetime.now().strftime('%Y%m%d-%H%M%S')}")
+    os.makedirs(carpeta, exist_ok=True)
+    _limpiar_viejos()
+    archivos, malos, usados, lineas = [], [], set(), []
+    zip_todo = con_fotos or len(sel) > 8
+    for t in sel:
+        n, rbd = establecimiento(t)
+        d = cuando_hecha(t)
+        base = _nombre_archivo(f"{n} {d.strftime('%d-%m-%Y')}")
+        nom, k = base, 2
+        while nom in usados:
+            nom, k = f"{base} ({k})", k + 1
+        usados.add(nom)
+        lineas.append(f"• {d.strftime('%d-%m')} {_corto(n, 30)} — {_primer_nombre(tecnico(t))}")
+        try:
+            det = api("GET", f"/api/submissions/{envio_id(t)}/detail", timeout=60)
+            pdf = _bajar_pdf(t, det)
+        except Exception as e:
+            malos.append(f"{_corto(n, 30)} ({e})")
+            continue
+        sub = os.path.join(carpeta, nom) if zip_todo else carpeta
+        os.makedirs(sub, exist_ok=True)
+        ruta_pdf = os.path.join(sub, nom + ".pdf")
+        open(ruta_pdf, "wb").write(pdf)
+        if con_fotos:
+            for i, (ext, b) in enumerate(_bajar_fotos(t, det), 1):
+                open(os.path.join(sub, f"foto {i:02d}.{ext}"), "wb").write(b)
+        if not zip_todo:
+            archivos.append({"ruta": ruta_pdf, "nombre": nom + ".pdf"})
+    if zip_todo:
+        nombre_zip = _nombre_archivo(f"Verificadores{quien} {rango}{' con fotos' if con_fotos else ''}") + ".zip"
+        ruta_zip = os.path.join(SALIDA, nombre_zip)
+        with zipfile.ZipFile(ruta_zip, "w", zipfile.ZIP_DEFLATED) as z:
+            for raiz, _, fs in os.walk(carpeta):
+                for f in fs:
+                    p = os.path.join(raiz, f)
+                    z.write(p, os.path.relpath(p, carpeta))
+        if os.path.getsize(ruta_zip) > 22:
+            archivos.append({"ruta": ruta_zip, "nombre": nombre_zip})
+    ok = len(sel) - len(malos)
+    txt = [f"📄 *Verificadores{quien} · {rango}*: {ok} de {len(sel)}"
+           + (" (en un ZIP" + (" con fotos" if con_fotos else "") + ")" if zip_todo and ok else "")]
+    txt += lineas[:40]
+    if len(lineas) > 40:
+        txt.append(f"… y {len(lineas) - 40} más")
+    if malos:
+        txt.append("⚠️ Sin PDF: " + "; ".join(malos[:10]))
+    return "\n".join(txt), archivos
+
+
+def _limpiar_viejos(dias=3):
+    if not os.path.isdir(SALIDA):
+        return
+    lim = time.time() - dias * 86400
+    for f in os.listdir(SALIDA):
+        p = os.path.join(SALIDA, f)
+        try:
+            if os.path.getmtime(p) < lim:
+                shutil.rmtree(p) if os.path.isdir(p) else os.remove(p)
+        except OSError:
+            pass
+
+
+# ============================================================ entender la frase
+PATRON = re.compile(r"(donde\s+(esta|anda|estan|andan)|ruta|verificador)")
+
+
+def es_consulta(texto):
+    t = norm(texto)
+    return "!" in t and bool(PATRON.search(t))
+
+
+def _rango(t, hoy):
+    if re.search(r"\bsemana pasada\b", t):
+        return (*_semana(hoy - timedelta(days=7)), "la semana pasada")
+    if "semana" in t:
+        return (*_semana(hoy), "la semana")
+    if re.search(r"\bmanana\b", t):
+        d = hoy + timedelta(days=1)
+        return d, d, "mañana"
+    if re.search(r"\bayer\b", t):
+        d = hoy - timedelta(days=1)
+        return d, d, "ayer"
+    m = re.search(r"\b(\d{1,2})[-/](\d{1,2})\b", t)
+    if m:
+        d = date(hoy.year, int(m.group(2)), int(m.group(1)))
+        return d, d, d.strftime("%d-%m")
+    return hoy, hoy, "hoy"
+
+
+def responder(texto, autor="", sup_autor=None):
+    """
+    Devuelve {"texto": str, "archivos": [{ruta, nombre}]} o None si la frase no es de Datácora.
+    sup_autor = nombre de la supervisora que escribió (si es supervisora): sus verificadores por defecto.
+    """
+    t = norm(texto).replace("!", " ").strip()
+    if not PATRON.search(t):
+        if not credenciales()["ollama_activo"]:
+            return None
+        t = _ollama_elegir(texto) or t
+        if not PATRON.search(t):
+            return None
+    if not configurado():
+        return {"texto": "⚙️ Falta conectar Datácora en el celular: en Termux corre "
+                         "`python ~/bitacoras/bot-ia/datacora.py configurar`", "archivos": []}
+    hoy = ahora().date()
+    try:
+        if re.search(r"donde\s+(esta|anda)\b", t):
+            m = re.search(r"donde\s+(?:esta|anda)\s+(?:el\s+|la\s+)?([a-z]+)", t)
+            quien = m.group(1) if m else ""
+            if quien in ("", "el", "la", "los", "todos", "tecnico", "tecnicos"):
+                return {"texto": donde_estan(), "archivos": []}
+            return {"texto": donde_esta(quien), "archivos": []}
+        if re.search(r"donde\s+(estan|andan)", t):
+            return {"texto": donde_estan(), "archivos": []}
+        if "verificador" in t:
+            desde, hasta, lbl = _rango(t, hoy)
+            sup = sup_en_texto(t) or sup_autor
+            fotos = "foto" in t or "semana" in t
+            txt, arch = verificadores(desde, hasta, sup, con_fotos=fotos, etiqueta=lbl)
+            return {"texto": txt, "archivos": arch}
+        if "ruta" in t:
+            desde, hasta, lbl = _rango(t, hoy)
+            titulo = (f"Ruta de {lbl} · {_dm(desde)}" if desde == hasta
+                      else f"Ruta de {lbl} · {desde.strftime('%d-%m')} al {hasta.strftime('%d-%m')}")
+            return {"texto": ruta(desde, hasta, titulo), "archivos": []}
+    except ErrorDatacora as e:
+        return {"texto": f"❌ Datácora: {e}", "archivos": []}
+    return None
+
+
+def _ollama_elegir(texto):
+    """Si hay Ollama, que solo ELIJA la consulta (nunca inventa datos). Si no hay, None."""
+    c = credenciales()
+    prompt = ("Clasifica el mensaje en UNA de estas consultas y responde solo con ella, en minúsculas, sin nada más:\n"
+              "donde esta <nombre> | donde estan | ruta hoy | ruta manana | ruta semana | "
+              "verificadores hoy <supervisora> | verificadores ayer <supervisora> | "
+              "verificadores semana <supervisora> | ninguna\n"
+              "Supervisoras: annahi, stephania, carla. Técnicos: camilo, rodrigo.\n"
+              f"Mensaje: {texto}\nConsulta:")
+    try:
+        req = urllib.request.Request(c["ollama"].rstrip("/") + "/api/generate",
+                                     data=json.dumps({"model": c["ollama_modelo"], "prompt": prompt, "stream": False,
+                                                      "options": {"temperature": 0}}).encode(),
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            out = norm(json.loads(r.read()).get("response", "")).splitlines()[0:1]
+        out = out[0] if out else ""
+        return "" if "ninguna" in out else out
+    except Exception:
+        return None
+
+
+# ============================================================ terminal
+def _configurar():
+    print("Credenciales de Datácora (quedan solo en este celular, en ~/.datacora.json).")
+    print("Recomendado: un usuario aparte para el bot, con permiso de ver tareas de la sucursal.")
+    c = {}
+    if os.path.exists(CRED):
+        try:
+            c = json.load(open(CRED, encoding="utf-8"))
+        except Exception:
+            c = {}
+    base = input(f"Servidor [{c.get('base', BASE_DEF)}]: ").strip() or c.get("base", BASE_DEF)
+    email = input(f"Correo [{c.get('email', '')}]: ").strip() or c.get("email", "")
+    pw = getpass.getpass("Clave (no se ve al escribir): ").strip() or c.get("password", "")
+    c.update(base=base, email=email, password=pw)
+    c.pop("token", None)
+    _guardar(c)
+    print("Guardado. Probando…")
+    _probar()
+
+
+def _guardar(c):
+    fd = os.open(CRED, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(c, f, ensure_ascii=False, indent=1)
+    os.chmod(CRED, 0o600)
+
+
+def _ollama(args):
+    c = json.load(open(CRED, encoding="utf-8")) if os.path.exists(CRED) else {}
+    if not args or args[0] not in ("on", "off"):
+        print("Uso: python datacora.py ollama on [modelo]   |   python datacora.py ollama off")
+        return
+    c["ollama_activo"] = args[0] == "on"
+    if len(args) > 1:
+        c["ollama_modelo"] = args[1]
+    _guardar(c)
+    print(f"Ollama {'activado' if c['ollama_activo'] else 'apagado'} ({c.get('ollama_modelo', 'qwen2.5:1.5b')}).")
+
+
+def _probar():
+    try:
+        ts = tareas()
+        us = usuarios()
+        hoy = ahora().date()
+        print(f"✅ Conectado a {credenciales()['base']}: {len(ts)} tareas, {len(us)} usuarios.")
+        print(f"   Hoy ({hoy}): {sum(1 for t in ts if dia_tarea(t) == hoy)} asignadas, "
+              f"{sum(1 for t in ts if hecha(t) and cuando_hecha(t) and cuando_hecha(t).date() == hoy)} cerradas.")
+    except ErrorDatacora as e:
+        print(f"❌ {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "configurar":
+        _configurar()
+    elif len(sys.argv) > 1 and sys.argv[1] == "probar":
+        _probar()
+    elif len(sys.argv) > 1 and sys.argv[1] == "ollama":
+        _ollama(sys.argv[2:])
+    elif len(sys.argv) > 1:
+        r = responder(" ".join(sys.argv[1:]))
+        if not r:
+            print("(no es una consulta de Datácora)")
+        else:
+            print(r["texto"])
+            for a in r["archivos"]:
+                print("📎", a["ruta"])
+    else:
+        print(__doc__)

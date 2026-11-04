@@ -825,6 +825,12 @@ AYUDA = """🤖 *Comandos del bot*
 !hecho RBD — marcar visita realizada
 !es RBD — confirmar establecimiento dudoso
 
+*🛰️ Datácora en vivo (cualquiera del grupo, terminando en !)*
+donde esta camilo! · donde esta rodrigo! · donde estan los tecnicos!
+ruta para hoy! · ruta para mañana! · ruta para la semana!
+verificadores de hoy annahi! — PDFs renombrados (sin nombre: los de quien pregunta)
+verificadores de la semana carla! — ZIP con PDFs y fotos
+
 *📚 Bitácoras*
 📎 PDF con texto: Nombre, dd/mm/aaaa
 !consulta <texto> — ej: !consulta gas silvia salas
@@ -1546,6 +1552,12 @@ class H(BaseHTTPRequestHandler):
                     return self._json(200, {"texto": f"❌ No pude leer el PDF como bitácora: {e}"})
             if self.path == "/adjuntos":       # bot.mjs pide los PDFs de un borrador aprobado
                 return self._json(200, {"archivos": adjuntos_de(data.get("borrador_id"))})
+            if self.path == "/datacora":       # "donde esta camilo!", "ruta para hoy!", "verificadores de hoy!"
+                import datacora
+                autor = data.get("autor", "")
+                sup = None if data.get("es_admin") else personas._sup_por_nombre(autor)
+                r = datacora.responder(data.get("texto", ""), autor, sup)
+                return self._json(200, r or {"nada": True})
             if self.path == "/comando":
                 return self._json(200, procesar_comando(data.get("texto", ""), data.get("autor", ""),
                                                         bool(data.get("es_admin")), bool(data.get("privado")),
