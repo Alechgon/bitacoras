@@ -663,8 +663,7 @@ def ruta(desde, hasta, titulo):
                 lineas.append(f"- {n}" + (" (no se cerró)" if d < hoy else ""))
             if d > hoy and k != "SIN TECNICO":           # hoy = solo lo que asignaste; sugeridos desde mañana
                 for r in sugerir(k, cupo - len(lineas)):
-                    nv = vis.get(r, (0, None))[0]
-                    lineas.append(f"- _{col[r]['nombre']}_ (sugerido · {nv} visita{'' if nv == 1 else 's'})")
+                    lineas.append(f"- {col[r]['nombre']}")
                     hubo_sug = True
             if lineas:
                 bloque.append(f"👷 *{_nombre_tec(k, nombres[k])}*")
@@ -676,8 +675,6 @@ def ruta(desde, hasta, titulo):
             out += bloque
     if not algo:
         return f"🗓️ *{titulo}*\nNo hay tareas en Datácora para esos días."
-    if hubo_sug:
-        out.append("\n_sugerido = colegio de ese técnico con menos visitas en Datácora (para emparejar), cerca de los otros del día_")
     return "\n".join(out)
 
 
