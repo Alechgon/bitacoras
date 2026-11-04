@@ -126,7 +126,9 @@ def _http(method, ruta, cuerpo=None, token=None, timeout=45):
         err.status = e.code
         raise err
     except (urllib.error.URLError, TimeoutError, OSError) as e:
-        raise ErrorDatacora(f"no llego al servidor de Datácora ({getattr(e, 'reason', e)})")
+        err = ErrorDatacora(f"no llego al servidor de Datácora ({getattr(e, 'reason', e)})")
+        err.status = 503                                 # sin conexión: se trata igual que "no contestó a tiempo"
+        raise err
 
 
 def _token(renovar=False):
@@ -147,21 +149,22 @@ def _token(renovar=False):
 
 def api(method, ruta, cuerpo=None, timeout=45):
     """Llama al backend con la sesión; si el token venció, entra de nuevo una vez.
-    Si Datácora está lento (500/502/503/504), espera 10 s y prueba solo una vez más."""
+    Si Datácora no contesta a tiempo (500/502/503/504), espera 10 s y 30 s y vuelve a probar."""
     try:
         return _http(method, ruta, cuerpo, _token(), timeout)
     except ErrorDatacora as e:
         st = getattr(e, "status", 0)
         if st == 401:
             return _http(method, ruta, cuerpo, _token(renovar=True), timeout)
-        if st in (500, 502, 503, 504):
-            time.sleep(10)
-            try:
-                return _http(method, ruta, cuerpo, _token(), timeout)
-            except ErrorDatacora as e2:
-                if getattr(e2, "status", 0) in (500, 502, 503, 504):
-                    raise ErrorDatacora("Datácora está lento ahora (no respondió a tiempo). Prueba en unos minutos.")
-                raise
+        if st in (500, 502, 503, 504):                 # no contestó a tiempo: se espera y se prueba de nuevo
+            for espera in (10, 30):
+                time.sleep(espera)
+                try:
+                    return _http(method, ruta, cuerpo, _token(), timeout)
+                except ErrorDatacora as e2:
+                    if getattr(e2, "status", 0) not in (500, 502, 503, 504):
+                        raise
+            raise ErrorDatacora("no pude conectarme con Datácora, prueba de nuevo en un rato")
         raise
 
 
@@ -934,28 +937,30 @@ def verificadores(desde, hasta, sup=None, con_fotos=False, etiqueta="hoy", rbds=
 
     # 2) primero se busca en lo guardado; lo que falta se baja de a uno (termina uno, pausa, sigue el otro)
     guardados = sum(1 for it in items if ya_guardado(it))
-    seguidos_malos, cortado, primero = 0, [], True
-    for i, it in enumerate(items):
+    seguidos_malos, primero = 0, True
+    for it in items:
         if it["ok"]:
             continue
         if not primero:
             time.sleep(PAUSA_DESCARGA)
         primero = False
-        if seguidos_malos >= 3:                          # Datácora caída: no se insiste
-            cortado = [x for x in items[i:] if not x["ok"]]
-            break
+        if seguidos_malos >= 3:                          # Datácora no contesta: se espera un rato y se sigue
+            time.sleep(60)
+            seguidos_malos = 0
         bajar(it)
         seguidos_malos = 0 if it["ok"] else seguidos_malos + 1
-    # 3) los que fallaron se reintentan una vez más, con calma
-    faltan = [it for it in items if not it["ok"] and it not in cortado]
-    if faltan and not cortado:
-        time.sleep(30)
+    # 3) los que no se pudieron se reintentan con calma: 2 vueltas más, esperando entre una y otra
+    for espera in (45, 120):
+        faltan = [it for it in items if not it["ok"]]
+        if not faltan:
+            break
+        time.sleep(espera)
         for it in faltan:
             bajar(it)
             time.sleep(PAUSA_DESCARGA)
     for it in items:
-        if not it["ok"] and it not in cortado:
-            malos.append(f"{_corto(it['n'], 30)} ({it['err']})")
+        if not it["ok"]:
+            malos.append(f"{it['n']}, {cuando_hecha(it['t']).strftime('%d-%m-%Y')}")
     # 4) se juntan todos y recién ahí se mandan (en orden de fecha)
     listos = [it for it in items if it["ok"]]
     if listos and not zip_todo:
@@ -978,11 +983,8 @@ def verificadores(desde, hasta, sup=None, con_fotos=False, etiqueta="hoy", rbds=
     txt += lineas[:60]
     if len(lineas) > 60:
         txt.append(f"… y {len(lineas) - 60} más")
-    if malos:
-        txt.append("⚠️ Sin PDF: " + "; ".join(malos[:10]))
-    if cortado:
-        txt.append(f"⏸️ Datácora no estaba respondiendo y paré para no cargarla; faltaron {len(cortado)}. "
-                   "Pídelos de nuevo en unos minutos (los que ya bajé quedan guardados).")
+    for m in malos:
+        txt.append(f"⚠️ {m}: no se pudo descargar")
     return "\n".join(txt), archivos
 
 
