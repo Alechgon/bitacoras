@@ -601,8 +601,8 @@ def ruta(desde, hasta, titulo):
     Por técnico y día (máx 4), solo lectura de Datácora:
       1) lo que cerró ese día -> "(finalizado HH:MM)"
       2) las tareas que TÚ le asignaste con la fecha de ese día -> sin nada al lado
-      3) desde mañana, si queda cupo: sugeridos = los colegios de ese técnico con MENOS visitas en Datácora (y entre ellos los
-         más cercanos al primero), para que todos vayan quedando con la misma cantidad de visitas.
+      3) si queda cupo (hoy incluido): colegios con pocas o ninguna visita en Datácora, los más cercanos a lo que ya
+         tiene ese día (si Camilo solo tiene Molina, los de menos visitas cerca de Molina).
     """
     hoy = ahora().date()
     cupo = credenciales()["max_por_dia"]
@@ -633,20 +633,38 @@ def ruta(desde, hasta, titulo):
     for k in cand:
         cand[k].sort(key=lambda r: (vis.get(r, (0, None))[0], vis.get(r, (0, None))[1] or date(2000, 1, 1)))
 
-    def sugerir(k, n):
-        """n colegios de k con menos visitas; el primero manda y los demás, los más cercanos a él."""
-        libres = [r for r in cand.get(k, []) if r not in ocupados]
-        if not libres or n <= 0:
+    def sugerir(k, n, anclas):
+        """
+        n colegios para completar el día de k: los de menos visitas (pocas o ninguna) que queden MÁS CERCA de lo
+        que ya tiene ese día (ej. Molina). Si el día está vacío, parte por su colegio con menos visitas.
+        Se prefieren los colegios de ese técnico, pero si uno de otro queda mucho más cerca, también entra.
+        """
+        if n <= 0:
             return []
-        minimo = vis.get(libres[0], (0, None))[0]
-        tanda = [r for r in libres if vis.get(r, (0, None))[0] <= minimo + 1][:12] or libres[:12]
-        elegidos = [tanda[0]]
-        resto = [r for r in tanda[1:]]
-        while len(elegidos) < n and resto:
-            r = min(resto, key=lambda x: (vis.get(x, (0, None))[0], _km(col[elegidos[0]], col[x])))
+        libres = [r for r in col if r not in ocupados and col[r].get("lat") is not None]
+        if not libres:
+            return []
+        pts = [col[r] for r in anclas if r in col and col[r].get("lat") is not None]
+        if not pts:
+            propios = [r for r in cand.get(k, []) if r in libres]
+            if not propios:
+                return []
+            semilla = propios[0]                       # su colegio con menos visitas
+            ocupados.add(semilla)
+            libres.remove(semilla)
+            pts, elegidos = [col[semilla]], [semilla]
+        else:
+            elegidos = []
+        centro = {"lat": sum(p["lat"] for p in pts) / len(pts), "lon": sum(p["lon"] for p in pts) / len(pts)}
+        minimo = min(vis.get(r, (0, None))[0] for r in libres)
+
+        def puntaje(r):
+            pocas = 0 if vis.get(r, (0, None))[0] <= minimo + 1 else 1   # primero los de pocas o ninguna visita
+            ajeno = 1.0 if col[r]["tec"] == k else 1.8                   # los de otro técnico, solo si están mucho más cerca
+            return (pocas, _km(centro, col[r]) * ajeno)
+
+        for r in sorted(libres, key=puntaje)[:max(0, n - len(elegidos))]:
             elegidos.append(r)
-            resto.remove(r)
-        for r in elegidos:
             ocupados.add(r)
         return elegidos
 
@@ -672,10 +690,8 @@ def ruta(desde, hasta, titulo):
                     continue
                 rbds.add(rbd)
                 lineas.append(f"- {n}" + (" (no se cerró)" if d < hoy else ""))
-            # hoy: si le asignaste algo, solo eso; si no tiene nada, lo que sigue (menos visitados).
-            # desde mañana: lo asignado y se completa hasta 4.
-            if k != "SIN TECNICO" and (d > hoy or (d == hoy and not lineas)):
-                for r in sugerir(k, cupo - len(lineas)):
+            if k != "SIN TECNICO" and d >= hoy:             # se completa hasta 4 con lo cercano y menos visitado
+                for r in sugerir(k, cupo - len(lineas), rbds):
                     lineas.append(f"- {col[r]['nombre']}")
                     hubo_sug = True
             if lineas:
