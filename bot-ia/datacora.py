@@ -672,7 +672,9 @@ def ruta(desde, hasta, titulo):
                     continue
                 rbds.add(rbd)
                 lineas.append(f"- {n}" + (" (no se cerró)" if d < hoy else ""))
-            if d > hoy and k != "SIN TECNICO":           # hoy = solo lo que asignaste; sugeridos desde mañana
+            # hoy: si le asignaste algo, solo eso; si no tiene nada, lo que sigue (menos visitados).
+            # desde mañana: lo asignado y se completa hasta 4.
+            if k != "SIN TECNICO" and (d > hoy or (d == hoy and not lineas)):
                 for r in sugerir(k, cupo - len(lineas)):
                     lineas.append(f"- {col[r]['nombre']}")
                     hubo_sug = True
