@@ -89,6 +89,34 @@ Conectar (una vez, en Termux): `python ~/bitacoras/bot-ia/datacora.py configurar
 Ollama es opcional: `python ~/bitacoras/bot-ia/datacora.py ollama on qwen2.5:1.5b` hace que el modelo elija la
 consulta cuando la frase no calza (no inventa datos). No escribe nada en Datácora.
 
+## Bandeja + IA en el celular (rama bandeja)
+
+Primero, una vez: `bash ~/bitacoras/bot-ia/instalar_ia.sh` (Ollama + Qwen 2.5 1.5B, whisper.cpp, tesseract, ffmpeg, pdftotext).
+
+En un grupo donde estén solo tú y el bot escribe **`!bandeja aqui`**. Desde ahí todo lo que mandes a ese grupo, **sin "!"**:
+
+| Mandas | El bot |
+|---|---|
+| Texto ("en molina el horno no prende, que vaya camilo el lunes") | Reconoce colegio, técnico, supervisora y fecha; la IA pone categoría y resumen |
+| Audio | Lo pasa a texto (whisper.cpp) y lo clasifica igual |
+| Foto con texto | La guarda con ese texto. Sin texto: se pega al trabajo de los últimos 10 min (📎) o espera el texto (⏳). Si es un documento, lee su texto (tesseract) |
+| PDF | Saca su texto y lo clasifica |
+
+Categorías: Emergencia · Correctiva · Preventiva · Compra · Pendiente · Nota. Todo queda en el celular, en
+`Descargas/SOSER/` (Colegios/<colegio>/<fecha hora categoría>/ con fotos, audios y `nota.md`; Trabajos/registro.xlsx;
+Supervisoras/<nombre>.md). Nada va a GitHub.
+
+| Comando (bandeja o tu privado) | Qué hace |
+|---|---|
+| `!trabajos` · `!trabajos camilo` · `!trabajos emergencia` · `!trabajos molina` | Lo abierto |
+| `!que paso en molina` | Historial de ese colegio |
+| `!resumen hoy` · `!resumen semana` · `!resumen mes` | Conteo por categoría y supervisora |
+| `!corrige emergencia` · `!corrige colegio antilen` · `!corrige rodrigo` · `!corrige 12 compra` | Corrige el último (o el #12). La corrección queda como ejemplo y la IA aprende de ella |
+| `!listo 12` · `!borrar 12` | Cierra o saca del registro |
+| `!bandeja off` | Deja de ser bandeja |
+
+Prueba sin WhatsApp: `python bot-ia/bandeja.py "en antilen hay olor a gas"` · `python bot-ia/bandeja.py "!trabajos"`.
+
 ## Comandos en el grupo
 
 | Comando | Qué hace |
