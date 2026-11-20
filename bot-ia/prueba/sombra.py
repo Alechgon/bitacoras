@@ -93,10 +93,24 @@ def ruta(*p):
 
 
 def conocimiento_dir():
+    """Copia el conocimiento base al celular. Si lo actualizo y tú NO editaste ese archivo, se actualiza;
+    si lo editaste, se respeta lo tuyo."""
+    import hashlib
     d = ruta("conocimiento")
+    h = lambda p: hashlib.md5(open(p, "rb").read()).hexdigest()   # noqa: E731
+    reg_p = os.path.join(d, ".base.json")
+    try:
+        reg = json.load(open(reg_p, encoding="utf-8"))
+    except Exception:
+        reg = {}
     for f in sorted(os.listdir(os.path.join(AQUI, "conocimiento_base"))):
-        if not os.path.exists(os.path.join(d, f)):                  # lo tuyo no se pisa nunca
-            shutil.copy(os.path.join(AQUI, "conocimiento_base", f), os.path.join(d, f))
+        src, dst = os.path.join(AQUI, "conocimiento_base", f), os.path.join(d, f)
+        if not os.path.exists(dst) or (reg.get(f) and h(dst) == reg[f] and h(src) != reg[f]):
+            shutil.copy(src, dst)
+            reg[f] = h(src)
+        elif f not in reg and h(dst) == h(src):
+            reg[f] = h(src)
+    json.dump(reg, open(reg_p, "w", encoding="utf-8"))
     return d
 
 
