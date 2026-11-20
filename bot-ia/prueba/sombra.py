@@ -118,6 +118,8 @@ def conocimiento():
     d = conocimiento_dir()
     partes = []
     for f in sorted(os.listdir(d)):
+        if f.startswith("08"):              # la guía completa se usa por búsqueda (licitacion.py), no entera
+            continue
         if f.endswith(".md") or f.endswith(".txt"):
             partes.append(open(os.path.join(d, f), encoding="utf-8").read().strip())
     return "\n\n".join(partes)[:16000]
@@ -494,9 +496,16 @@ def comandos_pendientes():
                 probar([x.strip() for x in " ".join(partes[1:]).split("|") if x.strip()])
             elif partes and partes[0].lower() == "reprocesar":
                 print("Reprocesar se hace desde Termux: python sombra.py reprocesar")
-            else:
-                print("Comandos: *!ia ver* · *!ia ver 10* · *!ia corrige 12 rubro ELEC; colegio brasil; quiere …* · "
-                      "*!ia probar Foco suelto | Republica de brasil*")
+            elif partes and partes[0].lower() in ("busca", "buscar"):
+                import licitacion
+                print(licitacion.buscar_texto(" ".join(partes[1:])))
+            elif partes and partes[0].lower() in ("ayuda", "comandos"):
+                print("Comandos: *!ia ver* · *!ia corrige 12 rubro ELEC; colegio brasil; quiere …* · "
+                      "*!ia probar Foco suelto | Republica de brasil* · *!ia busca malla mosquitera* · "
+                      "y cualquier pregunta: *!ia necesito cambiar un vidrio, ¿a quién le corresponde?*")
+            elif partes:
+                import licitacion                       # pregunta libre -> asesor de la licitación
+                print(licitacion.responder(c))
         avisar("🧪 " + (buf.getvalue().strip() or "Listo.")[:3500])
     os.remove(tmp)
 
