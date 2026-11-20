@@ -17,6 +17,9 @@ Uso (Termux, en ~/soser-prueba/bot-ia/prueba):
   python sombra.py importar <chat.zip | chat.txt>   historial exportado de WhatsApp (para educarla con lo viejo)
   python sombra.py reprocesar         borra lo entendido y vuelve a leer todo (después de mejorar el conocimiento)
   python sombra.py probar "Foco suelto" "Republica de brasil"   prueba rápida sin espejo
+
+Lo que entiende lo manda al grupo "Prueba" a través del bot real (buzón ~/soser-espejo/salida). Desde WhatsApp:
+  !ia ver · !ia corrige 12 rubro ELEC; quiere … · !ia probar Foco suelto | Republica de brasil
 """
 import json
 import os
@@ -49,6 +52,29 @@ CLAVES = [
               r"humedad|piso|muro|hermetic\w*|descascar\w*)\b"),
     ("EQUIPO", r"\b(horno|cocina|marmita|campana|batidora|balanza|freidora|equipo)\b"),
 ]
+# plazos que exige la licitación 85-34-LR25 (doc. técnico de mantención) según lo que se nombra
+LICITACION = [
+    (r"\b(foco\w*|ampolleta\w*|luminaria\w*|tubos?|fluorescente\w*|led)\b", "5 días hábiles (luminaria)"),
+    (r"\b(refrigerador\w*|refri|freezer|congelador\w*|camara de frio|no enfria)\b", "10 días hábiles (reparar frío; falla total: reponer en 5)"),
+    (r"\b(llaves?|griferia|grifos?|gotea\w*)\b", "5 días hábiles (grifería)"),
+    (r"\b(lavaplatos|lavafondos)\b", "60 días corridos (reponer lavaplatos)"),
+    (r"\b(basurero\w*|papelero\w*)\b", "3 días hábiles (basurero)"),
+    (r"\b(desgrasadora|camara grasa)\b", "3 días hábiles si lo pide la Dir. Regional (desgrasadora)"),
+    (r"\b(malla|mosquitero|hermetic\w*)\b", "30 días corridos (malla mosquitera)"),
+    (r"\b(meson|mesones)\b", "30 días desde la solicitud (mesón)"),
+    (r"\b(estante\w*|estanteria\w*|repisa\w*|mueble\w*)\b", "30 días desde la solicitud (mueble/estante)"),
+    (r"\b(carros?)\b", "30 días corridos (carro)"),
+    (r"\b(campana\w*|extractor\w*|ventilador\w*|ducto\w*|filtro\w*)\b", "mantención anual o cuando se requiera (campana/extracción)"),
+    (r"\b(extintor\w*)\b", "operativo siempre; mantención anual (extintor)"),
+    (r"\b(gas|fuga|piloto|quemador|termopar|calefon)\b", "inmediato; instalador SEC + prueba de hermeticidad (gas)"),
+]
+
+
+def plazo_licitacion(texto):
+    t = bandeja.norm(texto)
+    return " · ".join(dict.fromkeys(p for rx, p in LICITACION if re.search(rx, t)))
+
+
 URGENTE = r"\b(urgente|urgencia|prioridad|no pueden cocinar|peligro|riesgo|emergencia|olor a gas|fuga)\b"
 
 
@@ -141,7 +167,7 @@ def excel(items):
     ws = wb.active
     ws.title = "Solicitudes"
     cols = ["#", "Fecha", "Hora", "Supervisora", "Colegio", "RBD", "Tipo", "Rubro", "Qué piden", "Equipo",
-            "Urgente", "Plazo", "Visita en Datácora", "Respuesta que habría dado", "Mensajes originales",
+            "Urgente", "Plazo interno", "Plazo licitación", "Visita en Datácora", "Respuesta que habría dado", "Mensajes originales",
             "Archivos", "Corregido", "Carpeta"]
     ws.append(cols)
     for c in ws[1]:
@@ -150,10 +176,10 @@ def excel(items):
     for it in items:
         ws.append([it["id"], it["fecha"], it["hora"], it.get("supervisora", ""), it.get("colegio", ""), it.get("rbd", ""),
                    it.get("tipo", ""), it.get("rubro", ""), it.get("que_piden", ""), it.get("equipo", ""),
-                   "sí" if it.get("urgente") else "", it.get("plazo", ""), it.get("datacora", ""),
+                   "sí" if it.get("urgente") else "", it.get("plazo", ""), it.get("licitacion", ""), it.get("datacora", ""),
                    it.get("respuesta", ""), it.get("mensajes", "")[:1500], len(it.get("archivos", [])),
                    "sí" if it.get("corregido") else "", it.get("carpeta", "")])
-    for col, ancho in zip("ABCDEFGHIJKLMNOPQR", (5, 11, 6, 14, 26, 8, 15, 8, 40, 14, 8, 11, 22, 50, 60, 8, 9, 40)):
+    for col, ancho in zip("ABCDEFGHIJKLMNOPQRS", (5, 11, 6, 14, 26, 8, 15, 8, 40, 14, 8, 11, 30, 22, 50, 60, 8, 9, 40)):
         ws.column_dimensions[col].width = ancho
     for fila in ws.iter_rows(min_row=2):
         for c in fila:
@@ -380,6 +406,7 @@ def interpretar(sol, items):
         "urgente": bool(urgente), "plazo": habiles(cuando.date(), plazo_d).strftime("%d-%m"),
         "mensajes": texto, "ia_error": x.get("_error", ""), "ids": [m["id"] for m in msgs],
     }
+    it["licitacion"] = plazo_licitacion(texto)
     it["datacora"] = en_datacora(rbd) if tipo in ("REQUERIMIENTO", "PREGUNTA") else ""
     it["respuesta"] = respuesta_simulada(it)
     # carpeta con copia de fotos/audios (el espejo queda intacto)
@@ -395,12 +422,73 @@ def interpretar(sol, items):
         f.write(f'# #{it["id"]} · {it["tipo"]} · {it["rubro"]} · {it["colegio"] or "sin colegio"}\n\n'
                 f'- Supervisora: {it["supervisora"]}\n- Fecha: {it["fecha"]} {it["hora"]}\n'
                 f'- Qué piden: {it["que_piden"]}\n- Plazo: {it["plazo"]}{" (urgente)" if it["urgente"] else ""}\n'
-                f'- Datácora: {it["datacora"] or "-"}\n- Habría respondido: {it["respuesta"] or "-"}\n\n'
+                f'- Licitación: {it.get("licitacion") or "-"}\n- Datácora: {it["datacora"] or "-"}\n- Habría respondido: {it["respuesta"] or "-"}\n\n'
                 f'## Mensajes\n\n{texto}\n')
     return it
 
 
+def avisar(texto, archivos=None):
+    """Deja un mensaje en el buzón: el bot real lo manda SOLO al grupo Prueba."""
+    d = os.path.join(ESPEJO, "salida")
+    os.makedirs(d, exist_ok=True)
+    p = os.path.join(d, f"{time.time():.6f}.json")
+    json.dump({"texto": texto, "archivos": archivos or []}, open(p + ".tmp", "w", encoding="utf-8"), ensure_ascii=False)
+    os.replace(p + ".tmp", p)
+
+
+def tarjeta(it):
+    lin = [f'🧪 *IA de prueba* · #{it["id"]}',
+           f'👩‍💼 {it["supervisora"] or "?"} · 🏫 {it["colegio"] or "_sin colegio_"}',
+           f'📋 {it["tipo"]} · {it["rubro"]}{" · 🚨 URGENTE" if it.get("urgente") else ""} · plazo {it["plazo"]}']
+    if it.get("que_piden"):
+        lin.append(f'🔧 {it["que_piden"]}')
+    if it.get("licitacion"):
+        lin.append(f'⚖️ Licitación: {it["licitacion"]}')
+    if it.get("datacora"):
+        lin.append(f'📅 Datácora: {it["datacora"]}')
+    if it.get("archivos"):
+        lin.append(f'📎 {len(it["archivos"])} archivo(s)')
+    if it.get("respuesta"):
+        lin.append(f'💬 Habría respondido: «{it["respuesta"]}»')
+    lin.append("🗨️ " + it["mensajes"][:300].replace("\n", " | "))
+    lin.append(f'_Si está mal: *!ia corrige {it["id"]} rubro ELEC; colegio brasil; tipo REQUERIMIENTO; quiere …*_')
+    return "\n".join(lin)
+
+
+def comandos_pendientes():
+    """Lo que escribiste con !ia en WhatsApp (el bot real lo deja en comandos.jsonl)."""
+    p = os.path.join(ESPEJO, "comandos.jsonl")
+    if not os.path.exists(p):
+        return
+    tmp = p + ".leyendo"
+    os.replace(p, tmp)
+    for linea in open(tmp, encoding="utf-8"):
+        try:
+            c = json.loads(linea)["texto"].strip()
+        except Exception:
+            continue
+        import io
+        import contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            partes = c.split()
+            if partes and partes[0].lower() in ("corrige", "corregir") and len(partes) >= 3:
+                corrige(partes[1], " ".join(partes[2:]))
+            elif partes and partes[0].lower() == "ver":
+                ver(int(partes[1]) if len(partes) > 1 and partes[1].isdigit() else 5)
+            elif partes and partes[0].lower() == "probar":
+                probar([x.strip() for x in " ".join(partes[1:]).split("|") if x.strip()])
+            elif partes and partes[0].lower() == "reprocesar":
+                print("Reprocesar se hace desde Termux: python sombra.py reprocesar")
+            else:
+                print("Comandos: *!ia ver* · *!ia ver 10* · *!ia corrige 12 rubro ELEC; colegio brasil; quiere …* · "
+                      "*!ia probar Foco suelto | Republica de brasil*")
+        avisar("🧪 " + (buf.getvalue().strip() or "Listo.")[:3500])
+    os.remove(tmp)
+
+
 def pasada(forzar_cierre=False):
+    comandos_pendientes()
     est = _estado()
     msgs = nuevos_mensajes(est)
     listas = agrupar(est, msgs, time.time() + (10 ** 9 if forzar_cierre else 0))
@@ -413,6 +501,8 @@ def pasada(forzar_cierre=False):
     if nuevos:
         guardar_registro(items)
     _guardar_estado(est)
+    for it in nuevos:
+        avisar(tarjeta(it))
     for it in nuevos:
         print(f'{datetime.now():%H:%M} #{it["id"]} {it["supervisora"]} · {it["colegio"] or "?"} · {it["tipo"]} · '
               f'{it["rubro"]} · {it["que_piden"]}', flush=True)
@@ -537,7 +627,9 @@ def reprocesar():
             pass
     for d in ("Colegios", "Sin colegio"):
         shutil.rmtree(os.path.join(base(), d), ignore_errors=True)
-    print("🧹 Listo: se vuelve a leer todo el espejo con el conocimiento actual.")
+    print("🧹 Listo: se vuelve a leer todo el espejo con el conocimiento actual (sin avisar al grupo).")
+    global avisar
+    avisar = lambda *a, **k: None    # noqa: E731
     pasada(forzar_cierre=True)
 
 
@@ -546,7 +638,7 @@ def probar(frases):
     sol = {"autor": "Prueba", "msgs": [{"id": f"p{i}", "ts": now + i, "tipo": "texto", "texto": f, "archivo": ""}
                                        for i, f in enumerate(frases)]}
     it = interpretar(sol, leer_registro())
-    print(json.dumps({k: it[k] for k in ("colegio", "tipo", "rubro", "que_piden", "equipo", "urgente", "plazo",
+    print(json.dumps({k: it[k] for k in ("colegio", "tipo", "rubro", "que_piden", "equipo", "urgente", "plazo", "licitacion",
                                          "datacora", "respuesta", "ia_error")}, ensure_ascii=False, indent=1))
 
 
