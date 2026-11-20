@@ -374,6 +374,38 @@ async function espejo (m) {
   fs.appendFileSync(path.join(ESPEJO, 'mensajes', dia + '.jsonl'), JSON.stringify(fila) + '\n')
 }
 
+// ------------------------------------------------------------ BUZÓN DE LA IA DE PRUEBA
+// La IA de prueba (rama prueba-ia) deja lo que entendió en ~/soser-espejo/salida/*.json y el bot lo manda
+// SOLO al grupo de prueba (config "prueba_grupo", por defecto "Prueba"). Tus "!ia …" van a ~/soser-espejo/comandos.jsonl.
+let gruposCache = { t: 0, lista: [] }
+async function jidPorNombre (nombre) {
+  if (Date.now() - gruposCache.t > 10 * 60000) {
+    try {
+      const todos = await conTope(sock.groupFetchAllParticipating(), 30000, 'lista de grupos')
+      gruposCache = { t: Date.now(), lista: Object.values(todos).map(g => ({ id: g.id, nombre: g.subject || '' })) }
+    } catch { return null }
+  }
+  return gruposCache.lista.find(g => normal(g.nombre).trim() === normal(nombre).trim())?.id || null
+}
+async function revisarBuzon () {
+  const dir = path.join(ESPEJO, 'salida')
+  if (!conectado || !fs.existsSync(dir)) return
+  const archivos = fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort()
+  if (!archivos.length) return
+  const jid = await jidPorNombre(cfg().prueba_grupo || 'Prueba')
+  if (!jid) { log('⚠️ buzón de prueba: no encuentro el grupo', cfg().prueba_grupo || 'Prueba'); return }
+  for (const f of archivos.slice(0, 10)) {
+    const p = path.join(dir, f)
+    try {
+      const x = JSON.parse(fs.readFileSync(p, 'utf8'))
+      if (x.texto) encolar(jid, { text: x.texto }, {}, 1500)
+      for (const a of (x.archivos || [])) enviarArchivo(jid, a, {})
+    } catch (e) { log('⚠️ buzón:', e.message) }
+    try { fs.unlinkSync(p) } catch {}
+  }
+}
+setInterval(() => revisarBuzon().catch(() => {}), 30000)
+
 async function manejar (m) {
   if (!m.message || m.key.fromMe) return
   if (procesados.has(m.key.id)) return
@@ -392,6 +424,13 @@ async function manejar (m) {
   if (texto.includes('!')) log('📩', jid.endsWith('@g.us') ? 'grupo ' + (nombresGrupo[jid] || jid) : 'privado ' + jid,
     admin ? '(admin)' : '(no admin: ' + [m.key.participant, m.key.participantAlt, m.key.remoteJidAlt].filter(Boolean).join(' ') + ')',
     '«' + texto.slice(0, 80) + '»')
+  // !ia … (tú, en el grupo de prueba o en privado) → se le pasa a la IA de prueba; contesta en el grupo de prueba
+  if (admin && /^!\s*ia\b/i.test(texto)) {
+    fs.mkdirSync(ESPEJO, { recursive: true })
+    fs.appendFileSync(path.join(ESPEJO, 'comandos.jsonl'), JSON.stringify({ ts: tsDe(m), texto: texto.replace(/^!\s*ia\s*/i, '') }) + '\n')
+    encolar(jid, { react: { text: '🧪', key: m.key } }, {}, 300)
+    return
+  }
   // !ping → contesta al tiro, sin pasar por Python ni por la cola (para saber si el bot está vivo)
   if (admin && /^!ping$/i.test(texto)) {
     const min = Math.round((Date.now() - INICIO) / 60000)
