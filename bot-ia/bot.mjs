@@ -471,7 +471,8 @@ async function manejar (m) {
     return
   }
   // ---------------- BANDEJA: todo lo que llega (sin "!") se entiende, se clasifica y se archiva
-  if (bandeja && !texto.startsWith('!')) {
+  // (en tu privado con el bot, los AUDIOS también van a la bandeja: se transcriben, se clasifican y se archivan)
+  if ((bandeja && !texto.startsWith('!')) || (privadoAdmin && interior(m).audioMessage)) {
     const i = interior(m)
     const tipo = i.audioMessage ? 'audio' : i.imageMessage ? 'imagen' : i.videoMessage ? 'video'
       : i.documentMessage ? 'documento' : 'texto'
