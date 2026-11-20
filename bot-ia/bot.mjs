@@ -178,7 +178,6 @@ function esAdmin (m) {
 }
 
 // ------------------------------------------------------------ grupo y destinos
-const RX_BANDEJA = /^!\s*(corrige|corregir|listo|lista|trabajos|que paso|resumen|borrar)\b/
 const nombresGrupo = {}
 async function esGrupoSupervisoras (jid) {
   if (!jid?.endsWith('@g.us')) return false
@@ -330,6 +329,51 @@ function infoWA () {
 }
 
 // ------------------------------------------------------------ el corazón: qué hacer con cada mensaje
+// ------------------------------------------------------------ ESPEJO (solo guarda, nunca responde)
+// Copia cada mensaje de los grupos de "espejo_grupos" (por defecto "Mantención - operaciones") a
+// ~/soser-espejo/: mensajes/AAAA-MM-DD.jsonl + media/AAAA-MM-DD/ (fotos, audios, PDF). De ahí lee la IA
+// de prueba (rama prueba-ia, carpeta ~/soser-prueba). Queda solo en el celular.
+const ESPEJO = path.join(process.env.HOME || DIR, 'soser-espejo')
+async function nombreGrupo (jid) {
+  if (!(jid in nombresGrupo)) {
+    try { nombresGrupo[jid] = (await conTope(sock.groupMetadata(jid), 15000, 'datos del grupo')).subject } catch { return '' }
+  }
+  return nombresGrupo[jid] || ''
+}
+async function espejo (m) {
+  const jid = m.key.remoteJid
+  if (!jid?.endsWith('@g.us') || cfg().espejo === false) return
+  const nom = await nombreGrupo(jid)
+  const grupos = cfg().espejo_grupos || ['Mantención - operaciones']
+  if (!nom || !grupos.some(g => normal(nom).includes(normal(g)))) return
+  const i = interior(m)
+  const tipo = i.audioMessage ? 'audio' : i.imageMessage ? 'imagen' : i.videoMessage ? 'video'
+    : i.documentMessage ? 'documento' : i.stickerMessage ? 'sticker' : 'texto'
+  const ts = tsDe(m)
+  const dia = new Date(ts * 1000).toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' })
+  let archivo = ''
+  if (['audio', 'imagen', 'video', 'documento'].includes(tipo)) {
+    const ext = tipo === 'audio' ? '.ogg' : tipo === 'imagen' ? '.jpg' : tipo === 'video' ? '.mp4'
+      : path.extname(i.documentMessage?.fileName || '') || '.bin'
+    const dir = path.join(ESPEJO, 'media', dia)
+    fs.mkdirSync(dir, { recursive: true })
+    try {
+      const buf = await conTope(downloadMediaMessage(m, 'buffer', {}), 120000, 'bajar media')
+      archivo = path.join('media', dia, `${ts}_${m.key.id}${ext}`)
+      fs.writeFileSync(path.join(ESPEJO, archivo), buf)
+    } catch (e) { archivo = '' }
+  }
+  const ctx = (i.extendedTextMessage || i.imageMessage || i.videoMessage || i.documentMessage || i.audioMessage)?.contextInfo || {}
+  const fila = {
+    id: m.key.id, ts, grupo: nom, autor: m.pushName || '',
+    numero: soloDigitos(m.key.participant || m.key.participantPn || m.key.participantAlt || ''),
+    tipo, texto: textoDe(m), archivo, nombre_archivo: i.documentMessage?.fileName || '',
+    citado: citadoDe(m), citado_id: ctx.stanzaId || '', reenviado: Boolean(ctx.isForwarded)
+  }
+  fs.mkdirSync(path.join(ESPEJO, 'mensajes'), { recursive: true })
+  fs.appendFileSync(path.join(ESPEJO, 'mensajes', dia + '.jsonl'), JSON.stringify(fila) + '\n')
+}
+
 async function manejar (m) {
   if (!m.message || m.key.fromMe) return
   if (procesados.has(m.key.id)) return
@@ -341,6 +385,7 @@ async function manejar (m) {
   if (ts && Date.now() - ts > (c.procesar_atrasados_min ?? 720) * 60000) return   // demasiado viejo
 
   const jid = m.key.remoteJid
+  espejo(m).catch(e => log('⚠️ espejo:', e.message))   // copia silenciosa para la IA de prueba (no responde nada)
   const texto = textoDe(m).trim()
   const doc = docDe(m)
   const admin = esAdmin(m)
@@ -378,19 +423,6 @@ async function manejar (m) {
     encolar(jid, { text: nom ? '👋 Listo, dejo de leer este grupo.' : 'Este grupo no estaba en mi lista.' }, { quoted: m }, 1500)
     return
   }
-  // !bandeja aqui (tú, en un grupo) → ese grupo pasa a ser tu BANDEJA: todo lo que mandes ahí se clasifica y archiva
-  if (admin && jid.endsWith('@g.us') && /^!bandeja( aqui| este grupo)?$/.test(cmdG)) {
-    estado.bandeja_jid = jid; guardarEstado()
-    encolar(jid, { text: '📥 *Este grupo es tu bandeja.* Todo lo que mandes acá (texto, fotos, audios, PDF) lo entiendo, lo clasifico y lo guardo en *Descargas → SOSER*.\n' +
-      'Comandos: *!trabajos* · *!trabajos camilo* · *!que paso en molina* · *!resumen semana* · *!corrige emergencia* · *!listo 12*\n' +
-      'Para quitarla: *!bandeja off*' }, { quoted: m }, 1500)
-    return
-  }
-  if (admin && /^!bandeja (off|no|quitar)$/.test(cmdG)) {
-    delete estado.bandeja_jid; guardarEstado()
-    encolar(jid, { text: '👋 Listo, ya no hay bandeja.' }, { quoted: m }, 1500)
-    return
-  }
   // !grupos → lista numerada de TODOS los grupos donde está el bot (✅ los que lee, ⬜ los que no)
   // !grupos 3 5 → cambia esos (lee ↔ no lee) · !grupos +3 → leer · !grupos -3 → dejar de leer
   if (admin && /^!grupos?(\s+[+-]?\d+(\s*,?\s*[+-]?\d+)*)?$/.test(cmdG)) {
@@ -424,11 +456,10 @@ async function manejar (m) {
       + '\n\n✅ = lo leo · ⬜ = no lo leo\nPara cambiar: *!grupos 3* (o varios: *!grupos 2 5*). *+3* = leer, *-3* = no leer.' }, { quoted: m }, 1500)
     return
   }
-  const bandeja = Boolean(estado.bandeja_jid) && jid === estado.bandeja_jid
-  const grupoExtra = jid.endsWith('@g.us') && !enGrupo && !bandeja && Boolean(estado.grupos_extra[jid])
+  const grupoExtra = jid.endsWith('@g.us') && !enGrupo && Boolean(estado.grupos_extra[jid])
 
   // de cualquier otro chat de la cuenta (clientes, otros grupos) no se hace NADA
-  if (!enGrupo && !privadoAdmin && !grupoExtra && !bandeja) {
+  if (!enGrupo && !privadoAdmin && !grupoExtra) {
     if (admin && texto.toLowerCase() === '!id') encolar(jid, { text: `🆔 ${jid}` }, { quoted: m }, 1500)
     return
   }
@@ -440,7 +471,7 @@ async function manejar (m) {
   // Cualquiera del grupo o tú en privado. Frases que terminan en "!" (o lo llevan) y hablan de dónde/ruta/verificadores.
   const nDc = texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
   // solo frases con "!" (al final o en medio): "verificadores ayer!", "donde esta camilo!"
-  if (texto && (enGrupo || privadoAdmin || grupoExtra || bandeja) && /!/.test(texto) && !/^!\s*[a-z]/i.test(texto.trim())) {
+  if (texto && (enGrupo || privadoAdmin || grupoExtra) && /!/.test(texto) && !/^!\s*[a-z]/i.test(texto.trim())) {
     const n = nDc
     const esDc = /(donde\s+(esta|anda|estan|andan)|ruta|verificador)/.test(n)
     if (esDc || /!\s*$/.test(texto)) {
@@ -461,39 +492,6 @@ async function manejar (m) {
     }
   }
   if (grupoExtra) return                 // en los grupos extra no se hace nada más que Datácora
-
-  // ---------------- comandos de la bandeja (en la bandeja o en tu privado): !trabajos, !que paso en, !corrige…
-  if ((bandeja || privadoAdmin) && admin && RX_BANDEJA.test(cmdG)) {
-    try {
-      const r = await api('/bandeja_cmd', { texto }, 60000, 1)
-      if (r?.texto) encolar(jid, { text: r.texto }, { quoted: m }, 1500)
-    } catch (e) { log('❌ bandeja cmd:', e.message) }
-    return
-  }
-  // ---------------- BANDEJA: todo lo que llega (sin "!") se entiende, se clasifica y se archiva
-  // (en tu privado con el bot, los AUDIOS también van a la bandeja: se transcriben, se clasifican y se archivan)
-  if ((bandeja && !texto.startsWith('!')) || (privadoAdmin && interior(m).audioMessage)) {
-    const i = interior(m)
-    const tipo = i.audioMessage ? 'audio' : i.imageMessage ? 'imagen' : i.videoMessage ? 'video'
-      : i.documentMessage ? 'documento' : 'texto'
-    if (tipo === 'texto' && !texto) return
-    try {
-      let ruta = null
-      if (tipo !== 'texto') {
-        const nom = tipo === 'audio' ? `audio_${m.key.id}.ogg` : tipo === 'imagen' ? `foto_${m.key.id}.jpg`
-          : tipo === 'video' ? `video_${m.key.id}.mp4` : (i.documentMessage?.fileName || `doc_${m.key.id}`)
-        ruta = await descargar(m, nom)
-      }
-      if (tipo === 'audio') encolar(jid, { react: { text: '🎧', key: m.key } }, {}, 300)
-      const r = await api('/bandeja', { tipo, texto, ruta, autor: m.pushName || '', ts: tsDe(m) }, 15 * 60000, 1)
-      if (r?.reaccion) encolar(jid, { react: { text: r.reaccion, key: m.key } }, {}, 300)
-      if (r?.texto) encolar(jid, { text: r.texto }, { quoted: m }, 1200)
-    } catch (e) {
-      log('❌ bandeja:', e.message)
-      encolar(jid, { text: '❌ No pude procesar eso: ' + e.message }, { quoted: m }, 1500)
-    }
-    return
-  }
 
   // ---------------- Manuel en el grupo: solo se le responde si antepone "!" (incluidos comandos)
   if (enGrupo && admin && texto) {
