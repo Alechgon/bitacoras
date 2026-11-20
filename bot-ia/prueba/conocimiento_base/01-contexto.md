@@ -14,3 +14,8 @@
 - Cada visita queda como bitácora en Datácora (la app de mantención). El PDF de esa bitácora es el "verificador".
 - Reglas de servicio: lo que piden las supervisoras no puede esperar más de 10 días hábiles; el gas no se
   posterga nunca; las fiscalizaciones (JUNAEB, SEREMI, auditorías) obligan a priorizar ese establecimiento.
+- Hay un jefe zonal que recibe los informes de hallazgo de Manuel y los deriva a los establecimientos.
+- Prioridad por consecuencia de la falla: A seguridad o servicio detenido (gas, electricidad, sin agua, sin frío)
+  → B cumplimiento legal o de la licitación (lo que puede generar multa) → C correctivos de alto volumen → D arreglos rápidos.
+- Cuando algo es del sostenedor (estructura, redes hasta la cocina), SOSER lo informa y lo documenta, pero no lo
+  repara por su cuenta: intervenir una red que no cumple obliga al instalador SEC a declararla completa.

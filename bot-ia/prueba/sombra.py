@@ -106,7 +106,7 @@ def conocimiento():
     for f in sorted(os.listdir(d)):
         if f.endswith(".md") or f.endswith(".txt"):
             partes.append(open(os.path.join(d, f), encoding="utf-8").read().strip())
-    return "\n\n".join(partes)[:9000]
+    return "\n\n".join(partes)[:16000]
 
 
 def correcciones(n=6):
@@ -297,7 +297,7 @@ def ia(mensajes_txt):
         req = urllib.request.Request(OLLAMA + "/api/generate", headers={"Content-Type": "application/json"},
                                      data=json.dumps({"model": modelo, "prompt": prompt, "stream": False,
                                                       "format": "json", "keep_alive": "10m",
-                                                      "options": {"temperature": 0.1, "num_ctx": 6144}}).encode())
+                                                      "options": {"temperature": 0.1, "num_ctx": 8192}}).encode())
         with urllib.request.urlopen(req, timeout=300) as r:
             out = json.loads(json.loads(r.read()).get("response", "{}"))
         return {
