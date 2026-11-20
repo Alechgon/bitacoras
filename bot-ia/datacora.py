@@ -1020,7 +1020,28 @@ def _limpiar_viejos(dias=3):
 
 
 # ============================================================ entender la frase
-PATRON = re.compile(r"(donde\s+(esta|anda|estan|andan)|ruta|verificador)")
+PATRON = re.compile(r"(donde\s+(esta|anda|estan|andan)|ruta|verificador|que\s+hizo|que\s+ha\s+hecho)")
+
+
+def _solo_tecnico(texto_ruta, t):
+    """'ruta de camilo hoy' -> deja solo el bloque de Camilo (y los títulos de día)."""
+    tecs = [k for k in _tecs_sucursal() if re.search(rf"\b{k.lower()}\b", t)]
+    if not tecs:
+        return texto_ruta
+    out, dentro = [], False
+    for ln in texto_ruta.split("\n"):
+        if ln.startswith("👷"):
+            dentro = any(norm(k) in norm(ln) for k in tecs)
+            if dentro:
+                out.append(ln)
+        elif ln.startswith("- ") or ln.startswith("   "):
+            if dentro:
+                out.append(ln)
+        else:
+            dentro = False
+            out.append(ln)
+    limpio = "\n".join(out).strip()
+    return limpio if "👷" in limpio else limpio + f"\n{tecs[0].title()} no tiene nada para esos días."
 
 
 DIAS_RX = {"lunes": 0, "martes": 1, "miercoles": 2, "jueves": 3, "viernes": 4, "sabado": 5, "domingo": 6}
@@ -1193,14 +1214,14 @@ def _responder(t, texto, sup_autor, quien="?"):
             fotos = "foto" in t or "semana" in t or "zip" in t
             txt, arch = verificadores(desde, hasta, sup, con_fotos=fotos, etiqueta=lbl, rbds=rbds)
             return {"texto": txt, "archivos": arch}
-        if "ruta" in t:
+        if "ruta" in t or re.search(r"que\s+(hizo|ha\s+hecho)", t):
             desde, hasta, lbl = _rango(t, hoy, futuro=True)
             if desde == hasta:
                 titulo = f"Ruta de {lbl} · {_dm(desde)}" if lbl in ("hoy", "mañana", "ayer") else f"Ruta del {_dm(desde)}"
             else:
                 titulo = (f"Ruta de {lbl} · " if "semana" in lbl else "Ruta del ") + \
                     f"{desde.strftime('%d-%m')} al {hasta.strftime('%d-%m')}"
-            return {"texto": ruta(desde, hasta, titulo), "archivos": []}
+            return {"texto": _solo_tecnico(ruta(desde, hasta, titulo), t), "archivos": []}
     except ErrorDatacora as e:
         return {"texto": f"❌ Datácora: {e}", "archivos": []}
     return None

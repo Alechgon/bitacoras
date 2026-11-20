@@ -144,7 +144,9 @@ def transcribir(ruta):
     _correr(["ffmpeg", "-y", "-loglevel", "error", "-i", ruta, "-ar", "16000", "-ac", "1", wav], 120)
     if not os.path.exists(wav):
         return ""
-    txt = _correr([cli, "-m", modelo, "-l", "es", "-nt", "-t", "4", "-f", wav], 600)
+    pista = ("Mantención SOSER. Técnicos Camilo y Rodrigo. Supervisoras Annahi, Stephania y Carla. "
+             "Ruta, verificadores, bitácora, emergencia, colegio, jardín, cocina, horno, termopar.")
+    txt = _correr([cli, "-m", modelo, "-l", "es", "-nt", "-t", "4", "--prompt", pista, "-f", wav], 600)
     try:
         os.remove(wav)
     except Exception:
@@ -166,7 +168,8 @@ def pdf_texto(ruta):
 # ------------------------------------------------------------------ entender
 CLAVES = [
     ("Emergencia", r"\b(emergencia|urgente|urgencia|fuga|olor a gas|huele a gas|inunda\w*|corto ?circuito|sin luz|"
-                   r"sin gas|sin agua|incendio|humo|chispa\w*|electrocut\w*|peligro)\b"),
+                   r"sin gas|sin agua|no hay (luz|gas|agua)|se corto (la luz|el gas|el agua)|incendio|humo|chispa\w*|"
+                   r"electrocut\w*|peligro)\b"),
     ("Compra", r"\b(comprar|compra|cotiza\w*|cotizacion|presupuesto|oc|orden de compra|factura\w*|pre-?oc|"
                r"repuesto\w*|\$ ?\d)"),
     ("Preventiva", r"\b(preventiv\w*|mantencion|limpieza|revision|inspeccion|chequeo|pintura|pintar)\b"),
@@ -272,6 +275,42 @@ def _colegio(rbd):
         return e.get("nombre") or f"RBD {rbd}"
     except Exception:
         return f"RBD {rbd}"
+
+
+PREGUNTA = re.compile(r"(\?|^\s*(y\s+)?(ahi\s+)?(cual|cuales|que|donde|cuando|como|cuanto|cuantos|dame|mandame|"
+                      r"pasame|necesito|quiero|muestrame|dime)\b)")
+
+
+def consulta(texto):
+    """Si el mensaje PREGUNTA algo de Datácora (ruta, dónde está, qué hizo, verificadores), lo responde."""
+    t = norm(texto)
+    if not t or not PREGUNTA.search(t):
+        return None
+    try:
+        import datacora
+        if datacora.PATRON.search(t):
+            return datacora.responder(texto + "!", "Manuel", None, quien="bandeja")
+        # la IA "soser" traduce frases sueltas a un comando ("qué anda haciendo el camilo" -> donde esta camilo!)
+        req = urllib.request.Request(OLLAMA + "/api/generate", headers={"Content-Type": "application/json"},
+                                     data=json.dumps({"model": "soser", "prompt": texto[:300], "stream": False,
+                                                      "keep_alive": "10m"}).encode())
+        with urllib.request.urlopen(req, timeout=60) as r:
+            cmd = norm(json.loads(r.read()).get("response", "")).strip().splitlines()[0:1]
+        cmd = cmd[0] if cmd else ""
+        if cmd and "no_entendi" not in cmd and datacora.PATRON.search(cmd):
+            return datacora.responder(cmd if cmd.endswith("!") else cmd + "!", "Manuel", None, quien="bandeja")
+    except Exception:
+        return None
+    return None
+
+
+def _fiel(resumen, texto):
+    """El resumen tiene que compartir palabras con el texto; si no, la IA lo inventó."""
+    if not resumen:
+        return False
+    a = {w for w in re.findall(r"[a-z]{4,}", norm(resumen))}
+    b = {w for w in re.findall(r"[a-z]{4,}", norm(texto))}
+    return len(a & b) >= max(1, len(a) // 3)
 
 
 # ------------------------------------------------------------------ archivar
@@ -384,10 +423,25 @@ def procesar(tipo, texto="", ruta=None, autor="", ts=None, nombre_archivo=""):
             return {"reaccion": "⏳"}
 
         completo = "\n".join(x for x in (texto, sacado) if x)
+        resp = consulta(completo)
+        if resp:
+            if ruta:
+                try:
+                    os.remove(ruta)
+                except Exception:
+                    pass
+            if origen == "🎤":
+                resp["texto"] = f"🎤 «{sacado[:200]}»\n\n" + (resp.get("texto") or "")
+            return resp
         r = reglas(completo)
         intel = ia(completo) if completo else {}
-        # emergencia por palabras clave manda (más seguro); si no, la IA; si no, las reglas
-        cat = "Emergencia" if r["categoria"] == "Emergencia" else (intel.get("categoria") or r["categoria"] or "Nota")
+        # Emergencia SOLO por palabras clave (la IA chica a veces la inventa); el resto: IA, si no reglas
+        cat_ia = intel.get("categoria") if intel.get("categoria") != "Emergencia" else None
+        cat = "Emergencia" if r["categoria"] == "Emergencia" else (r["categoria"] or cat_ia or "Nota")
+        if r["categoria"] in (None, "Pendiente") and cat_ia:
+            cat = cat_ia
+        if not _fiel(intel.get("resumen", ""), completo):     # resumen que no sale del texto = inventado
+            intel["resumen"] = ""
         rbd = r["rbds"][0] if r["rbds"] else ""
         it = {
             "id": max([x["id"] for x in items] or [0]) + 1,
