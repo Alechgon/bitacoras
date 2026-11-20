@@ -41,6 +41,17 @@ sleep 3
     echo "$(date) bot se cayó, reinicio" >> logs/bot.log; sleep 10
   done' ) &
 
+# 4) la IA (Ollama), si está instalada: también con revividor
+if command -v ollama >/dev/null; then
+  pkill -f "ollama serve" 2>/dev/null; sleep 1
+  ( exec -a botsoser-ollama bash -c '
+    while true; do
+      ollama serve >> logs/ollama.log 2>&1
+      echo "$(date) ollama se cayó, reinicio" >> logs/ollama.log; sleep 10
+    done' ) &
+  echo "🧠 IA (Ollama) prendida."
+fi
+
 echo "🤖 Bot SOSER corriendo (una sola copia)."
 echo "   Ver en vivo:  tail -f ~/bitacoras/bot-ia/logs/bot.log"
 echo "   Detener:      bash ~/bitacoras/bot-ia/detener.sh"

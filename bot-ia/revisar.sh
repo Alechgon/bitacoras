@@ -7,6 +7,9 @@ echo "  servidor python: $(pgrep -fc '^python servidor.py')   bot node: $(pgrep 
 echo "=== Python responde?"
 curl -s -m 8 http://127.0.0.1:8765/salud || echo "  ❌ Python NO responde"
 echo
+echo "=== IA (Ollama)"
+curl -s -m 5 http://127.0.0.1:11434 || echo "  ❌ Ollama no responde"; echo
+command -v ollama >/dev/null && ollama list 2>/dev/null | head -5
 echo "=== Datácora directo"
 timeout 120 python datacora.py "ruta para hoy!" 2>&1 | head -6
 echo "=== Últimas líneas del bot"
