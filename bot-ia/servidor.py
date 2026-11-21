@@ -903,9 +903,7 @@ Tú respondes: 1 se vio el 03/10 · 2 va el jueves · 4 cerrado · 1: nota
 !diagnostico — revisa WhatsApp, IA, base y disco
 !simular <texto> — prueba como si fuera supervisora
 !mover RBD dd-mm [bloque] · !anular RBD
-!reporte — Excel completo
-📥 *Bandeja*: !bandeja aqui (en un grupo tuyo) · !trabajos · !que paso en <colegio> · !resumen semana · !corrige … · !listo N
-"""
+!reporte — Excel completo"""
 
 
 def texto_agenda(con, desde, hasta, tec=None, titulo="Agenda"):
@@ -1568,13 +1566,6 @@ class H(BaseHTTPRequestHandler):
                     sup = sup or personas._sup_por_nombre(autor)
                 r = datacora.responder(data.get("texto", ""), autor, sup, quien=data.get("numero") or autor)
                 return self._json(200, r or {"nada": True})
-            if self.path == "/bandeja":        # grupo bandeja: texto/foto/audio/PDF -> se clasifica y archiva
-                import bandeja
-                return self._json(200, bandeja.procesar(data.get("tipo", "texto"), data.get("texto", ""),
-                                                        data.get("ruta"), data.get("autor", ""), data.get("ts")))
-            if self.path == "/bandeja_cmd":    # !trabajos, !que paso en, !corrige, !listo, !resumen
-                import bandeja
-                return self._json(200, bandeja.comando(data.get("texto", "")))
             if self.path == "/comando":
                 return self._json(200, procesar_comando(data.get("texto", ""), data.get("autor", ""),
                                                         bool(data.get("es_admin")), bool(data.get("privado")),
