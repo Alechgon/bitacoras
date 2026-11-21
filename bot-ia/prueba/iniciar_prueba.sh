@@ -9,10 +9,15 @@ pkill -f "soserprueba-" 2>/dev/null
   while true; do
     [ $((n % 60)) -eq 0 ] && git -C ../.. pull -q 2>>../logs/prueba.log
     python sombra.py >> ../logs/prueba.log 2>&1
-    n=$((n+1)); sleep 30
+    n=$((n+1))
+    for i in 1 2 3 4 5 6; do            # lo que le escribes en el grupo Prueba se contesta en segundos
+      [ -s ~/soser-espejo/comandos.jsonl ] && python sombra.py chat >> ../logs/prueba.log 2>&1
+      sleep 5
+    done
   done' ) &
 echo "🧪 IA de prueba corriendo en modo sombra (no responde nada, solo aprende y anota)."
-echo "   Lo que entiende llega al grupo Prueba (por el bot real). En WhatsApp: !ia ver · !ia corrige N …"
+echo "   Lo que entiende llega al grupo Prueba (por el bot real). Ahí le hablas normal (texto o audio) y conversa."
+echo "   Comandos: !ia ayuda · !ia ver · !ia corrige N … · nueva (otro caso)"
 echo "   Planilla:         Descargas/SOSER-prueba/solicitudes.xlsx"
 echo "   Log en vivo:      tail -f ~/soser-prueba/bot-ia/logs/prueba.log"
 echo "   Detener:          pkill -f soserprueba-"

@@ -20,6 +20,7 @@ Uso (Termux, en ~/soser-prueba/bot-ia/prueba):
 
 Lo que entiende lo manda al grupo "Prueba" a través del bot real (buzón ~/soser-espejo/salida). Desde WhatsApp:
   !ia ver · !ia corrige 12 rubro ELEC; quiere … · !ia probar Foco suelto | Republica de brasil
+  En el grupo Prueba le hablas normal (texto o audio) y conversa como asesor de la licitación (asesor.py).
 """
 import json
 import os
@@ -480,14 +481,39 @@ def comandos_pendientes():
     os.replace(p, tmp)
     for linea in open(tmp, encoding="utf-8"):
         try:
-            c = json.loads(linea)["texto"].strip()
+            x = json.loads(linea)
+            c = (x.get("texto") or "").strip()
         except Exception:
+            continue
+        oido = ""
+        if x.get("audio"):                                   # audio tuyo en el grupo Prueba -> se transcribe
+            try:
+                oido = (bandeja.transcribir(os.path.join(ESPEJO, x["audio"])) or "").strip()
+            except Exception as e:
+                oido = ""
+                print("audio:", e)
+            if not oido:
+                avisar("🎙️ No pude entender el audio. ¿Me lo escribes?")
+                continue
+            c = (c + " " + oido).strip()
+        if not c:
             continue
         import io
         import contextlib
+        import asesor
+        partes = c.split()
+        es_cmd = not x.get("libre") and partes and partes[0].lower() in (
+            "corrige", "corregir", "ver", "probar", "reprocesar", "busca", "buscar", "ayuda", "comandos")
+        if not es_cmd:                                       # conversación con el asesor de la licitación
+            try:
+                r = asesor.conversar(c)
+            except Exception as e:
+                r = f"(se me cayó algo: {e})"
+            if r:
+                avisar((f"🎙️ _«{oido[:300]}»_\n\n" if oido else "") + r[:3500])
+            continue
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            partes = c.split()
             if partes and partes[0].lower() in ("corrige", "corregir") and len(partes) >= 3:
                 corrige(partes[1], " ".join(partes[2:]))
             elif partes and partes[0].lower() == "ver":
@@ -500,12 +526,11 @@ def comandos_pendientes():
                 import licitacion
                 print(licitacion.buscar_texto(" ".join(partes[1:])))
             elif partes and partes[0].lower() in ("ayuda", "comandos"):
-                print("Comandos: *!ia ver* · *!ia corrige 12 rubro ELEC; colegio brasil; quiere …* · "
-                      "*!ia probar Foco suelto | Republica de brasil* · *!ia busca malla mosquitera* · "
-                      "y cualquier pregunta: *!ia necesito cambiar un vidrio, ¿a quién le corresponde?*")
-            elif partes:
-                import licitacion                       # pregunta libre -> asesor de la licitación
-                print(licitacion.responder(c))
+                print("En el grupo *Prueba* me hablas normal (texto o audio), sin !: \"tengo un vidrio roto en el "
+                      "República de Haití\" y conversamos hasta ver a quién le toca; al final te ofrezco el porqué con "
+                      "las páginas de la licitación. *nueva* = otro caso · *está mal, …* = anoto la corrección.\n"
+                      "Comandos: *!ia ver* · *!ia corrige 12 rubro ELEC; colegio brasil; quiere …* · "
+                      "*!ia probar Foco suelto | Republica de brasil* · *!ia busca malla mosquitera*")
         avisar("🧪 " + (buf.getvalue().strip() or "Listo.")[:3500])
     os.remove(tmp)
 
@@ -669,6 +694,8 @@ if __name__ == "__main__":
     a = sys.argv[1:]
     if not a:
         pasada()
+    elif a[0] == "chat":                 # solo lo que escribiste (rápido; lo llama iniciar_prueba.sh cada 5 s)
+        comandos_pendientes()
     elif a[0] == "ver":
         ver(int(a[1]) if len(a) > 1 else 10)
     elif a[0] == "corrige" and len(a) >= 3:
