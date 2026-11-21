@@ -499,9 +499,13 @@ GENERAL = {
                        r"\b(fuera|afuera|sala\w*|pasillo\w*|gimnasio|oficina\w*|porteria|otra parte|del colegio)\b"),
              "estructura": ("algo del edificio: muro, techo, losa, grieta, estructura",
                             r"\b(muro\w*|pared\w*|techo|losa|loza|grieta\w*|estructur\w*|piso\w*|viga\w*|pilar\w*|edificio)\b"),
+             "sanitario": ("malla mosquitera, pintura, hongos o algo de higiene de la cocina",
+                           r"\b(malla\w*|mosquiter\w*|pintura|pintar|hongo\w*|moho|descascar\w*|humedad en (el )?muro)\b"),
              "equipo": ("un equipo, mueble o artefacto de la cocina (refrigerador, horno, cocina, campana, calefón, mesón, estante)",
                         r"\b(equipo\w*|refri\w*|refrigerador\w*|congelador\w*|horno\w*|cocina|fogon\w*|campana|calefon|termo|"
-                        r"meson\w*|estante\w*|estanteria\w*|lavaplatos|marmita\w*|batidora|balanza|mueble\w*|carro\w*|artefacto\w*)\b"),
+                        r"meson\w*|estante\w*|estanteria\w*|lavaplatos|marmita\w*|batidora|balanza|mueble\w*|carro\w*|artefacto\w*|"
+                        r"extintor\w*|basurero\w*|contenedor\w*|dispensador\w*|botiquin|termometro\w*|freidora|"
+                        r"bano maria|visicooler|salad bar|procesador\w*)\b"),
              "instalacion": ("una instalación de adentro: enchufe, llave, cañería a la vista, cable",
                              r"\b(enchufe\w*|llave\w*|caneria\w*|cable\w*|interruptor\w*|conexion\w*|instalacion\w*)\b"),
              "nose": NOSE}},
@@ -524,6 +528,14 @@ GENERAL = {
          "corto": "Si es estructura (muro, techo, losa, grietas) y no lo causamos nosotros, le toca al sostenedor.",
          "hacer": "Informar por escrito al director con fotos y registrarlo en la matriz de riesgo.",
          "citas": ESTRUCTURAL_SOSTENEDOR},
+        {"id": "sanitario", "si": {"que": "sanitario"}, "quien": "SOSER",
+         "corto": "Mallas, pintura y lo sanitario de la cocina, bodega y baño de manipuladoras son nuestros.",
+         "hacer": "Reponer o reparar (jardín: mallas en 30 días corridos).",
+         "citas": [C("BASES", 217, "Trabajos de pintura anual", "4.2.2 Pintura", "colegio"),
+                   SGC_HERMETICIDAD,
+                   C("DTMANT", 7, "La reposición deberá realizarse en un plazo máximo de 30 días", "Mallas mosquiteras", "jardin",
+                     texto="Mallas mosquiteras: la reposición deberá realizarse en un plazo máximo de 30 días corridos, "
+                           "contados desde el inicio del programa y cuando sea necesario.")]},
         {"id": "equipo", "si": {"que": "equipo"}, "quien": "SOSER",
          "corto": "Los equipos, muebles y artefactos de la cocina son nuestros: tenemos que tenerlos, reponerlos y mantenerlos "
                   "según el Anexo 17 (y también mantener los que son del establecimiento).",
@@ -545,3 +557,66 @@ GENERAL = {
          "citas": CAUSADO_SOSER + ESTRUCTURAL_SOSTENEDOR + MANTENER_OPERATIVO},
     ],
 }
+
+
+# ================================================================ TEXTOS CORTOS (lo que se dice en WhatsApp)
+# Pregunta corta (la primera vez) y la aclaración si no se entendió la respuesta (el texto largo de arriba).
+CORTAS = {
+    ("*", "tipo"): "¿Es colegio o jardín?",
+    ("vidrio", "causa"): "¿Sabes cómo se rompió?",
+    ("extractor", "ubic"): "¿Cuál extractor, el de la cocina o uno del techo?",
+    ("extractor", "sirve"): "¿Ese del techo es el de la campana?",
+    ("gotera", "origen"): "¿Gotea cuando llueve o viene de una cañería?",
+    ("electricidad", "alcance"): "¿Es algo de la cocina o se cortó la luz en todo el establecimiento?",
+    ("agua", "alcance"): "¿Es una fuga en la cocina o falta agua en todo el establecimiento?",
+    ("desague", "alcance"): "¿Es el desagüe de la cocina o el alcantarillado general?",
+    ("gas", "parte"): "¿Es de los cilindros o de la red de cañería del establecimiento?",
+    ("plagas", "donde"): "¿Las vieron dentro de la cocina o vienen de afuera?",
+    ("general", "que"): "¿Qué es exactamente?",
+    ("general", "causa"): "¿Lo causó alguien de nosotros?",
+}
+# Respuesta corta cuando NO le toca a SOSER (si le toca a SOSER se responde: "Acuso recibo, se coordina.")
+BREVES = {
+    ("*", "fuera"): "Eso está fuera de las áreas del servicio, le corresponde al establecimiento.",
+    ("vidrio", "terceros"): "Si fue un golpe de afuera, no es nuestro: hay que pedir denuncia o carta del colegio y que "
+                            "lo repare el sostenedor. Mientras, se tapa provisorio.",
+    ("vidrio", "estructura"): "Si es el marco o el muro, es estructura y le corresponde al sostenedor.",
+    ("vidrio", "desgaste_jardin"): "En jardín, si se trizó solo, le corresponde al sostenedor. Nosotros respondemos por daños nuestros.",
+    ("vidrio", "depende"): "Sin saber cómo se rompió no se puede definir. Si fue alguien nuestro nos toca; si fue de afuera "
+                           "o es el marco, es del sostenedor.",
+    ("extractor", "ducto"): "La abertura para el ducto le corresponde al sostenedor.",
+    ("extractor", "lejos"): "Ese no es nuestro, le corresponde al establecimiento.",
+    ("extractor", "techo_otro"): "Ese no es nuestro, le corresponde al establecimiento.",
+    ("extractor", "techo_campana_colegio"): "Si es el motor de la campana, lo más probable es que sea nuestro aunque esté "
+                                            "en el techo. Conviene revisarlo.",
+    ("extractor", "depende"): "Depende de cuál sea: el de la cocina es nuestro; uno industrial o de otra parte es del establecimiento.",
+    ("gotera", "lluvia"): "Si entra por el techo cuando llueve, le corresponde al sostenedor. Después nosotros dejamos el cielo limpio y pintado.",
+    ("gotera", "depende"): "Depende: si es del techo es del sostenedor; si es una cañería de la cocina, es nuestra.",
+    ("electricidad", "general"): "Si es corte en todo el establecimiento, le corresponde al sostenedor. Nosotros cuidamos la cadena de frío.",
+    ("electricidad", "depende"): "Depende: lo de la cocina es nuestro; el suministro general es del sostenedor.",
+    ("agua", "general"): "Si falta agua en todo el establecimiento, le corresponde al sostenedor.",
+    ("agua", "depende"): "Depende: una fuga en la cocina es nuestra; el suministro general es del sostenedor.",
+    ("desague", "compartido"): "Si es el alcantarillado general, le corresponde al sostenedor, salvo que lo haya tapado la cocina.",
+    ("desague", "depende"): "Depende: el desagüe de la cocina es nuestro; el alcantarillado general es del sostenedor.",
+    ("gas", "red"): "La red de cañería o el estanque le corresponde al sostenedor. Nuestras son las conexiones de la cocina.",
+    ("gas", "depende"): "Depende: cilindros, caseta y conexiones de la cocina son nuestros; la red del establecimiento es del sostenedor.",
+    ("plagas", "fuera"): "Si vienen de afuera, le corresponde al sostenedor. Nosotros revisamos que la cocina selle.",
+    ("plagas", "depende"): "Se trabaja coordinado: dentro de la cocina nos toca a nosotros, afuera al sostenedor.",
+    ("general", "estructura"): "Si es estructura y no lo causamos nosotros, le corresponde al sostenedor.",
+    ("general", "depende"): "Con eso no puedo definir a quién le toca.",
+}
+
+
+def _aplicar_cortos():
+    for f in TEMAS + [GENERAL]:
+        for p in f["preguntas"]:
+            p["aclara"] = p["texto"]
+            p["corta"] = CORTAS.get((f["id"], p["id"]), p["texto"])
+        for c in f["conclusiones"]:
+            c["breve"] = BREVES.get((f["id"], c["id"])) or BREVES.get(("*", c["id"])) or c["corto"]
+    for k, p in GLOBAL.items():
+        p["aclara"] = p["texto"]
+        p["corta"] = CORTAS.get(("*", k), p["texto"])
+
+
+_aplicar_cortos()

@@ -22,20 +22,22 @@ Se educa así:
 
 Cuando esté afinada y Manuel lo diga, se pasa a la rama principal.
 
-## Asesor de la licitación (conversa)
-En el grupo **Prueba** le hablas normal, con texto o audio y sin `!`. Por ejemplo: *"tengo un vidrio roto en el República de Haití"*.
-1. Te pregunta lo que necesita para decidir, como lo haría un colega. Ejemplos: *¿sabes cómo se rompió?*, *¿es el extractor de abajo o el del techo?*, *¿colegio o jardín?*.
-2. Te dice a quién le toca (👉 *Le toca a: …*) y te pregunta *¿quieres que te comparta el porqué?*.
-3. Si respondes que sí, te manda por escrito las frases tal cual de las Bases, el SGC o el DT de mantención, con su página. Sirve para reenviárselo al director.
+## Grupo Prueba: escribe como una supervisora
+Escribes en el grupo Prueba como si fueras una supervisora (texto, foto o audio, sin `!`). Los mensajes sueltos se juntan hasta 60 s: "Foco suelto" + foto + "República de Brasil" cuentan como un solo reporte.
+- **Si le toca a SOSER:** responde *Acuso recibo, se coordina.* y queda anotado como pendiente.
+- **Si falta un dato:** pregunta corto, por ejemplo *¿En qué establecimiento?*, *¿Sabes cómo se rompió?* o *¿Cuál extractor, el de la cocina o uno del techo?*.
+- **Si no le toca a SOSER:** responde en una frase a quién le corresponde y pregunta *¿Te comparto el porqué?*. Si dices que sí, manda las frases tal cual de la licitación con su página. *por qué* también funciona después de un acuso.
 
-Durante la conversación:
-- *"en realidad fue un alumno"*: cambia la conclusión.
-- *nueva*: empieza otro caso.
-- *está mal, …*: anota la corrección en `asesor_correcciones.jsonl`.
+Comandos (sin `!`):
+- `pendientes`: todo lo anotado. Va primero gas y equipos de calor, después por fecha. Incluye lo que reportan las supervisoras en el grupo real.
+- `ruta de hoy` / `ruta de mañana`: muestra por técnico, máx. 4. Va primero lo cerrado, después gas y equipos de calor, después por orden de emisión. Junta Datácora (solo lectura) con lo anotado; lo que no tiene tarea en Datácora aparece *(sin tarea en Datácora)*.
+- `emular bitácora república de brasil hoy` (o `ayer`, `18-11`): hace como si el técnico acabara de cerrar esa visita. Baja la bitácora a Verificadores SOSER, lee el PDF, lista los trabajos y coteja cada pendiente del colegio: *resuelto*, *lo revisó sin reparación* o *no aparece*. Los resueltos salen de la lista. Solo colegios JUNAEB, porque en jardines la bitácora es física.
+- `resuelto 3` · `borrar 3`: cierra o borra un pendiente a mano.
+- `nueva`: empieza otro caso.
+- `está mal, …`: anota la corrección.
 
-Si preguntas otra cosa (multas, plazos, auditorías…), busca en los documentos, te responde corto y te ofrece mostrar de dónde sale.
+Sin emular, cada 30 min (8 a 21 h) revisa en Datácora si se cerró una visita en un colegio con pendientes de antes, y manda el cotejo solo.
 
-- `asesor.py` es la conversación. La IA entiende tus respuestas y redacta. Si cambia la conclusión o inventa números, se usa el texto de la ficha.
-- `fichas.py` tiene los casos: vidrio, extractor, gotera, electricidad, agua, desagüe, gas, plagas y uno general para todo lo demás. Cada ficha dice qué preguntar, a qué se llega y qué frase de qué página lo respalda.
-- `Descargas/SOSER-prueba/conversaciones/` guarda todo lo conversado, para revisarlo.
-- Para probar en Termux: `python asesor.py "se cortó la luz"` y después `python asesor.py "en todo el colegio"`.
+- `operacion.py`: pendientes, ruta y cotejo de bitácoras (lee el PDF con `bitacoras.leer_pdf`).
+- `asesor.py` + `fichas.py`: deciden a quién le toca (vidrio, extractor, gotera, electricidad, agua, desagüe, gas, plagas y general), con las citas de la licitación.
+- Archivos en `Descargas/SOSER-prueba/`: `pendientes.json`, `pendientes_fotos/`, `conversaciones/`.

@@ -37,7 +37,8 @@ import fichas as F  # noqa: E402
 import licitacion as L  # noqa: E402
 
 VIDA = 30 * 60
-USAR_IA = True          # False = solo textos de las fichas (más rápido, más "mecánico")
+USAR_IA = True          # la IA entiende respuestas libres y contesta preguntas sueltas
+REDACTAR = False        # True = la IA reescribe las preguntas/respuestas (más variado, menos predecible)
 MAX_REPREGUNTAS = 1     # si no entiende la respuesta, pregunta de nuevo 1 vez; después sigue con "no se sabe"
 
 SI = r"^\s*(si+|sí+|sip|sipo|dale|ya+|ya po|bueno|ok|okey|okay|porfa|por favor|claro|obvio|de una|comparte\w*|mand\w*|" \
@@ -250,7 +251,7 @@ def _numeros(s):
 
 def natural(base, dijo, debe_contener=None, es_pregunta=False):
     """La IA lo dice con sus palabras; si se arranca (cambia la conclusión, inventa números, se alarga), va el texto base."""
-    if not USAR_IA:
+    if not (USAR_IA and REDACTAR):
         return base
     prompt = (f"{ESTILO}\n\nÉl te escribió: «{dijo}»\n\nTEXTO BASE (lo que tienes que decir):\n{base}\n\n"
               "Reescríbelo con tus palabras, natural y breve (1 a 3 frases). No agregues datos, números, plazos, "
@@ -315,12 +316,12 @@ def porque(e):
     tipo = e["datos"].get("tipo")
     lugar = (e.get("est") or {}).get("nombre", "")
     q = c["quien"]
-    cab = (f"📄 *Por qué {q}*" if norm(q).startswith(("depende", "ojo", "los dos"))
-           else f"📄 *Por qué le toca al {q[3:]}*" if q.startswith("el ") else f"📄 *Por qué le toca a {q}*")
+    cab = (f"Por qué {q}" if norm(q).startswith(("depende", "ojo", "los dos"))
+           else f"Por qué le toca al {q[3:]}" if q.startswith("el ") else f"Por qué le toca a {q}")
     tema = ficha_por_id(e["ficha"])["nombre"] if e["ficha"] != "general" else "«" + e.get("inicio", "")[:70] + "»"
-    sub = " · ".join(x for x in (tema, lugar,
+    sub = ", ".join(x for x in (tema, lugar,
                                  {"colegio": "colegio JUNAEB", "jardin": "jardín JUNJI/INTEGRA"}.get(tipo, "")) if x)
-    lin = [cab, f"_{sub}_" if sub else "", "", "Según la licitación ID 85-34-LR25:", ""]
+    lin = [cab, sub[:1].upper() + sub[1:] if sub else "", "", "Licitación 85-34-LR25:", ""]
     n = 0
     for x in citas_para(c, tipo):
         frase = textual(x)
@@ -328,14 +329,13 @@ def porque(e):
             continue
         n += 1
         donde = f"{F.NOMBRES_DOC.get(x['doc'], x['doc'])}, pág. {x['pag']}"
-        lin.append(f"{n}. *{donde}*" + (f" ({x['titulo']})" if x.get("titulo") else "") + f":\n«{frase}»\n")
-    lin.append(f"*En simple:* {c['corto']}")
+        lin.append(f"{n}. {donde}" + (f" ({x['titulo']})" if x.get("titulo") else "") + f":\n«{frase}»\n")
     if c.get("nota"):
-        lin.append(f"*Ojo:* {c['nota']}")
+        lin.append(f"Ojo: {c['nota']}")
     if c.get("criterio"):
-        lin.append("*Ojo:* esto es criterio de mantención de SOSER aplicando esas reglas; la licitación no nombra este caso con esas palabras.")
+        lin.append("Ojo: es criterio de mantención de SOSER aplicando esas reglas; la licitación no nombra este caso así.")
     if c.get("hacer"):
-        lin.append(f"*Qué hacer:* {c['hacer']}")
+        lin.append(f"Qué hacer: {c['hacer']}")
     return "\n".join(x for x in lin if x is not None).replace("\n\n\n", "\n\n")
 
 
@@ -348,7 +348,7 @@ def libre(texto, e):
     base = ""
     if USAR_IA:
         prompt = (f"{ESTILO}\n\nEXTRACTOS DE LA LICITACIÓN:\n{extractos}\n\nPREGUNTA: {texto}\n\n"
-                  "Responde en 2 o 3 frases usando SOLO los extractos, como colega. Si no está en los extractos, di que no "
+                  "Responde en 1 o 2 frases, directo, usando SOLO los extractos. Si no está en los extractos, di que no "
                   "lo encuentras. Sin citas, sin listas.\nRESPUESTA:")
         try:
             base = ollama(prompt, n=220, temp=0.2, timeout=300)
@@ -360,7 +360,7 @@ def libre(texto, e):
         base = f"Lo más cercano que encuentro es esto: «{_mejores_frases(trozos[0]['texto'], texto, 1)[:350]}»"
     e.update(ficha=None, conclusion=None, fase="ofrecido_libre", trozos=[
         {k: d[k] for k in ("doc", "archivo", "pagina", "texto")} for d in trozos[:3]], pregunta_libre=texto)
-    return base + "\n\n¿Quieres que te muestre de dónde sale?"
+    return base + " ¿Te muestro de dónde sale?"
 
 
 def _limpio(s):
@@ -379,142 +379,200 @@ def _mejores_frases(texto, pregunta, n=2):
 
 
 def porque_libre(e):
-    lin = ["📄 *De dónde sale* (licitación ID 85-34-LR25)", ""]
+    lin = ["De dónde sale (licitación 85-34-LR25):", ""]
     for i, d in enumerate(e.get("trozos", []), 1):
         sel = _mejores_frases(d["texto"], e.get("pregunta_libre", ""))[:600]
         donde = L.cita(d).strip("[]")
         if d["doc"] == "GUÍA":
-            donde += " (guía interna, resume las bases con su página)"
-        lin.append(f"{i}. *{donde}*:\n«{sel}»\n")
+            donde += " (guía interna)"
+        lin.append(f"{i}. {donde}:\n«{sel}»\n")
     return "\n".join(lin)
 
 
 # ================================================================ la conversación
-def _intro(e, ficha):
-    est = e.get("est") or {}
-    if est.get("nombre"):
-        return f"Ya, {ficha['nombre']} en el {est['nombre']}."
-    return f"Ya, {ficha['nombre']}." if ficha["id"] != "general" else "Ya."
+POR_QUE = r"\b(por que|porque|el porque|justifica\w*|de donde sale|fundamento|respaldo)\b"
+ACK = r"^\s*(ok|okey|okay|ya|dale|gracias|vale|perfecto|buena|bacan|genial|listo|si|no|bueno)\b"
 
 
-def _preguntar(e, ficha, sid, dijo, intro="", no_entendi=False):
+def es_soser(c):
+    q = c["quien"]
+    return q.startswith("SOSER") and "probable" not in q
+
+
+def sin_colegio(texto, nombre):
+    """Saca el nombre del establecimiento del texto ('Foco suelto Republica de brasil' -> 'Foco suelto')."""
+    if not nombre:
+        return texto
+    plano = "".join(norm(ch)[:1] or " " for ch in texto)          # mismo largo que el original
+    ws = norm(nombre).split()
+    spans = sorted({" ".join(ws[i:j]) for i in range(len(ws)) for j in range(i + 1, len(ws) + 1)}, key=len, reverse=True)
+    for w in spans:
+        if len(w) < 5 or w in ("republica", "escuela", "colegio", "liceo", "jardin"):
+            continue
+        m = re.search(r"(\b(en el|en la|del|de la|en)\s+)?\b" + re.escape(w) + r"\b", plano)
+        if m:
+            texto = texto[:m.start()] + texto[m.end():]
+            break
+    texto = re.sub(r"\s+([,.;:])", r"\1", re.sub(r"\s+", " ", texto)).strip(" ,.;:-")
+    return texto[:1].upper() + texto[1:] if texto else texto
+
+
+def _preguntar(e, ficha, sid, dijo, no_entendi=False):
+    if sid == "colegio":
+        veces = e["preguntadas"].get("colegio", 0)
+        e["preguntadas"]["colegio"] = veces + 1
+        e["pendiente"], e["fase"] = "colegio", "preguntando"
+        return "No lo encuentro. ¿Me das el nombre o el RBD?" if veces else "¿En qué establecimiento?"
     p = _todas_preguntas(ficha)[sid]
     veces = e["preguntadas"].get(sid, 0)
     e["preguntadas"][sid] = veces + 1
     e["pendiente"], e["fase"] = sid, "preguntando"
-    base = "No te pillé bien. " + p["texto"] if (veces and no_entendi) else p["texto"]
-    return natural((intro + " " + base).strip(), dijo, es_pregunta=True)
+    return p.get("aclara", p["texto"]) if (veces and no_entendi) else p.get("corta", p["texto"])
 
 
-def _concluir(e, c, dijo, intro=""):
-    e.update(conclusion=c["id"], fase="ofrecido", pendiente=None)
-    quien = c["quien"]
-    base = (intro + " " + c["corto"]).strip()
-    clave = [w for w in ("soser", "sostenedor", "establecimiento", "nosotros", "depende") if w in norm(c["corto"])][:1]
-    txt = natural(base, dijo, debe_contener=clave)
-    return f"{txt}\n\n👉 *Le toca a: {quien}*\n¿Quieres que te comparta el porqué?"
+def _concluir(e, c, dijo):
+    e.update(conclusion=c["id"], pendiente=None)
+    if es_soser(c):
+        import operacion
+        est = e.get("est") or {}
+        que = sin_colegio(e.get("reporte") or e.get("inicio", ""), est.get("nombre", ""))
+        p, nuevo = operacion.agregar(que, est.get("rbd"), clave=f"{e['ficha']}:{c['id']}",
+                                     origen=e.get("origen", "Prueba"), archivos=e.get("archivos"))
+        e.update(fase="anotado", pend_id=p["id"])
+        return "Acuso recibo, se coordina." if nuevo else f"Ya estaba anotado (pendiente {p['id']}). Se coordina."
+    e["fase"] = "ofrecido"
+    return c.get("breve", c["corto"]) + " ¿Te comparto el porqué?"
 
 
-def avanzar(e, dijo, intro="", no_entendi=False):
+def avanzar(e, dijo, no_entendi=False):
     ficha = ficha_por_id(e["ficha"])
+    if not e.get("est") and not e.get("sin_colegio"):
+        return _preguntar(e, ficha, "colegio", dijo, no_entendi)
     accion, x = decidir(e, ficha)
     if accion == "preguntar":
-        return _preguntar(e, ficha, x, dijo, intro, no_entendi)
-    return _concluir(e, x, dijo, intro)
+        return _preguntar(e, ficha, x, dijo, no_entendi)
+    return _concluir(e, x, dijo)
 
 
-def nuevo_caso(texto, ficha, previo=None):
-    e = {"ficha": ficha["id"], "datos": {}, "preguntadas": {}, "pendiente": None, "fase": "", "inicio": texto}
-    est = establecimiento(texto) or (previo or {}).get("est")       # si no nombras otro, sigue el mismo establecimiento
+def _poner_est(e, est):
+    e["est"] = est
+    if est.get("tipo"):
+        e["datos"]["tipo"] = est["tipo"]
+
+
+def nuevo_caso(texto, ficha, previo=None, origen="Prueba", archivos=None):
+    e = {"ficha": ficha["id"], "datos": {}, "preguntadas": {}, "pendiente": None, "fase": "", "inicio": texto,
+         "reporte": texto, "origen": origen, "archivos": list(archivos or [])}
+    est = establecimiento(texto)
     if est:
-        e["est"] = est
-        if est.get("tipo"):
-            e["datos"]["tipo"] = est["tipo"]
-    elif (previo or {}).get("datos", {}).get("tipo"):
-        e["datos"]["tipo"] = previo["datos"]["tipo"]
+        _poner_est(e, est)
     llenar(e, ficha, texto)
     return e
 
 
-def conversar(texto, libre_msg=False):
-    """Un mensaje tuyo -> la respuesta de la IA (texto para WhatsApp)."""
+def evaluar(texto):
+    """Sin conversar (para lo que reportan las supervisoras): (ficha, conclusión o None si faltan datos)."""
+    ficha = elegir_ficha(texto) or (F.GENERAL if re.search(PIDE_DECISION, norm(texto)) else None)
+    if not ficha:
+        return None, None
+    e = nuevo_caso(texto, ficha)
+    accion, x = decidir(e, ficha)
+    return ficha, (x if accion == "concluir" else None)
+
+
+def conversar(texto, archivos=None, origen="Prueba"):
+    """Un mensaje (o varios juntos) -> la respuesta para WhatsApp. "" = no hace falta responder."""
     texto = (texto or "").strip()
     if not texto:
         return ""
     registrar("Tú", texto)
     t = norm(texto)
     e = estado()
+    corto = len(t.split()) <= 6
 
     if re.search(NUEVA, t):
         olvidar()
-        r = "Listo, empecemos de cero. ¿Qué pasó?"
+        r = "Listo. ¿Qué pasó?"
     elif e and re.search(CORRIGE, t):
         with open(os.path.join(_base(), "asesor_correcciones.jsonl"), "a", encoding="utf-8") as f:
             f.write(json.dumps({"ts": time.time(), "texto": texto, "estado": e}, ensure_ascii=False) + "\n")
-        r = ("Anotado 👍 Lo dejo para revisar la ficha. Si me dices cómo es en la práctica, también lo anoto "
-             "(empieza con \"está mal, …\").")
+        r = "Anotado, lo reviso."
         guardar(e)
-    elif e.get("fase") in ("ofrecido", "ofrecido_libre") and re.search(SI, t) and len(t.split()) <= 6:
-        r = porque(e) if e["fase"] == "ofrecido" else porque_libre(e)
+    elif e.get("conclusion") and e.get("fase") in ("ofrecido", "anotado", "explicado", "cerrado") and corto \
+            and (re.search(POR_QUE, t) or (e["fase"] == "ofrecido" and re.search(SI, t))):
+        r = porque(e)
         e["fase"] = "explicado"
         guardar(e)
-    elif e.get("fase") in ("ofrecido", "ofrecido_libre", "explicado") and re.search(NO, t) and len(t.split()) <= 5 \
-            and not re.search(F.NOSE[1], t):
-        r = "Dale 👍 Cualquier otra cosa me dices."
-        e["fase"] = "cerrado"
+    elif e.get("fase") == "ofrecido_libre" and corto and (re.search(SI, t) or re.search(POR_QUE, t)):
+        r = porque_libre(e)
+        e["fase"] = "explicado"
         guardar(e)
-    elif e.get("fase") in ("ofrecido", "explicado") and re.search(F.NOSE[1], t) and len(t.split()) <= 5:
-        r = "Dale. Cuando sepas más me cuentas y lo vemos 👍"
-        e["fase"] = "cerrado"
-        guardar(e)
-    elif e.get("fase") in ("explicado", "cerrado", None, "") and len(t.split()) <= 3 and (re.search(SI, t) or re.search(NO, t)
-                                                                                      or re.search(r"^\s*(perfecto|buena|vale|bacan|genial|gracias)", t)):
-        r = "👍"                            # "dale", "gracias", "ok" cuando no hay nada pendiente
+    elif e.get("fase") != "preguntando" and len(t.split()) <= 3 and re.search(ACK, t) and not re.search(F.NOSE[1], t):
+        r = ""                                 # "ok", "gracias", "no": no hace falta contestar
+        if e.get("fase") == "ofrecido":
+            e["fase"] = "cerrado"
+            guardar(e)
     else:
-        r = _responder(texto, e)
-    registrar("IA", r)
+        r = _responder(texto, e, archivos or [], origen)
+    if r:
+        registrar("IA", r)
     return r
 
 
-def _responder(texto, e):
+def _responder(texto, e, archivos, origen):
     t = norm(texto)
     ficha_txt = elegir_ficha(texto)
+    est_txt = establecimiento(texto)
     # ¿responde a lo que pregunté?
     if e.get("fase") == "preguntando" and e.get("ficha"):
         ficha = ficha_por_id(e["ficha"])
+        e["reporte"] = (e.get("reporte", "") + " " + texto).strip() if e["pendiente"] == "colegio" else e.get("reporte", "")
+        e["archivos"] = e.get("archivos", []) + archivos
+        if e["pendiente"] == "colegio":
+            if est_txt:
+                _poner_est(e, est_txt)
+            elif e["preguntadas"].get("colegio", 0) >= 2:
+                e["sin_colegio"] = True
+            cambios, _ = llenar(e, ficha, texto)
+            r = avanzar(e, texto, no_entendi=not est_txt)
+            guardar(e)
+            return r
         cambios, _ = llenar(e, ficha, texto, pendiente=e["pendiente"])
+        if est_txt and not e.get("est"):
+            _poner_est(e, est_txt)
+            cambios = cambios or {"colegio": est_txt["rbd"]}
         if cambios or not (ficha_txt and ficha_txt["id"] != ficha["id"] and len(t.split()) > 4):
             r = avanzar(e, texto, no_entendi=not cambios)
             guardar(e)
             return r
     # ¿corrige o agrega un dato del caso ya concluido? ("en realidad lo rompió la manipuladora")
-    if e.get("ficha") and e.get("fase") in ("ofrecido", "explicado", "cerrado") and not (ficha_txt and ficha_txt["id"] != e["ficha"]):
+    if e.get("ficha") and e.get("fase") in ("ofrecido", "anotado", "explicado", "cerrado") \
+            and not (ficha_txt and ficha_txt["id"] != e["ficha"]) and not (est_txt and ficha_txt):
         ficha = ficha_por_id(e["ficha"])
         antes = e.get("conclusion")
         cambios, reconocidos = llenar(e, ficha, texto, corrigiendo=True)
         if cambios:
             accion, x = decidir(e, ficha)
-            intro = "Ah, eso cambia la cosa." if accion == "preguntar" or x["id"] != antes else "Igual queda en lo mismo."
-            r = avanzar(e, texto, intro)
+            if accion == "concluir" and x["id"] == antes:
+                guardar(e)
+                return "Queda igual."
+            r = avanzar(e, texto)
             guardar(e)
             return r
         if reconocidos:
             guardar(e)
-            return "Sí, eso ya lo tenía considerado 👍 ¿Te comparto el porqué?" if e["fase"] == "ofrecido" else \
-                "Sí, eso ya lo tenía considerado 👍"
+            return "Eso ya lo tenía considerado."
     # caso nuevo
     if ficha_txt or re.search(PIDE_DECISION, t):
         ficha = ficha_txt or F.GENERAL
-        cambia = bool(e.get("ficha"))
-        e = nuevo_caso(texto, ficha, previo=e)
-        r = avanzar(e, texto, ("Ah, entonces es otro tema: " + ficha["nombre"] + ".") if cambia and ficha["id"] != "general"
-                    else _intro(e, ficha))
+        e = nuevo_caso(texto, ficha, previo=e, origen=origen, archivos=archivos)
+        r = avanzar(e, texto)
         guardar(e)
         return r
-    # pregunta libre sobre la licitación (si no parece pregunta, mejor preguntar qué necesita)
-    if len(t.split()) < 4 and "?" not in texto and not re.search(
+    # pregunta libre sobre la licitación (si no parece pregunta, mejor preguntar qué pasó)
+    if "?" not in texto and not re.search(
             r"\b(cual|cuanto|cuantos|cuantas|que|como|cuando|donde|quien|puedo|se puede|hay que|plazo|multa)\b", t):
-        return "No te pillé 🤔 ¿Me cuentas qué pasó o qué quieres saber de la licitación?"
+        return "No te entendí. ¿Qué pasó y en qué establecimiento?"
     e = {"datos": {}, "preguntadas": {}}
     r = libre(texto, e)
     guardar(e)

@@ -357,6 +357,11 @@ def en_datacora(rbd):
     return ""
 
 
+def asesor_es_soser(c):
+    import asesor
+    return asesor.es_soser(c)
+
+
 def respuesta_simulada(it):
     """Lo que el bot HABRÍA contestado (no se manda: es para que tú lo evalúes)."""
     sup = it.get("supervisora") or ""
@@ -367,13 +372,13 @@ def respuesta_simulada(it):
     if it["tipo"] == "AVISO":
         return f"Gracias {sup}, priorizamos lo pendiente de {col}."
     if it["tipo"] == "RECLAMO":
-        return f"{sup}, disculpa, lo reviso altiro y te aviso cuándo vuelve el técnico a {col}."
+        return f"{sup}, lo reviso y te aviso cuándo vuelve el técnico a {col}."
     if it["tipo"] == "INFORMACION":
         return ""
-    base_txt = f"Recibido {sup} 👍 {it.get('que_piden') or 'lo informado'} en {col}."
-    if it.get("datacora"):
-        return base_txt + f" Ya tiene visita: {it['datacora']}, se ve ahí."
-    return base_txt + f" Lo dejamos antes del {it.get('plazo', '')}" + (" (urgente)." if it.get("urgente") else ".")
+    c = it.get("_conclusion")
+    if c and not asesor_es_soser(c):
+        return c.get("breve", c["corto"])
+    return "Acuso recibo, se coordina."
 
 
 def interpretar(sol, items):
@@ -425,7 +430,17 @@ def interpretar(sol, items):
     }
     it["licitacion"] = plazo_licitacion(texto)
     it["datacora"] = en_datacora(rbd) if tipo in ("REQUERIMIENTO", "PREGUNTA") else ""
+    ficha, concl = None, None
+    if tipo in ("REQUERIMIENTO", "RECLAMO"):
+        try:
+            import asesor
+            ficha, concl = asesor.evaluar(" ".join(solo_textos) or texto)
+        except Exception as e:
+            print("asesor:", e)
+    it["_conclusion"] = concl
     it["respuesta"] = respuesta_simulada(it)
+    it.pop("_conclusion", None)
+    it["a_quien"] = concl["quien"] if concl else ""
     # carpeta con copia de fotos/audios (el espejo queda intacto)
     sub = f'{it["fecha"]} {it["hora"].replace(":", "")} {it["rubro"]}'
     rel = os.path.join("Colegios", bandeja._limpio(f'{it["colegio"]} ({rbd})'), sub) if rbd else os.path.join("Sin colegio", sub)
@@ -435,6 +450,16 @@ def interpretar(sol, items):
         dst = ruta(rel, os.path.basename(a))
         shutil.copy(a, dst)
         it["archivos"].append(os.path.relpath(dst, base()))
+    if rbd and tipo in ("REQUERIMIENTO", "RECLAMO") and (not concl or asesor_es_soser(concl)) and not PROBANDO:
+        try:
+            import operacion
+            p, _ = operacion.agregar(it["que_piden"] or texto, rbd,
+                                     clave=f"{ficha['id']}:{concl['id'] if concl else ''}" if ficha else it["rubro"],
+                                     origen=it["supervisora"] or "supervisora", ts=msgs[0]["ts"],
+                                     archivos=[os.path.join(base(), a) for a in it["archivos"] if a.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))])
+            it["pendiente"] = p["id"]
+        except Exception as e:
+            print("pendiente:", e)
     with open(ruta(rel, "nota.md"), "w", encoding="utf-8") as f:
         f.write(f'# #{it["id"]} · {it["tipo"]} · {it["rubro"]} · {it["colegio"] or "sin colegio"}\n\n'
                 f'- Supervisora: {it["supervisora"]}\n- Fecha: {it["fecha"]} {it["hora"]}\n'
@@ -454,85 +479,147 @@ def avisar(texto, archivos=None):
 
 
 def tarjeta(it):
-    lin = [f'🧪 *IA de prueba* · #{it["id"]}',
-           f'👩‍💼 {it["supervisora"] or "?"} · 🏫 {it["colegio"] or "_sin colegio_"}',
-           f'📋 {it["tipo"]} · {it["rubro"]}{" · 🚨 URGENTE" if it.get("urgente") else ""} · plazo {it["plazo"]}']
-    if it.get("que_piden"):
-        lin.append(f'🔧 {it["que_piden"]}')
-    if it.get("licitacion"):
-        lin.append(f'⚖️ Licitación: {it["licitacion"]}')
-    if it.get("datacora"):
-        lin.append(f'📅 Datácora: {it["datacora"]}')
-    if it.get("archivos"):
-        lin.append(f'📎 {len(it["archivos"])} archivo(s)')
+    """Lo que entendió de una supervisora, en corto."""
+    lin = [f'Solicitud {it["id"]} · {it["supervisora"] or "?"} · {it["colegio"] or "sin colegio"}: '
+           f'{it["que_piden"] or it["mensajes"][:120]}']
     if it.get("respuesta"):
-        lin.append(f'💬 Habría respondido: «{it["respuesta"]}»')
-    lin.append("🗨️ " + it["mensajes"][:300].replace("\n", " | "))
-    lin.append(f'_Si está mal: *!ia corrige {it["id"]} rubro ELEC; colegio brasil; tipo REQUERIMIENTO; quiere …*_')
+        lin.append(f'Respondería: {it["respuesta"]}')
+    if it.get("pendiente"):
+        lin.append(f'Pendiente {it["pendiente"]}.')
     return "\n".join(lin)
 
 
-def comandos_pendientes():
-    """Lo que escribiste con !ia en WhatsApp (el bot real lo deja en comandos.jsonl)."""
-    p = os.path.join(ESPEJO, "comandos.jsonl")
-    if not os.path.exists(p):
+BUFFER = os.path.join(ESPEJO, ".buffer_prueba.json")
+ESPERA_JUNTAR = 60          # mensajes sueltos ("Foco suelto" + foto + "República de Brasil") se juntan hasta 60 s
+
+
+def _hablar(texto, archivos=None):
+    import asesor
+    import operacion
+    try:
+        r = operacion.comando(texto)
+        if r is None:
+            r = asesor.conversar(texto, archivos=archivos or [], origen="Prueba")
+    except Exception as e:
+        r = f"Error: {e}"
+        print("hablar:", repr(e), flush=True)
+    if r:
+        avisar(r[:3500])
+
+
+def _completo(texto):
+    """¿Ya dice qué pasó y dónde? Entonces no se espera más."""
+    import asesor
+    t = bandeja.norm(texto)
+    return bool(asesor.establecimiento(texto)) and bool(
+        asesor.elegir_ficha(texto) or re.search(asesor.PIDE_DECISION, t) or reglas(texto)["rubro"])
+
+
+def _inmediato(texto):
+    """Respuestas, comandos y preguntas no se juntan: se contestan al tiro."""
+    import asesor
+    import operacion
+    t = bandeja.norm(texto)
+    e = asesor.estado()
+    if operacion.es_comando(texto) or e.get("fase") == "preguntando":
+        return True
+    if re.search(asesor.NUEVA, t) or re.search(asesor.CORRIGE, t) or "?" in texto:
+        return True
+    if re.match(r"\s*(cual|cuanto|cuantos|como|que|donde|cuando|quien|se puede|hay que|puedo)\b", t):
+        return True
+    return bool(e) and len(t.split()) <= 6 and bool(re.search(asesor.SI, t) or re.search(asesor.NO, t)
+                                                     or re.search(asesor.POR_QUE, t) or re.search(asesor.ACK, t))
+
+
+def _vaciar_buffer(forzar=False):
+    try:
+        b = json.load(open(BUFFER, encoding="utf-8"))
+    except Exception:
         return
-    tmp = p + ".leyendo"
-    os.replace(p, tmp)
-    for linea in open(tmp, encoding="utf-8"):
-        try:
-            x = json.loads(linea)
-            c = (x.get("texto") or "").strip()
-        except Exception:
-            continue
-        oido = ""
-        if x.get("audio"):                                   # audio tuyo en el grupo Prueba -> se transcribe
+    texto = " ".join(x for x in b.get("textos", []) if x).strip()
+    if forzar or (texto and _completo(texto)) or time.time() - b.get("t", 0) >= ESPERA_JUNTAR:
+        os.remove(BUFFER)
+        if texto:
+            _hablar(texto, b.get("archivos"))
+
+
+def _al_buffer(texto, archivos):
+    try:
+        b = json.load(open(BUFFER, encoding="utf-8"))
+    except Exception:
+        b = {"textos": [], "archivos": []}
+    b["textos"].append(texto)
+    b["archivos"] += archivos
+    b["t"] = time.time()
+    json.dump(b, open(BUFFER, "w", encoding="utf-8"), ensure_ascii=False)
+
+
+def comandos_pendientes():
+    """Lo que escribes en el grupo Prueba (o con !ia): el bot real lo deja en comandos.jsonl."""
+    p = os.path.join(ESPEJO, "comandos.jsonl")
+    if os.path.exists(p):
+        tmp = p + ".leyendo"
+        os.replace(p, tmp)
+        for linea in open(tmp, encoding="utf-8"):
             try:
-                oido = (bandeja.transcribir(os.path.join(ESPEJO, x["audio"])) or "").strip()
-            except Exception as e:
-                oido = ""
-                print("audio:", e)
-            if not oido:
-                avisar("🎙️ No pude entender el audio. ¿Me lo escribes?")
+                x = json.loads(linea)
+            except Exception:
                 continue
-            c = (c + " " + oido).strip()
-        if not c:
-            continue
-        import io
-        import contextlib
-        import asesor
-        partes = c.split()
-        es_cmd = not x.get("libre") and partes and partes[0].lower() in (
-            "corrige", "corregir", "ver", "probar", "reprocesar", "busca", "buscar", "ayuda", "comandos")
-        if not es_cmd:                                       # conversación con el asesor de la licitación
-            try:
-                r = asesor.conversar(c)
-            except Exception as e:
-                r = f"(se me cayó algo: {e})"
-            if r:
-                avisar((f"🎙️ _«{oido[:300]}»_\n\n" if oido else "") + r[:3500])
-            continue
-        buf = io.StringIO()
-        with contextlib.redirect_stdout(buf):
-            if partes and partes[0].lower() in ("corrige", "corregir") and len(partes) >= 3:
-                corrige(partes[1], " ".join(partes[2:]))
-            elif partes and partes[0].lower() == "ver":
-                ver(int(partes[1]) if len(partes) > 1 and partes[1].isdigit() else 5)
-            elif partes and partes[0].lower() == "probar":
-                probar([x.strip() for x in " ".join(partes[1:]).split("|") if x.strip()])
-            elif partes and partes[0].lower() == "reprocesar":
-                print("Reprocesar se hace desde Termux: python sombra.py reprocesar")
-            elif partes and partes[0].lower() in ("busca", "buscar"):
-                import licitacion
-                print(licitacion.buscar_texto(" ".join(partes[1:])))
-            elif partes and partes[0].lower() in ("ayuda", "comandos"):
-                print("En el grupo *Prueba* me hablas normal (texto o audio), sin !: \"tengo un vidrio roto en el "
-                      "República de Haití\" y conversamos hasta ver a quién le toca; al final te ofrezco el porqué con "
-                      "las páginas de la licitación. *nueva* = otro caso · *está mal, …* = anoto la corrección.\n"
-                      "Comandos: *!ia ver* · *!ia corrige 12 rubro ELEC; colegio brasil; quiere …* · "
-                      "*!ia probar Foco suelto | Republica de brasil* · *!ia busca malla mosquitera*")
-        avisar("🧪 " + (buf.getvalue().strip() or "Listo.")[:3500])
-    os.remove(tmp)
+            _un_mensaje(x)
+        os.remove(tmp)
+    _vaciar_buffer()
+
+
+def _un_mensaje(x):
+    c = (x.get("texto") or "").strip()
+    archivos = [os.path.join(ESPEJO, x["imagen"])] if x.get("imagen") else []
+    if x.get("audio"):                                       # audio -> se transcribe
+        try:
+            oido = (bandeja.transcribir(os.path.join(ESPEJO, x["audio"])) or "").strip()
+        except Exception as e:
+            oido = ""
+            print("audio:", e)
+        if not oido:
+            avisar("No pude entender el audio. ¿Me lo escribes?")
+            return
+        c = (c + " " + oido).strip()
+    if not c and not archivos:
+        return
+    partes = c.split()
+    if not x.get("libre") and partes and partes[0].lower() in (
+            "corrige", "corregir", "ver", "probar", "reprocesar", "busca", "buscar", "ayuda", "comandos"):
+        _vaciar_buffer(forzar=True)
+        _comando_ia(partes)
+        return
+    if not x.get("libre") or (c and _inmediato(c)):            # !ia … o una respuesta: al tiro
+        _vaciar_buffer(forzar=True)
+        _hablar(c, archivos)
+        return
+    _al_buffer(c, archivos)                                  # reporte suelto: se junta con lo que venga
+    _vaciar_buffer()
+
+
+def _comando_ia(partes):
+    import io
+    import contextlib
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        if partes[0].lower() in ("corrige", "corregir") and len(partes) >= 3:
+            corrige(partes[1], " ".join(partes[2:]))
+        elif partes[0].lower() == "ver":
+            ver(int(partes[1]) if len(partes) > 1 and partes[1].isdigit() else 5)
+        elif partes[0].lower() == "probar":
+            probar([x.strip() for x in " ".join(partes[1:]).split("|") if x.strip()])
+        elif partes[0].lower() == "reprocesar":
+            print("Reprocesar se hace desde Termux: python sombra.py reprocesar")
+        elif partes[0].lower() in ("busca", "buscar"):
+            import licitacion
+            print(licitacion.buscar_texto(" ".join(partes[1:])))
+        elif partes[0].lower() in ("ayuda", "comandos"):
+            print("En el grupo Prueba escribe como una supervisora (texto, foto o audio). "
+                  "Comandos sin !: pendientes · ruta de hoy · ruta de mañana · "
+                  "emular bitácora <colegio> <hoy|ayer|dd-mm> · resuelto <n> · borrar <n> · nueva · está mal, …")
+    avisar((buf.getvalue().strip() or "Listo.")[:3500])
 
 
 def pasada(forzar_cierre=False):
@@ -551,6 +638,12 @@ def pasada(forzar_cierre=False):
     _guardar_estado(est)
     for it in nuevos:
         avisar(tarjeta(it))
+    try:
+        import operacion
+        for txt in operacion.revisar_cierres():          # visitas cerradas en colegios con pendientes
+            avisar(txt)
+    except Exception as e:
+        print("cierres:", e, flush=True)
     for it in nuevos:
         print(f'{datetime.now():%H:%M} #{it["id"]} {it["supervisora"]} · {it["colegio"] or "?"} · {it["tipo"]} · '
               f'{it["rubro"]} · {it["que_piden"]}', flush=True)
@@ -681,7 +774,12 @@ def reprocesar():
     pasada(forzar_cierre=True)
 
 
+PROBANDO = False
+
+
 def probar(frases):
+    global PROBANDO
+    PROBANDO = True
     now = time.time()
     sol = {"autor": "Prueba", "msgs": [{"id": f"p{i}", "ts": now + i, "tipo": "texto", "texto": f, "archivo": ""}
                                        for i, f in enumerate(frases)]}
