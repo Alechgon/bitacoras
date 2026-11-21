@@ -436,16 +436,17 @@ async function manejar (m) {
       normal(await nombreGrupo(jid)).trim() === normal(cfg().prueba_grupo || 'Prueba').trim()) {
     const i = interior(m)
     const fila = { ts: tsDe(m), texto, libre: true }
-    if (i.audioMessage) {
+    if (i.audioMessage || i.imageMessage) {                // audio (se transcribe) o foto (queda con el pendiente)
+      const ext = i.audioMessage ? '.ogg' : '.jpg'
       try {
         const dir = path.join(ESPEJO, 'media', 'prueba')
         fs.mkdirSync(dir, { recursive: true })
-        const buf = await conTope(downloadMediaMessage(m, 'buffer', {}), 120000, 'bajar audio')
-        fs.writeFileSync(path.join(dir, `${tsDe(m)}_${m.key.id}.ogg`), buf)
-        fila.audio = path.join('media', 'prueba', `${tsDe(m)}_${m.key.id}.ogg`)
-      } catch (e) { log('⚠️ audio prueba:', e.message) }
+        const buf = await conTope(downloadMediaMessage(m, 'buffer', {}), 120000, 'bajar media')
+        fs.writeFileSync(path.join(dir, `${tsDe(m)}_${m.key.id}${ext}`), buf)
+        fila[i.audioMessage ? 'audio' : 'imagen'] = path.join('media', 'prueba', `${tsDe(m)}_${m.key.id}${ext}`)
+      } catch (e) { log('⚠️ media prueba:', e.message) }
     }
-    if (fila.texto || fila.audio) {
+    if (fila.texto || fila.audio || fila.imagen) {
       fs.mkdirSync(ESPEJO, { recursive: true })
       fs.appendFileSync(path.join(ESPEJO, 'comandos.jsonl'), JSON.stringify(fila) + '\n')
     }
