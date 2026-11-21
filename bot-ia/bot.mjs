@@ -404,7 +404,7 @@ async function revisarBuzon () {
     try { fs.unlinkSync(p) } catch {}
   }
 }
-setInterval(() => revisarBuzon().catch(() => {}), 30000)
+setInterval(() => revisarBuzon().catch(() => {}), 8000)
 
 async function manejar (m) {
   if (!m.message || m.key.fromMe) return
@@ -429,6 +429,26 @@ async function manejar (m) {
     fs.mkdirSync(ESPEJO, { recursive: true })
     fs.appendFileSync(path.join(ESPEJO, 'comandos.jsonl'), JSON.stringify({ ts: tsDe(m), texto: texto.replace(/^!\s*ia\s*/i, '') }) + '\n')
     encolar(jid, { react: { text: '🧪', key: m.key } }, {}, 300)
+    return
+  }
+  // En el grupo de prueba le hablas normal a la IA (texto o audio, sin "!"): se le pasa tal cual y contesta ahí mismo
+  if (admin && jid.endsWith('@g.us') && !texto.startsWith('!') &&
+      normal(await nombreGrupo(jid)).trim() === normal(cfg().prueba_grupo || 'Prueba').trim()) {
+    const i = interior(m)
+    const fila = { ts: tsDe(m), texto, libre: true }
+    if (i.audioMessage) {
+      try {
+        const dir = path.join(ESPEJO, 'media', 'prueba')
+        fs.mkdirSync(dir, { recursive: true })
+        const buf = await conTope(downloadMediaMessage(m, 'buffer', {}), 120000, 'bajar audio')
+        fs.writeFileSync(path.join(dir, `${tsDe(m)}_${m.key.id}.ogg`), buf)
+        fila.audio = path.join('media', 'prueba', `${tsDe(m)}_${m.key.id}.ogg`)
+      } catch (e) { log('⚠️ audio prueba:', e.message) }
+    }
+    if (fila.texto || fila.audio) {
+      fs.mkdirSync(ESPEJO, { recursive: true })
+      fs.appendFileSync(path.join(ESPEJO, 'comandos.jsonl'), JSON.stringify(fila) + '\n')
+    }
     return
   }
   // !ping → contesta al tiro, sin pasar por Python ni por la cola (para saber si el bot está vivo)
